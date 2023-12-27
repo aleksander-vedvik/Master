@@ -1,6 +1,7 @@
 proto:
-	protoc -I=:. \
-	--go_out=paths=source_relative:. \
-	--gorums_out=paths=source_relative:. \
+	@protoc \
+	--go_out=protos \
+	--gorums_out=protos \
 	--proto_path=protos \
 	storage.proto
+	@echo "Proto files generated successfully"
