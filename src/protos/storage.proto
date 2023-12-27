@@ -1,0 +1,19 @@
+syntax = "proto3";
+package gorumsexample;
+option go_package = ".;gorumsexample";
+
+service Storage {
+  rpc Read(ReadRequest) returns (State) { }
+  rpc Write(State) returns (WriteResponse) { }
+}
+
+message State {
+  string Value = 1;
+  int64 Timestamp = 2;
+}
+
+message WriteResponse {
+  bool New = 1;
+}
+
+message ReadRequest {}
