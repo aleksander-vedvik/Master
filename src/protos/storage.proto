@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package proto;
+package protos;
 
 import "gorums.proto";
 import "google/protobuf/empty.proto";
 
-option go_package = "github.com/aleksander-vedvik/Master/protos";
+option go_package = ".";
 
 
 service StorageService{
