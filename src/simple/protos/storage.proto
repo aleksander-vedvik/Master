@@ -9,7 +9,9 @@ option go_package = ".";
 
 
 service StorageService{
-    rpc Write(WriteRequest)returns(google.protobuf.Empty){}
+    rpc Write(WriteRequest)returns(google.protobuf.Empty){
+        option (gorums.quorumcall) = true;
+    }
 
     rpc Read(google.protobuf.Empty)returns(ReadResponse){
         option (gorums.quorumcall) = true;

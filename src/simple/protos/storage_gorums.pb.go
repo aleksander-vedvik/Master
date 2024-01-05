@@ -149,12 +149,41 @@ type Node struct {
 type QuorumSpec interface {
 	gorums.ConfigOption
 
+	// WriteQF is the quorum function for the Write
+	// quorum call method. The in parameter is the request object
+	// supplied to the Write method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *WriteRequest'.
+	WriteQF(in *WriteRequest, replies map[uint32]*empty.Empty) (*empty.Empty, bool)
+
 	// ReadQF is the quorum function for the Read
 	// quorum call method. The in parameter is the request object
 	// supplied to the Read method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *empty.Empty'.
 	ReadQF(in *empty.Empty, replies map[uint32]*ReadResponse) (*ReadResponse, bool)
+}
+
+// Write is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *empty.Empty, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.StorageService.Write",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*empty.Empty, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*empty.Empty)
+		}
+		return c.qspec.WriteQF(req.(*WriteRequest), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*empty.Empty), err
 }
 
 // Read is a quorum call invoked on all nodes in configuration c,
@@ -179,21 +208,6 @@ func (c *Configuration) Read(ctx context.Context, in *empty.Empty) (resp *ReadRe
 	return res.(*ReadResponse), err
 }
 
-// Write is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (n *Node) Write(ctx context.Context, in *WriteRequest) (resp *empty.Empty, err error) {
-	cd := gorums.CallData{
-		Message: in,
-		Method:  "protos.StorageService.Write",
-	}
-
-	res, err := n.RawNode.RPCCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*empty.Empty), err
-}
-
 // StorageService is the server-side API for the StorageService Service
 type StorageService interface {
 	Write(ctx gorums.ServerCtx, request *WriteRequest) (response *empty.Empty, err error)
@@ -213,6 +227,12 @@ func RegisterStorageServiceServer(srv *gorums.Server, impl StorageService) {
 		resp, err := impl.Read(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+}
+
+type internalEmpty struct {
+	nid   uint32
+	reply *empty.Empty
+	err   error
 }
 
 type internalReadResponse struct {
