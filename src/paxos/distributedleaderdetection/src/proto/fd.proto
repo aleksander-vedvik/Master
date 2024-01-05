@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "dat520/lab3/distributedleaderdetection/proto";
+
+import "gorums.proto";
+
+service FailureDetector {
+  rpc HeartbeatRequest(Heartbeat) returns (Heartbeat) {
+    option (gorums.quorumcall) = true;
+  }
+}
+
+message Heartbeat {
+  int32 From = 1;
+  int32 To = 2;
+  bool Request = 3;
+}
