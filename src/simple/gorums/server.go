@@ -5,10 +5,10 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
 	"github.com/relab/gorums"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 // The storage server should implement the server interface defined in the pbbuf files
@@ -27,7 +27,7 @@ func NewStorageServer() *StorageServer {
 		gorumsSrv: gorumsSrv,
 		addr:      "",
 	}
-	pb.RegisterStorageServiceServer(gorumsSrv, &srv)
+	pb.RegisterQCStorageServer(gorumsSrv, &srv)
 	return &srv
 }
 
@@ -36,7 +36,7 @@ func NewStorageServer() *StorageServer {
 // Returns the full listening address of the server as string
 // Hint: Use go routine to start the server.
 func (s *StorageServer) StartServer(addr string) string {
-	addrChan := make(chan string, 0)
+	addrChan := make(chan string)
 	go func() {
 		lis, err := net.Listen("tcp4", addr)
 		if err != nil {
@@ -48,8 +48,21 @@ func (s *StorageServer) StartServer(addr string) string {
 		addrChan <- s.addr
 		s.gorumsSrv.Serve(lis)
 	}()
+	go s.status()
 
 	return <-addrChan
+}
+
+func (s *StorageServer) status() {
+	for {
+		time.Sleep(5 * time.Second)
+		val := ""
+		if len(s.data) > 0 {
+			val = s.data[len(s.data)-1]
+		}
+		str := fmt.Sprintf("Server %s running with last value: \"%s\"", s.addr[len(s.addr)-4:], val)
+		log.Println(str)
+	}
 }
 
 // Returns the data slice on this server
@@ -66,18 +79,22 @@ func (s *StorageServer) SetData(data []string) {
 	s.data = data
 }
 
-func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest) (response *emptypb.Empty, err error) {
+func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response *pb.WriteResponse, err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.data = append(s.data, request.Value)
-	return &emptypb.Empty{}, nil
+	return &pb.WriteResponse{New: true}, nil
 }
 
-func (s *StorageServer) Read(ctx gorums.ServerCtx, request *emptypb.Empty) (response *pb.ReadResponse, err error) {
+func (s *StorageServer) Read(ctx gorums.ServerCtx, request *pb.ReadRequest) (response *pb.State, err error) {
 	s.Lock()
 	defer s.Unlock()
-	response = &pb.ReadResponse{
-		Values: s.data,
+	if len(s.data) <= 0 {
+		return &pb.State{}, nil
+	}
+	response = &pb.State{
+		Value:     s.data[len(s.data)-1],
+		Timestamp: time.Now().Unix(),
 	}
 	return response, nil
 }

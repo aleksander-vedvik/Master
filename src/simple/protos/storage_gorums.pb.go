@@ -9,7 +9,6 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-	empty "github.com/golang/protobuf/ptypes/empty"
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -145,98 +144,98 @@ type Node struct {
 	*gorums.RawNode
 }
 
-// QuorumSpec is the interface of quorum functions for StorageService.
+// QuorumSpec is the interface of quorum functions for QCStorage.
 type QuorumSpec interface {
 	gorums.ConfigOption
-
-	// WriteQF is the quorum function for the Write
-	// quorum call method. The in parameter is the request object
-	// supplied to the Write method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *WriteRequest'.
-	WriteQF(in *WriteRequest, replies map[uint32]*empty.Empty) (*empty.Empty, bool)
 
 	// ReadQF is the quorum function for the Read
 	// quorum call method. The in parameter is the request object
 	// supplied to the Read method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *empty.Empty'.
-	ReadQF(in *empty.Empty, replies map[uint32]*ReadResponse) (*ReadResponse, bool)
-}
+	// you should implement your quorum function with '_ *ReadRequest'.
+	ReadQF(in *ReadRequest, replies map[uint32]*State) (*State, bool)
 
-// Write is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *empty.Empty, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.StorageService.Write",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*empty.Empty, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*empty.Empty)
-		}
-		return c.qspec.WriteQF(req.(*WriteRequest), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*empty.Empty), err
+	// WriteQF is the quorum function for the Write
+	// quorum call method. The in parameter is the request object
+	// supplied to the Write method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *State'.
+	WriteQF(in *State, replies map[uint32]*WriteResponse) (*WriteResponse, bool)
 }
 
 // Read is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Read(ctx context.Context, in *empty.Empty) (resp *ReadResponse, err error) {
+func (c *Configuration) Read(ctx context.Context, in *ReadRequest) (resp *State, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protos.StorageService.Read",
+		Method:  "protos.QCStorage.Read",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*ReadResponse, len(replies))
+		r := make(map[uint32]*State, len(replies))
 		for k, v := range replies {
-			r[k] = v.(*ReadResponse)
+			r[k] = v.(*State)
 		}
-		return c.qspec.ReadQF(req.(*empty.Empty), r)
+		return c.qspec.ReadQF(req.(*ReadRequest), r)
 	}
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
 		return nil, err
 	}
-	return res.(*ReadResponse), err
+	return res.(*State), err
 }
 
-// StorageService is the server-side API for the StorageService Service
-type StorageService interface {
-	Write(ctx gorums.ServerCtx, request *WriteRequest) (response *empty.Empty, err error)
-	Read(ctx gorums.ServerCtx, request *empty.Empty) (response *ReadResponse, err error)
+// Write is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Write(ctx context.Context, in *State) (resp *WriteResponse, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.QCStorage.Write",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*WriteResponse, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*WriteResponse)
+		}
+		return c.qspec.WriteQF(req.(*State), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*WriteResponse), err
 }
 
-func RegisterStorageServiceServer(srv *gorums.Server, impl StorageService) {
-	srv.RegisterHandler("protos.StorageService.Write", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*WriteRequest)
-		defer ctx.Release()
-		resp, err := impl.Write(ctx, req)
-		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
-	})
-	srv.RegisterHandler("protos.StorageService.Read", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*empty.Empty)
+// QCStorage is the server-side API for the QCStorage Service
+type QCStorage interface {
+	Read(ctx gorums.ServerCtx, request *ReadRequest) (response *State, err error)
+	Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error)
+}
+
+func RegisterQCStorageServer(srv *gorums.Server, impl QCStorage) {
+	srv.RegisterHandler("protos.QCStorage.Read", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*ReadRequest)
 		defer ctx.Release()
 		resp, err := impl.Read(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+	srv.RegisterHandler("protos.QCStorage.Write", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*State)
+		defer ctx.Release()
+		resp, err := impl.Write(ctx, req)
+		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
+	})
 }
 
-type internalEmpty struct {
+type internalState struct {
 	nid   uint32
-	reply *empty.Empty
+	reply *State
 	err   error
 }
 
-type internalReadResponse struct {
+type internalWriteResponse struct {
 	nid   uint32
-	reply *ReadResponse
+	reply *WriteResponse
 	err   error
 }

@@ -3,7 +3,6 @@ package gorums
 import (
 	"context"
 	"log"
-	"math/rand"
 	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
@@ -11,7 +10,6 @@ import (
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type StorageClient struct {
@@ -28,7 +26,7 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 		),
 	)
 	allNodesConfig, err := mgr.NewConfiguration(
-		&QSpec{len(srvAddresses)},
+		NewQSpec(len(srvAddresses)),
 		gorums.WithNodeList(srvAddresses),
 	)
 	if err != nil {
@@ -42,50 +40,25 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 
 // Writes the provided value to a random server
 func (sc *StorageClient) WriteValue(value string) error {
-	nodes := sc.allNodesConfig.Nodes()
-	randomIndex := rand.Intn(len(nodes))
-	node := nodes[randomIndex]
-
-	_, err := node.Write(context.Background(), &pb.WriteRequest{
-		Value: value,
+	_, err := sc.allNodesConfig.Write(context.Background(), &pb.State{
+		Value:     value,
+		Timestamp: time.Now().Unix(),
 	})
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
-
 	return nil
 }
 
 // Returns a slice of values stored on all servers
-func (sc *StorageClient) ReadValues() ([]string, error) {
+func (sc *StorageClient) ReadValue() (string, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	reply, err := sc.allNodesConfig.Read(ctx, &emptypb.Empty{})
-	cancel()
+	reply, err := sc.allNodesConfig.Read(ctx, &pb.ReadRequest{})
+	defer cancel()
 	if err != nil {
 		log.Fatalln("read rpc returned error:", err)
-		return []string{}, nil
+		return "", nil
 	}
-	return reply.Values, nil
-}
-
-type QSpec struct {
-	quorumSize int
-}
-
-func (qs *QSpec) ReadQF(in *emptypb.Empty, replies map[uint32]*pb.ReadResponse) (*pb.ReadResponse, bool) {
-	if len(replies) < qs.quorumSize {
-		return nil, false
-	}
-	return combineResponses(replies), true
-}
-
-func combineResponses(replies map[uint32]*pb.ReadResponse) *pb.ReadResponse {
-	res := make([]string, 0, len(replies))
-	for _, value := range replies {
-		res = append(res, value.GetValues()...)
-	}
-	return &pb.ReadResponse{
-		Values: res,
-	}
+	return reply.Value, nil
 }

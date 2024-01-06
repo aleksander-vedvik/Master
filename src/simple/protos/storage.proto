@@ -3,25 +3,24 @@ syntax = "proto3";
 package protos;
 
 import "gorums.proto";
-import "google/protobuf/empty.proto";
 
+service QCStorage {
+  rpc Read(ReadRequest) returns (State) {
+    option (gorums.quorumcall) = true;
+   }
+  rpc Write(State) returns (WriteResponse) {
+    option (gorums.quorumcall) = true;
+   }
+}
 option go_package = ".";
 
-
-service StorageService{
-    rpc Write(WriteRequest)returns(google.protobuf.Empty){
-        option (gorums.quorumcall) = true;
-    }
-
-    rpc Read(google.protobuf.Empty)returns(ReadResponse){
-        option (gorums.quorumcall) = true;
-    }
+message State {
+  string Value = 1;
+  int64 Timestamp = 2;
 }
 
-message WriteRequest {
-    string Value = 1;
+message WriteResponse {
+  bool New = 1;
 }
 
-message ReadResponse {
-    repeated string Values = 1;
-}
+message ReadRequest {}
