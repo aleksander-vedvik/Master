@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
@@ -35,6 +36,25 @@ func main() {
 
 	app.Get("/status", func(c *fiber.Ctx) error {
 		return c.JSON(nodes)
+	})
+
+	app.Get("/node/:id", func(c *fiber.Ctx) error {
+		// Render index within layouts/main
+		id, _ := strconv.Atoi(c.Params("id"))
+		node := GetNode(id, nodes)
+		return c.Render("node", fiber.Map{
+			"PageTitle": "Node" + c.Params("id"),
+			"Id":        id,
+			"Status":    node.Status,
+			"Messages":  node.Messages,
+			"Round":     node.Round,
+		}, "layouts/StaticLayoutNode")
+	})
+
+	app.Get("/status/:id", func(c *fiber.Ctx) error {
+		id, _ := strconv.Atoi(c.Params("id"))
+		node := GetNode(id, nodes)
+		return c.JSON(node)
 	})
 
 	log.Fatal(app.Listen(":80"))

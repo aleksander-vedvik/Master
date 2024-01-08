@@ -28,19 +28,21 @@
     </div>
     <div class="grid gap-10 row-gap-8 mx-auto sm:row-gap-10 lg:max-w-screen-lg sm:grid-cols-2 lg:grid-cols-3">
         {{range .Nodes}}
-        <div id="node{{.Id}}" class="flex cursor-pointer shadow-md rounded-lg">
-            <img class="object-cover w-20 h-20 mr-4 rounded-l-lg shadow"
-                src="https://images.pexels.com/photos/5011647/pexels-photo-5011647.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
-                alt="Node" />
-            <div class="flex flex-col justify-center">
-                <p class="text-lg font-bold">Node {{.Id}}</p>
-                {{if eq .Status "Online" }}
-                <p id="node{{.Id}}Status" class="text-sm font-bold text-green-800">Online</p>
-                {{else}}
-                <p id="node{{.Id}}Status" class="text-sm font-bold text-red-800">Offline</p>
-                {{end}}
+        <a href="/node/{{.Id}}">
+            <div id="node{{.Id}}" class="flex cursor-pointer shadow-md rounded-lg">
+                <img class="object-cover w-20 h-20 mr-4 rounded-l-lg shadow"
+                    src="https://images.pexels.com/photos/5011647/pexels-photo-5011647.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+                    alt="Node" />
+                <div class="flex flex-col justify-center">
+                    <p class="text-lg font-bold">Node {{.Id}}</p>
+                    {{if eq .Status "Online" }}
+                    <p id="node{{.Id}}Status" class="text-sm font-bold text-green-800">Online</p>
+                    {{else}}
+                    <p id="node{{.Id}}Status" class="text-sm font-bold text-red-800">Offline</p>
+                    {{end}}
+                </div>
             </div>
-        </div>
+        </a>
         {{end}}
     </div>
 </div>
