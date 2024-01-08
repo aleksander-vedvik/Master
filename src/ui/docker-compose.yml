@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  ui:
+    build: 
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: always
+    ports:
+      - 8080:80
+    networks:
+      - website
+    container_name: ui
+
+networks:
+  website:
+    name: website

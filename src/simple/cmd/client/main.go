@@ -3,14 +3,14 @@ package main
 import (
 	"log"
 
-	"github.com/aleksander-vedvik/Master/gorums"
+	"github.com/aleksander-vedvik/Master/storage"
 )
 
 var values = []string{"val 1", "val 2", "val 3"}
 
 func main() {
 	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
-	client := gorums.NewStorageClient(srvAddresses)
+	client := storage.NewStorageClient(srvAddresses)
 	log.Println("Created client...")
 	val, err := client.ReadValue()
 	if err != nil {

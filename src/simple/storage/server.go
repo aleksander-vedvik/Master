@@ -1,4 +1,4 @@
-package gorums
+package storage
 
 import (
 	"fmt"
@@ -51,6 +51,21 @@ func (s *StorageServer) StartServer(addr string) string {
 	go s.status()
 
 	return <-addrChan
+}
+
+// Start the server listening on the provided address string
+// The function should be non-blocking
+// Returns the full listening address of the server as string
+// Hint: Use go routine to start the server.
+func (s *StorageServer) Start(addr string) {
+	lis, err := net.Listen("tcp4", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.addr = fmt.Sprintf("%s", lis.Addr())
+	go s.status()
+	log.Printf("Server started. Listening on address: %s\n", s.addr)
+	s.gorumsSrv.Serve(lis)
 }
 
 func (s *StorageServer) status() {

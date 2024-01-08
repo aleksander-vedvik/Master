@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="shortcut icon" href="./favicon.ico" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+  <link href="/dist/output.css" rel="stylesheet">
+  <title>{{ .PageTitle }}</title>
+</head>
+
+<body class="text-gray-800 antialiased">
+  {{embed}}
+</body>
+<script>
+  async function fetchAsync(url) {
+    let response = await fetch(url);
+    let data = await response.json();
+    return data;
+  }
+
+  async function update() {
+    for (let i = 0; i < 5; i++) {
+      await new Promise(r => setTimeout(r, 5000));
+      let data = await fetchAsync("http://localhost:8080/status");
+      for (let n of data) {
+        console.log(n);
+        let node = document.getElementById("node" + n.Id + "Status")
+        node.innerText = n.Status;
+        if (n.Status === "Online") {
+          node.classList = "text-sm font-bold text-green-800";
+        } else {
+          node.classList = "text-sm font-bold text-red-800";
+        }
+      }
+    }
+  }
+  window.onload = update;
+</script>
+
+</html>

@@ -1,4 +1,4 @@
-package gorums
+package storage
 
 import pb "github.com/aleksander-vedvik/Master/protos"
 
