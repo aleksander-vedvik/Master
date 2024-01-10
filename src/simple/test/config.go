@@ -22,4 +22,5 @@ func configuration(q *GorumsQSpec) {
 	q.QuorumSize = len(srvAddresses)
 	q.QSpec = storage.NewQSpec(len(srvAddresses))
 	q.Nodes = gorums.WithNodeList(srvAddresses)
+	q.OnlyRunWhenQuorum = false
 }

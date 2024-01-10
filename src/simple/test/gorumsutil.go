@@ -14,9 +14,10 @@ type GorumsManager struct {
 	*pb.Configuration
 }
 type GorumsQSpec struct {
-	QuorumSize int
-	Nodes      gorums.NodeListOption
-	QSpec      pb.QuorumSpec
+	QuorumSize        int
+	Nodes             gorums.NodeListOption
+	QSpec             pb.QuorumSpec
+	OnlyRunWhenQuorum bool
 }
 
 func NewGorumsManager(conf func(q *GorumsQSpec)) *GorumsManager {
