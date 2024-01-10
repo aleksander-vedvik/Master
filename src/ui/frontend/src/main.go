@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"ui/frontend/src/storage"
@@ -28,6 +29,7 @@ func main() {
 	nodes := CreateNodes(srvAddrs)
 
 	client := storage.NewStorageClient(nodes.GetAddresses())
+	nodes.AddIDs(client.GetNodesInfo())
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		// Render index within layouts/main
@@ -46,7 +48,7 @@ func main() {
 	app.Get("/node/:id", func(c *fiber.Ctx) error {
 		// Render index within layouts/main
 		id, _ := strconv.Atoi(c.Params("id"))
-		node := GetNode(id, nodes)
+		node := nodes.GetNode(uint32(id))
 		return c.Render("node", fiber.Map{
 			"PageTitle": "Node" + c.Params("id"),
 			"Id":        id,
@@ -58,8 +60,8 @@ func main() {
 
 	app.Get("/status/:id", func(c *fiber.Ctx) error {
 		id, _ := strconv.Atoi(c.Params("id"))
-		node := GetNode(id, nodes)
-		return c.JSON(node)
+		val, _ := client.ReadSingle(uint32(id))
+		return c.JSON(val)
 	})
 
 	app.Get("/read", func(c *fiber.Ctx) error {
@@ -67,6 +69,7 @@ func main() {
 		if err != nil {
 			log.Println(err)
 		}
+		fmt.Println(value)
 		return c.JSON(value)
 	})
 

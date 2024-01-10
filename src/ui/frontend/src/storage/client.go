@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -45,8 +46,14 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 	}
 }
 
-func (sc *StorageClient) GetNodeIDs() []uint32 {
-	return sc.quorum.NodeIDs()
+func (sc *StorageClient) GetNodesInfo() ([]uint32, []string) {
+	addresses := make([]string, 0)
+	ids := make([]uint32, 0)
+	for _, node := range sc.quorum.Nodes() {
+		addresses = append(addresses, node.Address())
+		ids = append(ids, node.ID())
+	}
+	return ids, addresses
 }
 
 // Writes the provided value to a random server
@@ -72,4 +79,20 @@ func (sc *StorageClient) ReadValue() (string, error) {
 		return "", nil
 	}
 	return reply.Value, nil
+}
+
+func (sc *StorageClient) ReadSingle(nodeID uint32) (string, error) {
+	for _, node := range sc.quorum.Nodes() {
+		if node.ID() == nodeID {
+			ctx, cancel := context.WithCancel(context.Background())
+			reply, err := node.Status(ctx, &pb.StatusRequest{})
+			defer cancel()
+			if err != nil {
+				log.Println("read rpc returned error:", err)
+				return "", err
+			}
+			return reply.Value, nil
+		}
+	}
+	return "", fmt.Errorf("node with ID %v was not found", nodeID)
 }

@@ -6,7 +6,7 @@ import (
 )
 
 type Node struct {
-	Id       int
+	Id       uint32
 	Status   Status
 	Messages int
 	Round    int
@@ -18,9 +18,8 @@ type Nodes []*Node
 
 func CreateNodes(srvAddrs []string) Nodes {
 	nodes := make([]*Node, 0)
-	for i, addr := range srvAddrs {
+	for _, addr := range srvAddrs {
 		node := &Node{
-			Id:       i + 1,
 			Status:   Online,
 			Messages: 0,
 			Round:    0,
@@ -28,7 +27,32 @@ func CreateNodes(srvAddrs []string) Nodes {
 		}
 		nodes = append(nodes, node)
 	}
-	return nodes
+	n := Nodes(nodes)
+	return n
+}
+
+func (n Nodes) AddIDs(ids []uint32, addresses []string) {
+	for i, node := range n {
+		node.Id = ids[i]
+		node.Address = addresses[i]
+	}
+	/*for i, address := range addresses {
+		for _, node := range n {
+			if node.Address == address {
+				node.Id = ids[i]
+				break
+			}
+		}
+	}*/
+}
+
+func (n Nodes) GetNode(id uint32) *Node {
+	for _, node := range n {
+		if node.Id == id {
+			return node
+		}
+	}
+	return nil
 }
 
 func (n Nodes) GetAddresses() []string {
@@ -37,6 +61,14 @@ func (n Nodes) GetAddresses() []string {
 		addrs[i] = node.Address + ":8080"
 	}
 	return addrs
+}
+
+func (n Nodes) GetIds() []uint32 {
+	ids := make([]uint32, len(n))
+	for i, node := range n {
+		ids[i] = node.Id
+	}
+	return ids
 }
 
 func (n *Node) DoSomething() {
@@ -72,7 +104,6 @@ func TestNodes() []*Node {
 			status = Offline
 		}
 		node := &Node{
-			Id:       i + 1,
 			Status:   status,
 			Messages: 0,
 			Round:    0,
@@ -81,13 +112,4 @@ func TestNodes() []*Node {
 		nodes = append(nodes, node)
 	}
 	return nodes
-}
-
-func GetNode(id int, nodes []*Node) *Node {
-	for _, node := range nodes {
-		if node.Id == id {
-			return node
-		}
-	}
-	return nil
 }
