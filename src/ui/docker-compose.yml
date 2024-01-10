@@ -8,9 +8,9 @@ services:
     ports:
       - 8080:80
     networks:
-      - website
+      - simple_storage
     container_name: ui
 
 networks:
-  website:
-    name: website
+  simple_storage:
+    external: true

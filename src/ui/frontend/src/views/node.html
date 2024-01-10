@@ -1,4 +1,4 @@
-<section class="">
+<section class="mb-8">
     <div class="container max-w-screen-xl mx-auto px-4">
         <div class="text-center">
             <a href="/">
@@ -14,7 +14,7 @@
                     </div>
                 </div>
             </a>
-            <div class="mb-8 w-full">
+            <div class="w-full">
                 {{if eq .Status "Online"}}
                 <div id="node{{.Id}}Status" class="px-2.5 py-0.5 text-lg text-green-800 bg-green-100 rounded-xl">Online
                 </div>
@@ -27,7 +27,7 @@
     </div>
 </section>
 
-<section class="">
+<section class="mb-8">
     <div class="container max-w-screen-xl mx-auto px-4">
         <div class="grid gap-10 row-gap-8 mx-auto sm:row-gap-10 sm:grid-cols-2 lg:grid-cols-3">
             <div class="flex cursor-pointer shadow-md rounded-lg">
@@ -80,11 +80,34 @@
                 </div>
                 <div class="flex flex-col justify-center">
                     <p class="text-lg font-bold">Data</p>
-                    <p id="node{{.Id}}Data" class="text-xl font-bold text-gray-600">{{.Messages}}</p>
+                    <p id="node{{.Id}}Data" class="text-xl font-bold text-gray-600">{{.Data}}</p>
                 </div>
             </div>
         </div>
-
     </div>
+</section>
 
+<section class="mb-8">
+    <div class="container max-w-screen-xl mx-auto px-4">
+        <form class="max-w-sm mx-auto">
+            <label for="message" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Send
+                a message to all nodes</label>
+            <div class="relative mb-4">
+                <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
+                    <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 16">
+                        <path
+                            d="m10.036 8.278 9.258-7.79A1.979 1.979 0 0 0 18 0H2A1.987 1.987 0 0 0 .641.541l9.395 7.737Z" />
+                        <path
+                            d="M11.241 9.817c-.36.275-.801.425-1.255.427-.428 0-.845-.138-1.187-.395L0 2.6V14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V2.5l-8.759 7.317Z" />
+                    </svg>
+                </div>
+                <input type="text" id="message"
+                    class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    placeholder="value">
+            </div>
+            <button type="submit"
+                class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">Send</button>
+        </form>
+    </div>
 </section>

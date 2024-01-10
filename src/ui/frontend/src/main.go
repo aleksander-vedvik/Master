@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"strconv"
+	"ui/frontend/src/storage"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/template/html/v2"
@@ -22,7 +23,11 @@ func main() {
 	})
 	app.Static("/", "./public")
 
-	nodes := TestNodes()
+	//srvAddrs := []string{"localhost:5000", "localhost:5001", "localhost:5002", "localhost:5003"}
+	srvAddrs := []string{"node1", "node2", "node3", "node4"}
+	nodes := CreateNodes(srvAddrs)
+
+	client := storage.NewStorageClient(nodes.GetAddresses())
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		// Render index within layouts/main
@@ -55,6 +60,23 @@ func main() {
 		id, _ := strconv.Atoi(c.Params("id"))
 		node := GetNode(id, nodes)
 		return c.JSON(node)
+	})
+
+	app.Get("/read", func(c *fiber.Ctx) error {
+		value, err := client.ReadValue()
+		if err != nil {
+			log.Println(err)
+		}
+		return c.JSON(value)
+	})
+
+	app.Get("/write/:value", func(c *fiber.Ctx) error {
+		value := c.Params("value")
+		err := client.WriteValue(value)
+		if err != nil {
+			log.Println(err)
+		}
+		return c.JSON(value)
 	})
 
 	log.Fatal(app.Listen(":80"))

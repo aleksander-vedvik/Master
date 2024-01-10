@@ -5,5 +5,4 @@ tailwind:
 	cd frontend; npx tailwindcss -i ./src/public/dist/input.css -o ./src/public/dist/output.css
 
 ui: tailwind
-	-sudo docker compose down
 	docker compose up --build -d

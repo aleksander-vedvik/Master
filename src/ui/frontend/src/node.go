@@ -11,6 +11,32 @@ type Node struct {
 	Messages int
 	Round    int
 	Data     Data
+	Address  string
+}
+
+type Nodes []*Node
+
+func CreateNodes(srvAddrs []string) Nodes {
+	nodes := make([]*Node, 0)
+	for i, addr := range srvAddrs {
+		node := &Node{
+			Id:       i + 1,
+			Status:   Online,
+			Messages: 0,
+			Round:    0,
+			Address:  addr,
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes
+}
+
+func (n Nodes) GetAddresses() []string {
+	addrs := make([]string, len(n))
+	for i, node := range n {
+		addrs[i] = node.Address + ":8080"
+	}
+	return addrs
 }
 
 func (n *Node) DoSomething() {

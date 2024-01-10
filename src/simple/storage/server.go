@@ -17,6 +17,7 @@ type StorageServer struct {
 	data      []string
 	gorumsSrv *gorums.Server
 	addr      string
+	messages  int
 }
 
 // Creates a new StorageServer.
@@ -97,6 +98,7 @@ func (s *StorageServer) SetData(data []string) {
 func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response *pb.WriteResponse, err error) {
 	s.Lock()
 	defer s.Unlock()
+	s.messages++
 	s.data = append(s.data, request.Value)
 	return &pb.WriteResponse{New: true}, nil
 }
@@ -104,12 +106,28 @@ func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response
 func (s *StorageServer) Read(ctx gorums.ServerCtx, request *pb.ReadRequest) (response *pb.State, err error) {
 	s.Lock()
 	defer s.Unlock()
+	s.messages++
 	if len(s.data) <= 0 {
 		return &pb.State{}, nil
 	}
 	response = &pb.State{
 		Value:     s.data[len(s.data)-1],
 		Timestamp: time.Now().Unix(),
+	}
+	return response, nil
+}
+
+func (s *StorageServer) Status(ctx gorums.ServerCtx, request *pb.StatusRequest) (response *pb.StatusResponse, err error) {
+	s.Lock()
+	defer s.Unlock()
+	s.messages++
+	if len(s.data) <= 0 {
+		return &pb.StatusResponse{}, nil
+	}
+	response = &pb.StatusResponse{
+		Value:     s.data[len(s.data)-1],
+		Timestamp: time.Now().Unix(),
+		Messages:  int64(s.messages),
 	}
 	return response, nil
 }

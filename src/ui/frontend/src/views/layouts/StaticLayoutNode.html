@@ -39,7 +39,19 @@
       round.innerText = data.Round;
     }
   }
-  window.onload = update;
+  async function update2() {
+    for (let i = 0; i < 50; i++) {
+      if (i % 5 === 0) {
+        await fetchAsync("http://localhost:8080/write/val" + i);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+      let data = await fetchAsync("http://localhost:8080/read");
+      console.log(data);
+      let nodeData = document.getElementById("node{{.Id}}Data")
+      nodeData.innerText = data;
+    }
+  }
+  window.onload = update2;
 </script>
 
 </html>
