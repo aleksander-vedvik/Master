@@ -12,7 +12,6 @@ import (
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	"reflect"
 )
 
 const (
@@ -128,58 +127,6 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	return c, nil
 }
 
-type GorumsOptions struct {
-	QuorumSpec 	QuorumSpec 				`option:"Use AddQuorumSpec() to configure this option"`
-	Nodes 		gorums.NodeListOption 	`option:"Use AddServers() to configure this option"`
-}
-
-func (c *GorumsOptions) AddQuorumSpec(qSpec QuorumSpec) {
-	c.QuorumSpec = qSpec
-}
-func (c *GorumsOptions) AddServer(srvAddress string) {}
-func (c *GorumsOptions) AddServers(srvAddresses []string) {
-	c.Nodes = gorums.WithNodeList(srvAddresses)
-}
-
-func (c GorumsOptions) validate() (bool, error) {
-	v := reflect.ValueOf(c)	
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-		if reflect.DeepEqual(field.Interface(), reflect.Zero(field.Type()).Interface()) {
-			//name := field.Type().Name()
-			//f, _ := reflect.TypeOf(&c).Elem().FieldByName(name)
-			f := reflect.TypeOf(&c).Elem().FieldByIndex([]int{i})
-			name := f.Name
-			tag := f.Tag.Get("option")
-			return false, fmt.Errorf("option %v not specified. %s", name, tag)
-		}
-    }
-	return true, nil
-}
-
-func (m *Manager) NewConfiguration2(optFunc func(opts *GorumsOptions)) (c *Configuration, err error) {
-	opts := GorumsOptions{}
-	optFunc(&opts)
-	if valid, err := opts.validate(); !valid {
-		return nil, err
-	}
-	/*if opts.Nodes == nil || opts.QuorumSpec == nil {
-		return nil, fmt.Errorf("not all options specified: %v", opts)
-	}*/
-	c = &Configuration{}
-	c.RawConfiguration, err = gorums.NewRawConfiguration(m.RawManager, opts.Nodes)
-	if err != nil {
-		return nil, err
-	}
-	c.qspec = opts.QuorumSpec
-	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
-	var test interface{} = struct{}{}
-	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-		return nil, fmt.Errorf("missing required QuorumSpec")
-	}
-	return c, nil
-}
-
 // Nodes returns a slice of available nodes on this manager.
 // IDs are returned in the order they were added at creation of the manager.
 func (m *Manager) Nodes() []*Node {
@@ -272,13 +219,6 @@ func RegisterQCStorageServer(srv *gorums.Server, impl QCStorage) {
 		defer ctx.Release()
 		resp, err := impl.Read(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
-		/*
-			if all-to-all function:
-				- determine what the message should be
-				- determine who to send the message to
-				- type of broadcast should be specified in advance
-				- transmit the message
-		*/
 	})
 	srv.RegisterHandler("protos.QCStorage.Write", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*State)

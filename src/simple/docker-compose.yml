@@ -33,19 +33,19 @@ services:
     networks:
       - storage
 
-  client:
-    build: 
-      context: .
-      dockerfile: Dockerfile.Client
-    ports:
-      - "5010:8080"
-    networks:
-      - storage
-    depends_on:
-      - node1
-      - node2
-      - node3
-      - node4
+#  client:
+#    build: 
+#      context: .
+#      dockerfile: Dockerfile.Client
+#    ports:
+#      - "5010:8080"
+#    networks:
+#      - storage
+#    depends_on:
+#      - node1
+#      - node2
+#      - node3
+#      - node4
 
 networks:
   storage:

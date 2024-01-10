@@ -4,13 +4,22 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/aleksander-vedvik/Master/storage"
 )
 
 func main() {
-	//startDockerServer()
-	startServers()
+	startDockerServer()
+	//startServers()
+	//simpleServer()
+}
+
+func simpleServer() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello, world!")
+	})
+	log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
 }
 
 func startServer() {
@@ -38,6 +47,6 @@ func startServers() {
 
 func startDockerServer() {
 	srv := storage.NewStorageServer()
-	srv.Start("localhost:8080")
+	srv.Start("0.0.0.0:8080")
 	log.Println("Server stopped.")
 }

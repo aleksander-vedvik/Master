@@ -2,7 +2,7 @@ module github.com/aleksander-vedvik/Master
 
 go 1.20
 
-replace github.com/relab/gorums v0.7.0 => ../../../gorums
+//replace github.com/relab/gorums v0.7.0 => ../../../gorums
 
 require (
 	github.com/relab/gorums v0.7.0

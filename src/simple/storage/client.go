@@ -25,15 +25,15 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	/*quorum, err := mgr.NewConfiguration(
+	quorum, err := mgr.NewConfiguration(
 		NewQSpec(len(srvAddresses)),
 		gorums.WithNodeList(srvAddresses),
-	)*/
-	quorum, err := mgr.NewConfiguration2(func(opts *pb.GorumsOptions) {
+	)
+	/*quorum, err := mgr.NewConfiguration2(func(opts *pb.GorumsOptions) {
 		opts.AddQuorumSpec(NewQSpec(len(srvAddresses)))
 		opts.AddServers(srvAddresses)
 		opts.AddServer("localhost:5000")
-	})
+	})*/
 	if err != nil {
 		log.Println("error creating config:", err)
 		//return nil
