@@ -18,8 +18,9 @@ type Nodes []*Node
 
 func CreateNodes(srvAddrs []string) Nodes {
 	nodes := make([]*Node, 0)
-	for _, addr := range srvAddrs {
+	for i, addr := range srvAddrs {
 		node := &Node{
+			Id:       uint32(i),
 			Status:   Online,
 			Messages: 0,
 			Round:    0,
@@ -33,17 +34,12 @@ func CreateNodes(srvAddrs []string) Nodes {
 
 func (n Nodes) AddIDs(ids []uint32, addresses []string) {
 	for i, node := range n {
+		if i >= len(ids) || i >= len(addresses) {
+			return
+		}
 		node.Id = ids[i]
 		node.Address = addresses[i]
 	}
-	/*for i, address := range addresses {
-		for _, node := range n {
-			if node.Address == address {
-				node.Id = ids[i]
-				break
-			}
-		}
-	}*/
 }
 
 func (n Nodes) GetNode(id uint32) *Node {

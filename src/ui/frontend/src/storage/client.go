@@ -27,6 +27,7 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 		),
 	)
 	quorum, err := mgr.NewConfiguration(
+		//NewQSpec(len(srvAddresses)),
 		NewQSpec(len(srvAddresses)),
 		gorums.WithNodeList(srvAddresses),
 	)
