@@ -9,7 +9,8 @@ import (
 )
 
 func main() {
-	startDockerServer()
+	//startDockerServer()
+	startServers()
 }
 
 func startServer() {
@@ -25,7 +26,7 @@ func startServer() {
 }
 
 func startServers() {
-	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
+	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002", "localhost:5003"}
 	for _, srvAddr := range srvAddresses {
 		srv := storage.NewStorageServer()
 		_ = srv.StartServer(srvAddr)

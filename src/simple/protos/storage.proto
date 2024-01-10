@@ -3,6 +3,7 @@ syntax = "proto3";
 package protos;
 
 import "gorums.proto";
+option go_package = ".";
 
 service QCStorage {
   rpc Read(ReadRequest) returns (State) {
@@ -12,7 +13,6 @@ service QCStorage {
     option (gorums.quorumcall) = true;
    }
 }
-option go_package = ".";
 
 message State {
   string Value = 1;
