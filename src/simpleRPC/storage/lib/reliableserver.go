@@ -1,4 +1,4 @@
-package storage
+package lib
 
 import (
 	"context"
@@ -30,7 +30,7 @@ type ReliableServer struct {
 }
 
 // Creates a new StorageServer.
-func newReliableServer(srvAddresses []string, addr string) *ReliableServer {
+func NewReliableServer(srvAddresses []string, addr string) *ReliableServer {
 	otherServers := make([]string, 0, len(srvAddresses)-1)
 	for _, srvAddr := range srvAddresses {
 		if srvAddr == addr {
@@ -42,7 +42,7 @@ func newReliableServer(srvAddresses []string, addr string) *ReliableServer {
 		addr:           addr,
 		recievedFrom:   make(map[int64]map[string]bool),
 		multipartyChan: make(chan any),
-		quorum:         newQuorum(otherServers),
+		quorum:         NewQuorum(otherServers),
 	}
 	go srv.startServer(addr)
 	go srv.multiparty()

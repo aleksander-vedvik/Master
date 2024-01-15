@@ -1,4 +1,4 @@
-package storage
+package lib
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type Quorum struct {
 	servers []string
 }
 
-func newQuorum(srvAddrs []string) *Quorum {
+func NewQuorum(srvAddrs []string) *Quorum {
 	return &Quorum{
 		servers: srvAddrs,
 	}

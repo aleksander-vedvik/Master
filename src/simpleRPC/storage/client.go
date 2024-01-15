@@ -2,16 +2,18 @@ package storage
 
 import (
 	"fmt"
+
+	"github.com/aleksander-vedvik/Master/storage/lib"
 )
 
 type StorageClient struct {
-	quorum *Quorum
+	quorum *lib.Quorum
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func NewStorageClient(srvAddresses []string) *StorageClient {
 	return &StorageClient{
-		quorum: newQuorum(srvAddresses),
+		quorum: lib.NewQuorum(srvAddresses),
 	}
 }
 

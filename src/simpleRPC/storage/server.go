@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/aleksander-vedvik/Master/storage/lib"
+
 	pb "github.com/aleksander-vedvik/Master/protos"
 )
 
@@ -24,7 +26,7 @@ func NewStorageServer(srvAddresses []string, addr string) *StorageServer {
 		addr:            addr,
 		handledMessages: make(map[int64]bool),
 	}
-	reliableServer := newReliableServer(srvAddresses, addr)
+	reliableServer := lib.NewReliableServer(srvAddresses, addr)
 	reliableServer.RegisterServer(&srv)
 	return &srv
 }
