@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	startDockerServer()
-	//startServers()
+	//startDockerServer()
+	startServers()
 	//simpleServer()
 }
 
@@ -27,7 +27,7 @@ func startServer() {
 	id := flag.Int("id", 0, "id of server")
 	flag.Parse()
 
-	srv := storage.NewStorageServer()
+	srv := storage.NewStorageServer(srvAddresses)
 	addr := srv.StartServer(srvAddresses[*id-1])
 	log.Printf("Server started. Listening on address: %s\n", addr)
 	fmt.Scanln()
@@ -37,7 +37,7 @@ func startServer() {
 func startServers() {
 	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002", "localhost:5003"}
 	for _, srvAddr := range srvAddresses {
-		srv := storage.NewStorageServer()
+		srv := storage.NewStorageServer(srvAddresses)
 		_ = srv.StartServer(srvAddr)
 	}
 	log.Printf("Servers started. Listening on addresses: %s\n", srvAddresses)
@@ -46,7 +46,8 @@ func startServers() {
 }
 
 func startDockerServer() {
-	srv := storage.NewStorageServer()
+	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
+	srv := storage.NewStorageServer(srvAddresses)
 	srv.Start("0.0.0.0:8080")
 	log.Println("Server stopped.")
 }

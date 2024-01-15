@@ -78,6 +78,16 @@ func init() {
 	}
 }
 
+type View struct {
+	*gorums.View
+}
+
+func NewView(srvAddresses []string) *View {
+	view := &View{}
+	view.View = gorums.NewView(srvAddresses)
+	return view
+}
+
 // Manager maintains a connection pool of nodes on
 // which quorum calls can be performed.
 type Manager struct {

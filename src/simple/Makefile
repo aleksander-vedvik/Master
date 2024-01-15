@@ -17,3 +17,15 @@ docker:
 
 docker-rebuild:
 	docker compose up --build
+
+server:
+	cd cmd/server; go run main.go
+
+client:
+	cd cmd/client; go run main.go
+
+run: server client
+	@echo "Done!" 
+
+tidy:
+	go mod tidy

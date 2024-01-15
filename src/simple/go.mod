@@ -2,8 +2,6 @@ module github.com/aleksander-vedvik/Master
 
 go 1.20
 
-//replace github.com/relab/gorums v0.7.0 => ../../../gorums
-
 require (
 	github.com/relab/gorums v0.7.0
 	google.golang.org/grpc v1.60.1 // v1.43.0
@@ -19,3 +17,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0 // indirect
 )
+
+replace github.com/relab/gorums v0.7.0 => ../../../gorums
