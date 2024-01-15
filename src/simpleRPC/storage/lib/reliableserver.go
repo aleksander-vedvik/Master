@@ -101,6 +101,7 @@ func (s *ReliableServer) broadcast(request *pb.State) {
 	s.multipartyChan <- request
 }
 
+// running in a go routine
 func (s *ReliableServer) multiparty() {
 	for msg := range s.multipartyChan {
 		state := msg.(*pb.State)

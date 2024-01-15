@@ -3,7 +3,6 @@ package lib
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"time"
 
@@ -73,7 +72,7 @@ func (q *Quorum) Write(val string, ids ...int64) bool {
 		} else {
 			failures++
 		}
-		if successes >= int(math.Floor(float64(1+len(q.servers)/2))) {
+		if successes >= int(float64(1+len(q.servers)/2)) {
 			return true
 		}
 		if failures+successes >= len(q.servers) {
@@ -114,7 +113,7 @@ func (q *Quorum) Read() string {
 		} else {
 			failures++
 		}
-		if successes >= int(math.Floor(float64(1+len(q.servers)/2))) {
+		if successes >= int(float64(1+len(q.servers)/2)) {
 			return val
 		}
 		if failures+successes >= len(q.servers) {
