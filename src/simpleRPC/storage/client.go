@@ -7,13 +7,13 @@ import (
 )
 
 type StorageClient struct {
-	quorum *lib.Quorum
+	quorum *lib.View
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func NewStorageClient(srvAddresses []string) *StorageClient {
 	return &StorageClient{
-		quorum: lib.NewQuorum(srvAddresses),
+		quorum: lib.NewView(srvAddresses),
 	}
 }
 

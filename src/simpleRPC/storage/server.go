@@ -38,22 +38,9 @@ func (s *StorageServer) StartServer() {
 func (s *StorageServer) status() {
 	for {
 		time.Sleep(5 * time.Second)
-		/*val := ""
-		if len(s.data) > 0 {
-			val = s.data[len(s.data)-1]
-		}*/
 		str := fmt.Sprintf("Server %s running values: \"%s\"", s.addr[len(s.addr)-4:], s.data)
 		log.Println(str)
 	}
-}
-
-func (s *StorageServer) Write(ctx context.Context, request *pb.State) (response *pb.WriteResponse, err error) {
-	s.messages++
-	if !s.alreadyAdded(request) {
-		s.data = append(s.data, request.Value)
-		s.handledMessages[request.Id] = true
-	}
-	return &pb.WriteResponse{}, nil
 }
 
 func (s *StorageServer) Read(ctx context.Context, request *pb.ReadRequest) (response *pb.State, err error) {
@@ -66,6 +53,15 @@ func (s *StorageServer) Read(ctx context.Context, request *pb.ReadRequest) (resp
 		Timestamp: time.Now().Unix(),
 	}
 	return response, nil
+}
+
+func (s *StorageServer) Write(ctx context.Context, request *pb.State) (response *pb.WriteResponse, err error) {
+	s.messages++
+	if !s.alreadyAdded(request) {
+		s.data = append(s.data, request.Value)
+		s.handledMessages[request.Id] = true
+	}
+	return &pb.WriteResponse{}, nil
 }
 
 func (s *StorageServer) alreadyAdded(request *pb.State) bool {

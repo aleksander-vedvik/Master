@@ -12,17 +12,17 @@ import (
 	pb "github.com/aleksander-vedvik/Master/protos"
 )
 
-type Quorum struct {
+type View struct {
 	servers []string
 }
 
-func NewQuorum(srvAddrs []string) *Quorum {
-	return &Quorum{
+func NewView(srvAddrs []string) *View {
+	return &View{
 		servers: srvAddrs,
 	}
 }
 
-func (q *Quorum) dial(addr string) (pb.StorageClient, *grpc.ClientConn) {
+func (q *View) dial(addr string) (pb.StorageClient, *grpc.ClientConn) {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		fmt.Println(err)
@@ -31,7 +31,7 @@ func (q *Quorum) dial(addr string) (pb.StorageClient, *grpc.ClientConn) {
 	return pb.NewStorageClient(conn), conn
 }
 
-func (q *Quorum) Write(val string, ids ...int64) bool {
+func (q *View) Write(val string, ids ...int64) bool {
 	var id int64
 	if len(ids) <= 0 {
 		id = int64(rand.Intn(1000))
@@ -82,7 +82,7 @@ func (q *Quorum) Write(val string, ids ...int64) bool {
 	return false
 }
 
-func (q *Quorum) Read() string {
+func (q *View) Read() string {
 	respChan := make(chan string, len(q.servers))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
