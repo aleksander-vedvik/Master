@@ -21,9 +21,8 @@ type StorageServer struct {
 }
 
 // Creates a new StorageServer.
-func NewStorageServer(srvAddresses []string) *StorageServer {
+func NewStorageServer() *StorageServer {
 	gorumsSrv := gorums.NewServer()
-	gorumsSrv.AddView(getConfig(srvAddresses))
 	srv := StorageServer{
 		data:      make([]string, 0),
 		gorumsSrv: gorumsSrv,
@@ -53,6 +52,18 @@ func (s *StorageServer) StartServer(addr string) string {
 	go s.status()
 
 	return <-addrChan
+}
+
+func (s *StorageServer) AddConfig(srvAddresses []string) {
+	time.Sleep(1 * time.Second)
+	otherServers := make([]string, 0, len(srvAddresses)-1)
+	for _, srvAddr := range srvAddresses {
+		if srvAddr == s.addr {
+			continue
+		}
+		otherServers = append(otherServers, srvAddr)
+	}
+	//s.gorumsSrv.AddView(getConfig(otherServers))
 }
 
 // Start the server listening on the provided address string

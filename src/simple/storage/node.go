@@ -18,19 +18,14 @@ func NewNode() *Node {
 	node := gorums.NewGorumsNode()
 
 	node.RegisterClient(NewStorageClient([]string{}))
-	node.RegisterServer(NewStorageServer([]string{}))
+	node.RegisterServer(NewStorageServer())
 
 	node.NewConfiguration([]string{})
 
 	return &Node{node}
 }
 
-var quorum *pb.Configuration
-
 func getConfig(srvAddresses []string) *pb.Configuration {
-	if quorum != nil {
-		return quorum
-	}
 	mgr := pb.NewManager(
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
@@ -39,7 +34,7 @@ func getConfig(srvAddresses []string) *pb.Configuration {
 		),
 	)
 	var err error
-	quorum, err = mgr.NewConfiguration(
+	quorum, err := mgr.NewConfiguration(
 		NewQSpec(len(srvAddresses)),
 		gorums.WithNodeList(srvAddresses),
 	)

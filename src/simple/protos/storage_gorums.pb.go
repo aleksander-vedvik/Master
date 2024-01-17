@@ -241,7 +241,8 @@ type QCStorage interface {
 
 func RegisterQCStorageServer(srv *gorums.Server, impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler[*ReadRequest, *State](impl.Read))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv))
+	//srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
 	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler[*StatusRequest, *StatusResponse](impl.Status))
 }
 
