@@ -9,6 +9,8 @@ package __
 import (
 	context "context"
 	fmt "fmt"
+	"time"
+
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -239,23 +241,27 @@ type QCStorage interface {
 	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
 }
 
+type broadcastHandler func(context.Context, any) (any, error)
+
 type Server struct {
 	*gorums.Server
 	c *Configuration
 	methods map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)
+	id string
 }
 
-func NewServer() *Server {
+func NewServer(id string) *Server {
 	return &Server{
 		Server: gorums.NewServer(),
 		methods: make(map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)),
+		id: id,
 	}
 }
 
 func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler[*ReadRequest, *State](impl.Read))
-	//srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv.Server))
+	//srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
 	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler[*StatusRequest, *StatusResponse](impl.Status))
 }
 
@@ -267,13 +273,14 @@ func (srv *Server) AddConfig(c *Configuration) {
 
 func (srv *Server) run() {
 	for msg := range srv.BroadcastChan {
-		req := msg.GetRequest()
+		req := msg.GetRequest().(*State)
+		fmt.Println("broadcasting", req.GetValue(), "from", srv.id)
 		method := msg.GetMethod()
-		ctx := msg.GetContext()
-		srv.methods[method](ctx, req.(*State))
+		//ctx := msg.GetContext()
+		time.Sleep(5 * time.Second)
+		srv.methods[method](context.Background(), req)
 	}
 }
-
 
 type internalState struct {
 	nid   uint32

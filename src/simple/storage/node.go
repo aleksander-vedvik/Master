@@ -18,7 +18,7 @@ func NewNode() *Node {
 	node := gorums.NewGorumsNode()
 
 	node.RegisterClient(NewStorageClient([]string{}))
-	node.RegisterServer(NewStorageServer())
+	//node.RegisterServer(NewStorageServer())
 
 	node.NewConfiguration([]string{})
 

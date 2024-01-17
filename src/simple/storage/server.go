@@ -21,8 +21,8 @@ type StorageServer struct {
 }
 
 // Creates a new StorageServer.
-func NewStorageServer() *StorageServer {
-	gorumsSrv := pb.NewServer()
+func NewStorageServer(addr string) *StorageServer {
+	gorumsSrv := pb.NewServer(addr)
 	srv := StorageServer{
 		data:      make([]string, 0),
 		gorumsSrv: gorumsSrv,
