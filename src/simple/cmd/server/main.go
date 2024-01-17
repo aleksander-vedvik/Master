@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/aleksander-vedvik/Master/storage"
 )
@@ -77,6 +78,14 @@ func startServersTree() {
 	createServer(server8, []string{server1})
 	createServer(server9, []string{server1})
 	createServer(server10, []string{server1})
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		for {
+			time.Sleep(5 * time.Second)
+			fmt.Println()
+		}
+	}()
 
 	log.Printf("Servers started...")
 	fmt.Scanln()

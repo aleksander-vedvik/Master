@@ -247,39 +247,47 @@ type broadcastHandler func(context.Context, any) (any, error)
 type Server struct {
 	*gorums.Server
 	c *Configuration
-	methods map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)
+	//methodsOld map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)
+	methods map[string]func(ctx context.Context, req any) (any, error)
 	id string
 }
 
 func NewServer(id string) *Server {
 	return &Server{
 		Server: gorums.NewServer(),
-		methods: make(map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)),
+		//methodsOld: make(map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)),
+		methods: make(map[string]func(ctx context.Context, req any) (resp any, err error)),
 		id: id,
 	}
 }
 
 func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
-	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler[*ReadRequest, *State](impl.Read))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv.Server))
+	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler(impl.Read))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler(impl.Write, srv.Server))
 	//srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
-	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler[*StatusRequest, *StatusResponse](impl.Status))
+	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler(impl.Status))
 }
 
 func (srv *Server) AddConfig(c *Configuration) {
 	srv.c = c
-	srv.methods["protos.QCStorage.Write"] = c.Write
+	//srv.methodsOld["protos.QCStorage.Write"] = srv.c.Write
+	srv.methods["protos.QCStorage.Write"] = gorums.RegisterBroadcastFunc(srv.c.Write)
 	go srv.run()
 }
 
 func (srv *Server) run() {
 	for msg := range srv.BroadcastChan {
-		req := msg.GetRequest().(*State)
-		fmt.Println("broadcasting", req.GetValue(), "from", srv.id)
+		req := msg.GetRequest()
 		method := msg.GetMethod()
 		//ctx := msg.GetContext()
 		time.Sleep(5 * time.Second)
 		srv.methods[method](context.Background(), req)
+		//srv.methods[method](context.Background(), request)
+		/*switch request := req.(type) {
+		case *State:
+			fmt.Println("broadcasting", request.GetValue(), "from", srv.id)
+			srv.c.Write(context.Background(), request)
+		}*/
 	}
 }
 // ABOVE MUST BE GENERATED
