@@ -239,12 +239,41 @@ type QCStorage interface {
 	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
 }
 
-func RegisterQCStorageServer(srv *gorums.Server, impl QCStorage) {
+type Server struct {
+	*gorums.Server
+	c *Configuration
+	methods map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)
+}
+
+func NewServer() *Server {
+	return &Server{
+		Server: gorums.NewServer(),
+		methods: make(map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)),
+	}
+}
+
+func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler[*ReadRequest, *State](impl.Read))
 	//srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv))
 	srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
 	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler[*StatusRequest, *StatusResponse](impl.Status))
 }
+
+func (srv *Server) AddConfig(c *Configuration) {
+	srv.c = c
+	srv.methods["protos.QCStorage.Write"] = c.Write
+	go srv.run()
+}
+
+func (srv *Server) run() {
+	for msg := range srv.BroadcastChan {
+		req := msg.GetRequest()
+		method := msg.GetMethod()
+		ctx := msg.GetContext()
+		srv.methods[method](ctx, req.(*State))
+	}
+}
+
 
 type internalState struct {
 	nid   uint32

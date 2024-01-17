@@ -15,20 +15,20 @@ import (
 type StorageServer struct {
 	sync.RWMutex
 	data      []string
-	gorumsSrv *gorums.Server
+	gorumsSrv *pb.Server
 	addr      string
 	messages  int
 }
 
 // Creates a new StorageServer.
 func NewStorageServer() *StorageServer {
-	gorumsSrv := gorums.NewServer()
+	gorumsSrv := pb.NewServer()
 	srv := StorageServer{
 		data:      make([]string, 0),
 		gorumsSrv: gorumsSrv,
 		addr:      "",
 	}
-	pb.RegisterQCStorageServer(gorumsSrv, &srv)
+	gorumsSrv.RegisterQCStorageServer(&srv)
 	return &srv
 }
 
@@ -63,7 +63,7 @@ func (s *StorageServer) AddConfig(srvAddresses []string) {
 		}
 		otherServers = append(otherServers, srvAddr)
 	}
-	//s.gorumsSrv.AddView(getConfig(otherServers))
+	s.gorumsSrv.AddConfig(getConfig(otherServers))
 }
 
 // Start the server listening on the provided address string
