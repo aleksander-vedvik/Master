@@ -14,19 +14,21 @@ import (
 // The storage server should implement the server interface defined in the pbbuf files
 type StorageServer struct {
 	sync.RWMutex
-	data      []string
-	gorumsSrv *pb.Server
-	addr      string
-	messages  int
+	data            []string
+	gorumsSrv       *pb.Server
+	addr            string
+	messages        int
+	handledMessages map[string]bool
 }
 
 // Creates a new StorageServer.
 func NewStorageServer(addr string) *StorageServer {
 	gorumsSrv := pb.NewServer(addr)
 	srv := StorageServer{
-		data:      make([]string, 0),
-		gorumsSrv: gorumsSrv,
-		addr:      "",
+		data:            make([]string, 0),
+		gorumsSrv:       gorumsSrv,
+		addr:            "",
+		handledMessages: make(map[string]bool),
 	}
 	gorumsSrv.RegisterQCStorageServer(&srv)
 	return &srv
@@ -55,7 +57,7 @@ func (s *StorageServer) StartServer(addr string) string {
 }
 
 func (s *StorageServer) AddConfig(srvAddresses []string) {
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	otherServers := make([]string, 0, len(srvAddresses)-1)
 	for _, srvAddr := range srvAddresses {
 		if srvAddr == s.addr {
@@ -84,11 +86,12 @@ func (s *StorageServer) Start(addr string) {
 func (s *StorageServer) status() {
 	for {
 		time.Sleep(5 * time.Second)
-		val := ""
+		/*val := ""
 		if len(s.data) > 0 {
 			val = s.data[len(s.data)-1]
-		}
-		str := fmt.Sprintf("Server %s running with last value: \"%s\"", s.addr[len(s.addr)-4:], val)
+		}*/
+		//str := fmt.Sprintf("Server %s running with last value: \"%s\"", s.addr[len(s.addr)-4:], val)
+		str := fmt.Sprintf("Server %s running with values: \"%s\"", s.addr[len(s.addr)-4:], s.data)
 		log.Println(str)
 	}
 }
@@ -108,11 +111,13 @@ func (s *StorageServer) SetData(data []string) {
 }
 
 func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response *pb.WriteResponse, err error) {
-	s.Lock()
-	defer s.Unlock()
 	s.messages++
-	s.data = append(s.data, request.Value)
-	return &pb.WriteResponse{New: true}, nil
+	if handled, ok := s.handledMessages[request.Value]; !ok && !handled {
+		s.handledMessages[request.Value] = true
+		s.data = append(s.data, request.Value)
+		return &pb.WriteResponse{New: true}, nil
+	}
+	return &pb.WriteResponse{New: false}, nil
 }
 
 func (s *StorageServer) Read(ctx gorums.ServerCtx, request *pb.ReadRequest) (response *pb.State, err error) {

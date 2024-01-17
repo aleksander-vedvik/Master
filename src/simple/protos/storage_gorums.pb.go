@@ -241,6 +241,7 @@ type QCStorage interface {
 	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
 }
 
+// BELOW MUST BE GENERATED
 type broadcastHandler func(context.Context, any) (any, error)
 
 type Server struct {
@@ -281,6 +282,7 @@ func (srv *Server) run() {
 		srv.methods[method](context.Background(), req)
 	}
 }
+// ABOVE MUST BE GENERATED
 
 type internalState struct {
 	nid   uint32
