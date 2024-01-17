@@ -23,7 +23,7 @@ type StorageServer struct {
 // Creates a new StorageServer.
 func NewStorageServer(srvAddresses []string) *StorageServer {
 	gorumsSrv := gorums.NewServer()
-	gorumsSrv.AddView(pb.NewView(srvAddresses))
+	gorumsSrv.AddView(getConfig(srvAddresses))
 	srv := StorageServer{
 		data:      make([]string, 0),
 		gorumsSrv: gorumsSrv,

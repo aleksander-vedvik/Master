@@ -240,24 +240,9 @@ type QCStorage interface {
 }
 
 func RegisterQCStorageServer(srv *gorums.Server, impl QCStorage) {
-	srv.RegisterHandler("protos.QCStorage.Read", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*ReadRequest)
-		defer ctx.Release()
-		resp, err := impl.Read(ctx, req)
-		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
-	})
-	srv.RegisterHandler("protos.QCStorage.Write", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*State)
-		defer ctx.Release()
-		resp, err := impl.Write(ctx, req)
-		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
-	})
-	srv.RegisterHandler("protos.QCStorage.Status", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
-		req := in.Message.(*StatusRequest)
-		defer ctx.Release()
-		resp, err := impl.Status(ctx, req)
-		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
-	})
+	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler[*ReadRequest, *State](impl.Read))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler[*State, *WriteResponse](impl.Write, srv))
+	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler[*StatusRequest, *StatusResponse](impl.Status))
 }
 
 type internalState struct {
