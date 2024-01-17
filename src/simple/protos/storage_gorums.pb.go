@@ -242,22 +242,16 @@ type QCStorage interface {
 }
 
 // BELOW MUST BE GENERATED
-type broadcastHandler func(context.Context, any) (any, error)
-
 type Server struct {
 	*gorums.Server
 	c *Configuration
-	//methodsOld map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)
 	methods map[string]func(ctx context.Context, req any) (any, error)
-	id string
 }
 
 func NewServer(id string) *Server {
 	return &Server{
 		Server: gorums.NewServer(),
-		//methodsOld: make(map[string]func(ctx context.Context, in *State) (resp *WriteResponse, err error)),
 		methods: make(map[string]func(ctx context.Context, req any) (resp any, err error)),
-		id: id,
 	}
 }
 
@@ -270,7 +264,6 @@ func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
 
 func (srv *Server) AddConfig(c *Configuration) {
 	srv.c = c
-	//srv.methodsOld["protos.QCStorage.Write"] = srv.c.Write
 	srv.methods["protos.QCStorage.Write"] = gorums.RegisterBroadcastFunc(srv.c.Write)
 	go srv.run()
 }
@@ -282,12 +275,6 @@ func (srv *Server) run() {
 		//ctx := msg.GetContext()
 		time.Sleep(5 * time.Second)
 		srv.methods[method](context.Background(), req)
-		//srv.methods[method](context.Background(), request)
-		/*switch request := req.(type) {
-		case *State:
-			fmt.Println("broadcasting", request.GetValue(), "from", srv.id)
-			srv.c.Write(context.Background(), request)
-		}*/
 	}
 }
 // ABOVE MUST BE GENERATED
