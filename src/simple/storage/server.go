@@ -65,7 +65,7 @@ func (s *StorageServer) AddConfig(srvAddresses []string) {
 		}
 		otherServers = append(otherServers, srvAddr)
 	}
-	s.gorumsSrv.AddConfig(getConfig(otherServers))
+	s.gorumsSrv.RegisterConfiguration(getConfig(otherServers))
 }
 
 // Start the server listening on the provided address string

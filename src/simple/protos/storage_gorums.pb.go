@@ -244,7 +244,6 @@ type QCStorage interface {
 // BELOW MUST BE GENERATED
 type Server struct {
 	*gorums.Server
-	c *Configuration
 	methods map[string]func(ctx context.Context, req any) (any, error)
 }
 
@@ -262,9 +261,8 @@ func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler(impl.Status))
 }
 
-func (srv *Server) AddConfig(c *Configuration) {
-	srv.c = c
-	srv.methods["protos.QCStorage.Write"] = gorums.RegisterBroadcastFunc(srv.c.Write)
+func (srv *Server) RegisterConfiguration(c *Configuration) {
+	srv.methods["protos.QCStorage.Write"] = gorums.RegisterBroadcastFunc(c.Write)
 	go srv.run()
 }
 
@@ -272,7 +270,7 @@ func (srv *Server) run() {
 	for msg := range srv.BroadcastChan {
 		req := msg.GetRequest()
 		method := msg.GetMethod()
-		//ctx := msg.GetContext()
+		//ctx := msg.GetContext() <- old context, will be cancelled by calling client
 		time.Sleep(5 * time.Second)
 		srv.methods[method](context.Background(), req)
 	}
