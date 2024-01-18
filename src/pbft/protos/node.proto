@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package protos;
+
+import "gorums.proto";
+option go_package = ".";
+
+service PBFTNode {
+  rpc PrePrepare(PrePrepareRequest) returns (Empty) {
+    option (gorums.quorumcall) = true;
+    option (gorums.broadcast) = true;
+    option (gorums.broadcast.call) = "Prepare";
+   }
+  rpc Prepare(PrepareRequest) returns (Empty) {
+    option (gorums.quorumcall) = true;
+   }
+  rpc Commit(CommitRequest) returns (Empty) {
+    option (gorums.quorumcall) = true;
+   }
+}
+
+message PrePrepareRequest {
+  int32 Id = 1;
+  string Value = 2;
+}
+
+message PrepareRequest {
+  int32 Id = 1;
+  string Value = 2;
+}
+
+message CommitRequest {
+  int32 Id = 1;
+  string Value = 2;
+}
+
+message Empty {}
