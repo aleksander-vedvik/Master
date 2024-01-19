@@ -39,7 +39,7 @@ func NewStorageServer(addr string) *StorageServer {
 		handledMessages: handledMessages,
 		addedMsgs:       make(map[string]bool),
 	}
-	srv.gorumsSrv.AddTmp(addr)
+	//srv.gorumsSrv.AddTmp(addr)
 	pb.RegisterPBFTNodeServer(srv.gorumsSrv, &srv)
 	return &srv
 }
