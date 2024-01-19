@@ -110,7 +110,9 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if len(opts) < 1 || len(opts) > 2 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
-	c = &Configuration{}
+	c = &Configuration{
+		round: new(uint64),
+	}
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case gorums.NodeListOption:
@@ -258,12 +260,11 @@ type PBFTNode interface {
 // BELOW MUST BE GENERATED
 type Server struct {
 	*gorums.Server
-	c *Configuration
 }
 
 func NewServer() *Server {
 	return &Server{
-		Server: gorums.NewServer(),
+		gorums.NewServer(),
 	}
 }
 
@@ -274,16 +275,12 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 
 	srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))
 	srv.RegisterConversion("protos.PBFTNode.Prepare", gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest))
-	//srv.conversions["protos.PBFTNode.PrePrepare"] = gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest)
-	//srv.conversions["protos.PBFTNode.Prepare"] = gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest)
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
  	c.round = srv.Round
 	srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare", gorums.RegisterBroadcastFunc(c.Prepare))
 	srv.RegisterBroadcastFunc("protos.PBFTNode.Prepare", gorums.RegisterBroadcastFunc(c.Commit))
-	//srv.methods["protos.PBFTNode.PrePrepare"] = gorums.RegisterBroadcastFunc(c.Prepare)
-	//srv.methods["protos.PBFTNode.Prepare"] = gorums.RegisterBroadcastFunc(c.Commit)
 	srv.ListenForBroadcast()
 }
 
