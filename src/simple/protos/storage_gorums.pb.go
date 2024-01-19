@@ -9,7 +9,6 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-	"time"
 
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
@@ -29,6 +28,8 @@ type Configuration struct {
 	gorums.RawConfiguration
 	nodes []*Node
 	qspec QuorumSpec
+	round *uint64
+	sender string
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -116,7 +117,9 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if len(opts) < 1 || len(opts) > 2 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
-	c = &Configuration{}
+	c = &Configuration{
+		round: new(uint64),
+	}
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case gorums.NodeListOption:
@@ -237,43 +240,30 @@ func (n *Node) Status(ctx context.Context, in *StatusRequest) (resp *StatusRespo
 // QCStorage is the server-side API for the QCStorage Service
 type QCStorage interface {
 	Read(ctx gorums.ServerCtx, request *ReadRequest) (response *State, err error)
-	Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error)
+	Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error, broadcast bool)
 	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
 }
 
 // BELOW MUST BE GENERATED
 type Server struct {
 	*gorums.Server
-	methods map[string]func(ctx context.Context, req any) (any, error)
 }
 
-func NewServer(id string) *Server {
+func NewServer() *Server {
 	return &Server{
-		Server: gorums.NewServer(),
-		methods: make(map[string]func(ctx context.Context, req any) (resp any, err error)),
+		gorums.NewServer(),
 	}
 }
 
-func (srv *Server) RegisterQCStorageServer(impl QCStorage) {
+func RegisterQCStorageServer(srv *Server, impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler(impl.Read))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.BestEffortBroadcastHandler(impl.Write, srv.Server))
-	//srv.RegisterHandler("protos.QCStorage.Write", gorums.DefaultHandler[*State, *WriteResponse](impl.Write))
-	srv.RegisterHandler("protos.QCStorage.Status", gorums.DefaultHandler(impl.Status))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.methods["protos.QCStorage.Write"] = gorums.RegisterBroadcastFunc(c.Write)
-	go srv.run()
-}
-
-func (srv *Server) run() {
-	for msg := range srv.BroadcastChan {
-		req := msg.GetRequest()
-		method := msg.GetMethod()
-		//ctx := msg.GetContext() <- old context, will be cancelled by calling client
-		time.Sleep(5 * time.Second)
-		srv.methods[method](context.Background(), req)
-	}
+ 	c.round = srv.Round
+	srv.RegisterBroadcastFunc("protos.QCStorage.Write", gorums.RegisterBroadcastFunc(c.Write))
+	srv.ListenForBroadcast()
 }
 // ABOVE MUST BE GENERATED
 
