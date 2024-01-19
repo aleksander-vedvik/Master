@@ -28,7 +28,7 @@ type Configuration struct {
 	nodes []*Node
 	qspec QuorumSpec
 	sender string
-	round uint64
+	round *uint64
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -51,7 +51,6 @@ func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) *Con
 
 func (c *Configuration) AddSender(addr string) {
 	c.sender = addr
-	c.round = 1000
 }
 
 // Nodes returns a slice of each available node. IDs are returned in the same
@@ -184,7 +183,7 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 		Message: in,
 		Method:  "protos.PBFTNode.PrePrepare",
 		Sender:  c.sender,
-		Round: c.round,
+		Round: *c.round,
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Empty, len(replies))
@@ -260,15 +259,11 @@ type PBFTNode interface {
 type Server struct {
 	*gorums.Server
 	c *Configuration
-	methods map[string]gorums.BroadcastFunc
-	conversions map[string]gorums.ConversionFunc
 }
 
 func NewServer() *Server {
 	return &Server{
 		Server: gorums.NewServer(),
-		methods: make(map[string]gorums.BroadcastFunc),
-		conversions: make(map[string]gorums.ConversionFunc),
 	}
 }
 
@@ -277,18 +272,22 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BestEffortBroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.DefaultHandler(impl.Commit))
 
-	srv.conversions["protos.PBFTNode.PrePrepare"] = gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest)
-	srv.conversions["protos.PBFTNode.Prepare"] = gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest)
+	srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))
+	srv.RegisterConversion("protos.PBFTNode.Prepare", gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest))
+	//srv.conversions["protos.PBFTNode.PrePrepare"] = gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest)
+	//srv.conversions["protos.PBFTNode.Prepare"] = gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest)
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.c = c
-	srv.methods["protos.PBFTNode.PrePrepare"] = gorums.RegisterBroadcastFunc(c.Prepare)
-	srv.methods["protos.PBFTNode.Prepare"] = gorums.RegisterBroadcastFunc(c.Commit)
-	go srv.run()
+ 	c.round = srv.Round
+	srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare", gorums.RegisterBroadcastFunc(c.Prepare))
+	srv.RegisterBroadcastFunc("protos.PBFTNode.Prepare", gorums.RegisterBroadcastFunc(c.Commit))
+	//srv.methods["protos.PBFTNode.PrePrepare"] = gorums.RegisterBroadcastFunc(c.Prepare)
+	//srv.methods["protos.PBFTNode.Prepare"] = gorums.RegisterBroadcastFunc(c.Commit)
+	srv.ListenForBroadcast()
 }
 
-func (srv *Server) run() {
+/*func (srv *Server) run() {
 	for msg := range srv.BroadcastChan {
 		srv.c.round = msg.GetRound()
 		//srv.c.StoreID(msgID-1)
