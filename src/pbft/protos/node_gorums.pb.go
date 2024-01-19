@@ -269,8 +269,8 @@ func NewServer() *Server {
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
-	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BestEffortBroadcastHandler(impl.PrePrepare, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BestEffortBroadcastHandler(impl.Prepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.DefaultHandler(impl.Commit))
 
 	srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))

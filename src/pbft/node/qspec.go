@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getConfig(srvAddresses []string) *pb.Configuration {
+func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	mgr := pb.NewManager(
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
@@ -26,6 +26,7 @@ func getConfig(srvAddresses []string) *pb.Configuration {
 	if err != nil {
 		log.Fatal("error creating config:", err)
 	}
+	quorum.AddSender(addr)
 	return quorum
 }
 

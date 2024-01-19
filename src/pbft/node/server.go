@@ -39,6 +39,7 @@ func NewStorageServer(addr string) *StorageServer {
 		handledMessages: handledMessages,
 		addedMsgs:       make(map[string]bool),
 	}
+	srv.gorumsSrv.AddTmp(addr)
 	pb.RegisterPBFTNodeServer(srv.gorumsSrv, &srv)
 	return &srv
 }
@@ -61,7 +62,6 @@ func (s *StorageServer) StartServer(addr string) string {
 		s.gorumsSrv.Serve(lis)
 	}()
 	go s.status()
-
 	return <-addrChan
 }
 
@@ -75,8 +75,8 @@ func (s *StorageServer) AddConfig(srvAddresses []string) {
 		otherServers = append(otherServers, srvAddr)
 	}
 	s.peers = otherServers
-	config := getConfig(otherServers)
-	config.AddSender(s.addr)
+	config := getConfig(s.addr, otherServers)
+	//config.AddSender(s.addr)
 	s.gorumsSrv.RegisterConfiguration(config)
 	//s.gorumsSrv.CreateMapping(pb.Map(pb.PrePrepare, pb.Prepare))
 }
@@ -95,7 +95,7 @@ func (s *StorageServer) Start(addr string) {
 func (s *StorageServer) status() {
 	for {
 		time.Sleep(5 * time.Second)
-		str := fmt.Sprintf("Server %s running with:\n\t- number of messages: %v\n\t- commited values: %v", s.addr[len(s.addr)-4:], s.messages, s.data)
+		str := fmt.Sprintf("Server %s running with:\n\t- number of messages: %v\n\t- commited values: %v\n\t- peers: %v", s.addr[len(s.addr)-4:], s.messages, s.data, s.peers)
 		log.Println(str)
 	}
 }
@@ -120,7 +120,7 @@ func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest
 	if s.quorum(request.Value, "Prepare") {
 		broadcast = true
 	}
-	fmt.Println(s.addr, "received Prepare quorum", broadcast)
+	//fmt.Println(s.addr, "received Prepare quorum", broadcast)
 	return
 }
 

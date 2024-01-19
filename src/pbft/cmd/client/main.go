@@ -21,7 +21,7 @@ func client2() {
 	for i := range srvAddresses {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
 	}
-	client := node.NewStorageClient(srvAddresses)
+	client := node.NewStorageClient(srvAddresses, "client")
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
 	log.Println("Writing value", values[0])
