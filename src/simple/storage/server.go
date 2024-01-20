@@ -14,9 +14,9 @@ import (
 
 // The storage server should implement the server interface defined in the pbbuf files
 type StorageServer struct {
+	*pb.Server
 	sync.RWMutex
 	data            []string
-	gorumsSrv       *pb.Server
 	addr            string
 	messages        int
 	handledMessages map[string]bool
@@ -25,15 +25,14 @@ type StorageServer struct {
 
 // Creates a new StorageServer.
 func NewStorageServer(addr string) *StorageServer {
-	gorumsSrv := pb.NewServer()
 	srv := StorageServer{
+		Server:          pb.NewServer(),
 		data:            make([]string, 0),
-		gorumsSrv:       gorumsSrv,
 		addr:            "",
 		handledMessages: make(map[string]bool),
 		peers:           make([]string, 0),
 	}
-	pb.RegisterQCStorageServer(srv.gorumsSrv, &srv)
+	pb.RegisterQCStorageServer(srv.Server, &srv)
 	return &srv
 }
 
@@ -52,7 +51,7 @@ func (s *StorageServer) StartServer(addr string) string {
 		}
 		s.addr = fmt.Sprintf("%s", lis.Addr())
 		addrChan <- s.addr
-		s.gorumsSrv.Serve(lis)
+		s.Serve(lis)
 	}()
 	go s.status()
 
@@ -69,7 +68,7 @@ func (s *StorageServer) AddConfig(srvAddresses []string) {
 		otherServers = append(otherServers, srvAddr)
 	}
 	s.peers = otherServers
-	s.gorumsSrv.RegisterConfiguration(getConfig(otherServers))
+	s.RegisterConfiguration(getConfig(otherServers))
 }
 
 func printable(addrs []string) string {
@@ -94,7 +93,7 @@ func (s *StorageServer) Start(addr string) {
 	s.addr = fmt.Sprintf("%s", lis.Addr())
 	go s.status()
 	log.Printf("Server started. Listening on address: %s\n", s.addr)
-	s.gorumsSrv.Serve(lis)
+	s.Serve(lis)
 }
 
 func (s *StorageServer) status() {
@@ -125,7 +124,7 @@ func (s *StorageServer) SetData(data []string) {
 	s.data = data
 }
 
-func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response *pb.WriteResponse, err error, broadcast bool) {
+func (s *StorageServer) write(ctx gorums.ServerCtx, request *pb.State) (response *pb.WriteResponse, err error, broadcast bool) {
 	s.messages++
 	if handled, ok := s.handledMessages[request.Value]; !ok && !handled {
 		s.handledMessages[request.Value] = true
@@ -133,6 +132,16 @@ func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State) (response
 		return &pb.WriteResponse{New: true}, nil, true
 	}
 	return &pb.WriteResponse{New: false}, nil, true
+}
+
+func (s *StorageServer) Write(ctx gorums.ServerCtx, request *pb.State, broadcast func(*pb.State)) (response *pb.WriteResponse, err error) {
+	s.messages++
+	if handled, ok := s.handledMessages[request.Value]; !ok && !handled {
+		s.handledMessages[request.Value] = true
+		s.data = append(s.data, request.Value)
+		broadcast(request)
+	}
+	return &pb.WriteResponse{New: false}, nil
 }
 
 func (s *StorageServer) Read(ctx gorums.ServerCtx, request *pb.ReadRequest) (response *pb.State, err error) {

@@ -240,7 +240,8 @@ func (n *Node) Status(ctx context.Context, in *StatusRequest) (resp *StatusRespo
 // QCStorage is the server-side API for the QCStorage Service
 type QCStorage interface {
 	Read(ctx gorums.ServerCtx, request *ReadRequest) (response *State, err error)
-	Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error, broadcast bool)
+	Write(ctx gorums.ServerCtx, request *State, broadcast func(*State)) (response *WriteResponse, err error)
+	//Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error, broadcast bool)
 	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
 }
 
@@ -257,7 +258,8 @@ func NewServer() *Server {
 
 func RegisterQCStorageServer(srv *Server, impl QCStorage) {
 	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler(impl.Read))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+	srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler2(impl.Write, srv.Server))
+	//srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {

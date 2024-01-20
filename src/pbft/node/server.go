@@ -14,9 +14,9 @@ import (
 
 // The storage server should implement the server interface defined in the pbbuf files
 type StorageServer struct {
+	*pb.Server
 	sync.RWMutex
 	data            []string
-	gorumsSrv       *pb.Server
 	addr            string
 	peers           []string
 	messages        int
@@ -30,17 +30,16 @@ func NewStorageServer(addr string) *StorageServer {
 	handledMessages["PrePrepare"] = make(map[string]int)
 	handledMessages["Prepare"] = make(map[string]int)
 	handledMessages["Commit"] = make(map[string]int)
-	gorumsSrv := pb.NewServer()
 	srv := StorageServer{
+		Server:          pb.NewServer(),
 		data:            make([]string, 0),
-		gorumsSrv:       gorumsSrv,
 		addr:            "",
 		peers:           make([]string, 0),
 		handledMessages: handledMessages,
 		addedMsgs:       make(map[string]bool),
 	}
 	//srv.gorumsSrv.AddTmp(addr)
-	pb.RegisterPBFTNodeServer(srv.gorumsSrv, &srv)
+	pb.RegisterPBFTNodeServer(srv.Server, &srv)
 	return &srv
 }
 
@@ -59,7 +58,7 @@ func (s *StorageServer) StartServer(addr string) string {
 		}
 		s.addr = fmt.Sprintf("%s", lis.Addr())
 		addrChan <- s.addr
-		s.gorumsSrv.Serve(lis)
+		s.Serve(lis)
 	}()
 	go s.status()
 	return <-addrChan
@@ -77,7 +76,7 @@ func (s *StorageServer) AddConfig(srvAddresses []string) {
 	s.peers = otherServers
 	config := getConfig(s.addr, otherServers)
 	//config.AddSender(s.addr)
-	s.gorumsSrv.RegisterConfiguration(config)
+	s.RegisterConfiguration(config)
 	//s.gorumsSrv.CreateMapping(pb.Map(pb.PrePrepare, pb.Prepare))
 }
 
@@ -89,7 +88,7 @@ func (s *StorageServer) Start(addr string) {
 	s.addr = fmt.Sprintf("%s", lis.Addr())
 	go s.status()
 	log.Printf("Server started. Listening on address: %s\n", s.addr)
-	s.gorumsSrv.Serve(lis)
+	s.Serve(lis)
 }
 
 func (s *StorageServer) status() {
@@ -100,7 +99,7 @@ func (s *StorageServer) status() {
 	}
 }
 
-func (s *StorageServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest) (response *pb.Empty, err error, broadcast bool) {
+func (s *StorageServer) prePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest) (response *pb.Empty, err error, broadcast bool) {
 	s.messages++
 	response = &pb.Empty{}
 	err = nil
@@ -108,7 +107,17 @@ func (s *StorageServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareR
 	return
 }
 
-func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest) (response *pb.Empty, err error, broadcast bool) {
+func (s *StorageServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast func(*pb.PrepareRequest)) (response *pb.Empty, err error) {
+	s.messages++
+	response = &pb.Empty{}
+	err = nil
+	broadcast(&pb.PrepareRequest{
+		Value: request.GetValue(),
+	})
+	return
+}
+
+func (s *StorageServer) prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest) (response *pb.Empty, err error, broadcast bool) {
 	s.messages++
 	response = &pb.Empty{}
 	err = nil
@@ -119,6 +128,23 @@ func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest
 	s.handledMessages["Prepare"][request.Value]++
 	if s.quorum(request.Value, "Prepare") {
 		broadcast = true
+	}
+	//fmt.Println(s.addr, "received Prepare quorum", broadcast)
+	return
+}
+
+func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast func(*pb.CommitRequest)) (response *pb.Empty, err error) {
+	s.messages++
+	response = &pb.Empty{}
+	err = nil
+	if _, ok := s.handledMessages["Prepare"][request.Value]; !ok {
+		s.handledMessages["Prepare"][request.Value] = 0
+	}
+	s.handledMessages["Prepare"][request.Value]++
+	if s.quorum(request.Value, "Prepare") {
+		broadcast(&pb.CommitRequest{
+			Value: request.GetValue(),
+		})
 	}
 	//fmt.Println(s.addr, "received Prepare quorum", broadcast)
 	return

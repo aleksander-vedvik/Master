@@ -250,11 +250,13 @@ func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Em
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest) (response *Empty, err error, broadcast bool)
-	Prepare(ctx gorums.ServerCtx, request *PrepareRequest) (response *Empty, err error, broadcast bool)
+	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast func(*PrepareRequest)) (response *Empty, err error)
+	//PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest) (response *Empty, err error, broadcast bool)
+	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast func(*CommitRequest)) (response *Empty, err error)
+	//Prepare(ctx gorums.ServerCtx, request *PrepareRequest) (response *Empty, err error, broadcast bool)
 	Commit(ctx gorums.ServerCtx, request *CommitRequest) (response *Empty, err error)
-	ConvertPrePrepareToPrepareRequest(ctx context.Context, request *PrePrepareRequest) *PrepareRequest
-	ConvertPrepareToCommitRequest(ctx context.Context, request *PrepareRequest) *CommitRequest
+	//ConvertPrePrepareToPrepareRequest(ctx context.Context, request *PrePrepareRequest) *PrepareRequest
+	//ConvertPrepareToCommitRequest(ctx context.Context, request *PrepareRequest) *CommitRequest
 }
 
 // BELOW MUST BE GENERATED
@@ -269,12 +271,14 @@ func NewServer() *Server {
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
-	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler2(impl.PrePrepare, srv.Server))
+	//srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler2(impl.Prepare, srv.Server))
+	//srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.DefaultHandler(impl.Commit))
 
-	srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))
-	srv.RegisterConversion("protos.PBFTNode.Prepare", gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest))
+	//srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))
+	//srv.RegisterConversion("protos.PBFTNode.Prepare", gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest))
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
