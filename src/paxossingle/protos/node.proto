@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package protos;
+
+import "gorums.proto";
+option go_package = ".";
+
+service PBFTNode {
+  rpc Accept(AcceptMessage) returns (Empty) {
+    option (gorums.quorumcall) = true;
+    option (gorums.broadcast) = true;
+    option (gorums.broadcast.call) = "Prepare";
+   }
+  rpc Learn(LearnMessage) returns (Empty) {
+    option (gorums.quorumcall) = true;
+   }
+}
+
+message AcceptMessage {
+  int32 From = 1;
+  string Value = 2;
+}
+
+message LearnMessage {
+  int32 From = 1;
+  string Value = 2;
+}
+
+message Empty {}
