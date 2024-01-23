@@ -1,0 +1,88 @@
+<div class="px-4 py-16 mx-auto sm:max-w-xl md:max-w-full lg:max-w-screen-xl md:px-24 lg:px-8 lg:py-20">
+    <div class="max-w-xl mb-10 md:mx-auto sm:text-center lg:max-w-2xl md:mb-12">
+        <div>
+            <p
+                class="inline-block px-3 py-px mb-4 text-xs font-semibold tracking-wider text-teal-900 uppercase rounded-full bg-teal-accent-400">
+                Nodes
+            </p>
+        </div>
+        <h2
+            class="max-w-lg mb-6 font-sans text-3xl font-bold leading-none tracking-tight text-gray-900 sm:text-4xl md:mx-auto">
+            <span class="relative inline-block">
+                <svg viewBox="0 0 52 24" fill="currentColor"
+                    class="opacity-20 absolute top-0 left-0 z-0 hidden w-32 -mt-8 -ml-20 text-blue-gray-100 lg:w-32 lg:-ml-28 lg:-mt-10 sm:block">
+                    <defs>
+                        <pattern id="247432cb-6e6c-4bec-9766-564ed7c230dc" x="0" y="0" width=".135" height=".30">
+                            <circle cx="1" cy="1" r=".7"></circle>
+                        </pattern>
+                    </defs>
+                    <rect fill="url(#247432cb-6e6c-4bec-9766-564ed7c230dc)" width="52" height="24"></rect>
+                </svg>
+                <span class="relative">Overview</span>
+            </span>
+            of all nodes in the network
+        </h2>
+        <p class="text-base text-gray-700 md:text-lg">
+            The status will update every {{ .UpdateInterval }} seconds.
+        </p>
+    </div>
+    <div class="mb-24 grid gap-10 row-gap-8 mx-auto sm:row-gap-10 lg:max-w-screen-lg sm:grid-cols-2 lg:grid-cols-3">
+        {{range .Nodes}}
+        <a href="/node/{{.Id}}">
+            <div id="node{{.Id}}" class="flex cursor-pointer shadow-md rounded-lg">
+                <img class="object-cover w-20 h-20 mr-4 rounded-l-lg shadow"
+                    src="https://images.pexels.com/photos/5011647/pexels-photo-5011647.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
+                    alt="Node" />
+                <div class="flex flex-col justify-center">
+                    <p class="text-lg font-bold">Node {{.Id}}</p>
+                    {{if eq .Status "Online" }}
+                    <p id="node{{.Id}}Status" class="text-sm font-bold text-green-800">Online</p>
+                    {{else}}
+                    <p id="node{{.Id}}Status" class="text-sm font-bold text-red-800">Offline</p>
+                    {{end}}
+                </div>
+            </div>
+        </a>
+        {{end}}
+    </div>
+    <section class="mb-8">
+        <div class="mb-8 flex cursor-pointer shadow-md rounded-lg mx-auto w-1/3">
+            <div class="mr-4 w-20 py-6 flex justify-center bg-gray-100 rounded-l-lg">
+                <span class="text-gray-500 dark:text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        class="w-7 h-7 bi bi-cpu" viewBox="0 0 16 16">
+                        <path
+                            d="M5 0a.5.5 0 0 1 .5.5V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2h1V.5a.5.5 0 0 1 1 0V2A2.5 2.5 0 0 1 14 4.5h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14v1h1.5a.5.5 0 0 1 0 1H14a2.5 2.5 0 0 1-2.5 2.5v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14h-1v1.5a.5.5 0 0 1-1 0V14A2.5 2.5 0 0 1 2 11.5H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2v-1H.5a.5.5 0 0 1 0-1H2A2.5 2.5 0 0 1 4.5 2V.5A.5.5 0 0 1 5 0zm-.5 3A1.5 1.5 0 0 0 3 4.5v7A1.5 1.5 0 0 0 4.5 13h7a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 11.5 3h-7zM5 6.5A1.5 1.5 0 0 1 6.5 5h3A1.5 1.5 0 0 1 11 6.5v3A1.5 1.5 0 0 1 9.5 11h-3A1.5 1.5 0 0 1 5 9.5v-3zM6.5 6a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z">
+                        </path>
+                    </svg>
+                </span>
+            </div>
+            <div class="flex flex-col justify-center">
+                <p class="text-lg font-bold">Current value</p>
+                <p id="currentValue" class="text-xl font-bold text-gray-600">None</p>
+            </div>
+        </div>
+        <div class="container max-w-screen-xl mx-auto px-4">
+            <form class="max-w-sm mx-auto">
+                <label for="message" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Send
+                    a message to all nodes</label>
+                <div class="relative mb-4">
+                    <div class="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none">
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 16">
+                            <path
+                                d="m10.036 8.278 9.258-7.79A1.979 1.979 0 0 0 18 0H2A1.987 1.987 0 0 0 .641.541l9.395 7.737Z" />
+                            <path
+                                d="M11.241 9.817c-.36.275-.801.425-1.255.427-.428 0-.845-.138-1.187-.395L0 2.6V14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V2.5l-8.759 7.317Z" />
+                        </svg>
+                    </div>
+                    <input type="text" id="message"
+                        class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                        placeholder="value">
+                </div>
+                <button type="submit"
+                    class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">Send</button>
+            </form>
+        </div>
+    </section>
+</div>

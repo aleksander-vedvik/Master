@@ -21,10 +21,12 @@ type StorageServer struct {
 	messages        int
 	handledMessages map[string]bool
 	peers           []string
+	lastRunCmd      string
 }
 
 // Creates a new StorageServer.
 func NewStorageServer(addr string) *StorageServer {
+	ui(addr)
 	srv := StorageServer{
 		Server:          pb.NewServer(),
 		data:            make([]string, 0),
@@ -107,6 +109,11 @@ func (s *StorageServer) status() {
 		num, _ := strconv.Atoi(s.addr[len(s.addr)-1:])
 		str := fmt.Sprintf("\nnode %v running with peers = %v, msgs = %v\n\t- values: \"%s\"", num+1, printable(s.peers), s.messages, s.data)
 		fmt.Println(str)
+		val := ""
+		if len(s.data) > 0 {
+			val = s.data[len(s.data)-1]
+		}
+		sendStatus(s.addr, s.lastRunCmd, val, s.messages)
 	}
 }
 

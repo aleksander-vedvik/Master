@@ -49,11 +49,13 @@ Gorums can be seen as an implementation of a Regular Register. All-to-all should
 
 - A node must have only one configuration, from now called view. This must be created at the start.
   - To change the view, the nodes must instantiate a "configure view" protocol. This is not yet implemented in Gorums.
-- This view needs to be part of the Gorums server.
-- Optimialization:
-  - Gorums will create a connection (stream) to each node in the configuration. This will be done for every node.
-    - Is it possible to use the same connection for both Gorums client and server?
+  - This view needs to be part of the Gorums server.
 - A message gets a new ID for each request. How to distinguish messages in broadcast?
   - Use the same ID for broadcast messages?
     - How to distinguish chained methods? E.g. pBFT: PrePrepare -> Prepare -> Commit
   - How to check who the message was received from? Uses peer.GetAddr from context. IP changes constantly.
+
+### Optimalization
+
+- Gorums will create a connection (stream) to each node in the configuration. This will be done for every node.
+  - Is it possible to use the same connection for both Gorums client and server?

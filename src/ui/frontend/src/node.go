@@ -1,111 +1,50 @@
 package main
 
-import (
-	"math/rand"
-	"time"
-)
-
-type Node struct {
-	Id       uint32
-	Status   Status
-	Messages int
-	Round    int
-	Data     Data
-	Address  string
-}
-
 type Nodes []*Node
 
-func CreateNodes(srvAddrs []string) Nodes {
-	nodes := make([]*Node, 0)
-	for i, addr := range srvAddrs {
-		node := &Node{
-			Id:       uint32(i),
-			Status:   Online,
-			Messages: 0,
-			Round:    0,
-			Address:  addr,
-		}
-		nodes = append(nodes, node)
-	}
-	n := Nodes(nodes)
-	return n
+func NewNodes() Nodes {
+	return make(Nodes, 0, 3)
 }
 
-func (n Nodes) AddIDs(ids []uint32, addresses []string) {
-	for i, node := range n {
-		if i >= len(ids) || i >= len(addresses) {
-			return
-		}
-		node.Id = ids[i]
-		node.Address = addresses[i]
-	}
-}
-
-func (n Nodes) GetNode(id uint32) *Node {
-	for _, node := range n {
-		if node.Id == id {
-			return node
-		}
-	}
-	return nil
-}
-
-func (n Nodes) GetAddresses() []string {
-	addrs := make([]string, len(n))
-	for i, node := range n {
-		addrs[i] = node.Address + ":8080"
-	}
-	return addrs
-}
-
-func (n Nodes) GetIds() []uint32 {
-	ids := make([]uint32, len(n))
-	for i, node := range n {
-		ids[i] = node.Id
-	}
-	return ids
-}
-
-func (n *Node) DoSomething() {
-	go n.work()
-	for {
-		time.Sleep(time.Duration(3+rand.Intn(7)) * time.Second)
-		if n.Status == Online {
-			n.Status = Offline
-		} else {
-			n.Status = Online
-		}
-	}
-}
-
-func (n *Node) work() {
-	for {
-		time.Sleep(1 * time.Second)
-		if n.Status == Online {
-			n.Messages += 300 + rand.Intn(700)
-			n.Round += rand.Intn(3)
-		}
-	}
+type Node struct {
+	Id         int
+	Status     Status
+	Messages   int
+	LastCmdRun string
+	Data       Data
+	Address    string
 }
 
 type Data struct {
+	Val string
 }
 
-func TestNodes() []*Node {
-	nodes := make([]*Node, 0)
-	for i := 0; i < 9; i++ {
-		status := Online
-		if i%4 == 0 {
-			status = Offline
-		}
-		node := &Node{
-			Status:   status,
-			Messages: 0,
-			Round:    0,
-		}
-		go node.DoSomething()
-		nodes = append(nodes, node)
+func NewNode(address string, id int) *Node {
+	return &Node{
+		Id:       id,
+		Address:  address,
+		Status:   Online,
+		Messages: 0,
+		Data: Data{
+			Val: "",
+		},
 	}
-	return nodes
+}
+
+type Payload struct {
+	Address  string `json:"address"`
+	Messages int    `json:"messages"`
+	Method   string `json:"method"`
+	Value    string `json:"value"`
+}
+
+func (nodes Nodes) UpdateNode(payload Payload) {
+	for _, node := range nodes {
+		if node.Address == payload.Address {
+			node.Messages = payload.Messages
+			node.LastCmdRun = payload.Method
+			node.Data.Val = payload.Value
+			break
+		}
+	}
 }

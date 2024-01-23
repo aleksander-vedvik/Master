@@ -22,27 +22,34 @@
   }
 
   async function update() {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 5; i++) {
       await new Promise(r => setTimeout(r, 5000));
       let data = await fetchAsync("http://localhost:8080/status");
       for (let n of data) {
-        let msgs = document.getElementById("node" + n.Id + "Messages")
-        let method = document.getElementById("node" + n.Id + "Method")
-        let status = document.getElementById("node" + n.Id + "Status")
-        let val = document.getElementById("node" + n.Id + "Val")
-        msgs.innerText = n.Messages;
-        method.innerText = n.LastCmdRun;
-        val.innerText = n.Data.Val;
-        status.innerText = n.Status;
+        console.log(n);
+        let node = document.getElementById("node" + n.Id + "Status")
+        node.innerText = n.Status;
         if (n.Status === "Online") {
-          status.classList = "text-sm font-bold text-green-800";
+          node.classList = "text-sm font-bold text-green-800";
         } else {
-          status.classList = "text-sm font-bold text-red-800";
+          node.classList = "text-sm font-bold text-red-800";
         }
       }
     }
   }
-  window.onload = update;
+  async function update2() {
+    for (let i = 0; i < 50; i++) {
+      if (i % 5 === 0) {
+        await fetchAsync("http://localhost:8080/write/val" + i);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+      let data = await fetchAsync("http://localhost:8080/read");
+      console.log(data);
+      let nodeData = document.getElementById("currentValue")
+      nodeData.innerText = data;
+    }
+  }
+  window.onload = update2;
 </script>
 
 </html>
