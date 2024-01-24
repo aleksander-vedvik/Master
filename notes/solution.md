@@ -54,6 +54,7 @@ Gorums can be seen as an implementation of a Regular Register. All-to-all should
   - Use the same ID for broadcast messages?
     - How to distinguish chained methods? E.g. pBFT: PrePrepare -> Prepare -> Commit
   - How to check who the message was received from? Uses peer.GetAddr from context. IP changes constantly.
+- It is necessary to distinguish between requests sent by a server and a client.
 
 ### Optimalization
 
