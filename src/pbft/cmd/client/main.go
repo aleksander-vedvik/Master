@@ -16,7 +16,7 @@ func main() {
 
 func client2() {
 	time.Sleep(1 * time.Second)
-	numServers := 3
+	numServers := 1
 	srvAddresses := make([]string, numServers)
 	for i := range srvAddresses {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)

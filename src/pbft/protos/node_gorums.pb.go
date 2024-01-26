@@ -254,7 +254,8 @@ type PBFTNode interface {
 	//PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest) (response *Empty, err error, broadcast bool)
 	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast func(*CommitRequest)) (response *Empty, err error)
 	//Prepare(ctx gorums.ServerCtx, request *PrepareRequest) (response *Empty, err error, broadcast bool)
-	Commit(ctx gorums.ServerCtx, request *CommitRequest) (response *Empty, err error)
+	Commit(ctx gorums.ServerCtx, request *CommitRequest, returnToClient func(*Empty)) (response *Empty, err error)
+	//Commit(ctx gorums.ServerCtx, request *CommitRequest) (response *Empty, err error)
 	//ConvertPrePrepareToPrepareRequest(ctx context.Context, request *PrePrepareRequest) *PrepareRequest
 	//ConvertPrepareToCommitRequest(ctx context.Context, request *PrepareRequest) *CommitRequest
 }
@@ -275,7 +276,8 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	//srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler2(impl.Prepare, srv.Server))
 	//srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.DefaultHandler(impl.Commit))
+	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.ReturnToClientHandler(impl.Commit, srv.Server))
+	//srv.RegisterHandler("protos.PBFTNode.Commit", gorums.DefaultHandler(impl.Commit))
 
 	//srv.RegisterConversion("protos.PBFTNode.PrePrepare", gorums.RegisterConversionFunc(impl.ConvertPrePrepareToPrepareRequest))
 	//srv.RegisterConversion("protos.PBFTNode.Prepare", gorums.RegisterConversionFunc(impl.ConvertPrepareToCommitRequest))

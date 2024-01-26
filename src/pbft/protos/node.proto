@@ -13,9 +13,13 @@ service PBFTNode {
    }
   rpc Prepare(PrepareRequest) returns (Empty) {
     option (gorums.quorumcall) = true;
+    option (gorums.broadcast) = true;
+    option (gorums.broadcast.call) = "Commit";
    }
   rpc Commit(CommitRequest) returns (Empty) {
     option (gorums.quorumcall) = true;
+    option (gorums.broadcast) = true;
+    option (gorums.broadcast.call) = "Client";
    }
 }
 

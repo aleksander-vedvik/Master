@@ -179,3 +179,8 @@ func (s *StorageServer) Status(ctx gorums.ServerCtx, request *pb.StatusRequest) 
 	}
 	return response, nil
 }
+
+func (s *StorageServer) Criteria() bool {
+
+	return false
+}

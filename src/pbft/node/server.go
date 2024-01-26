@@ -141,16 +141,34 @@ func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest
 		s.handledMessages["Prepare"][request.Value] = 0
 	}
 	s.handledMessages["Prepare"][request.Value]++
-	if s.quorum(request.Value, "Prepare") {
-		broadcast(&pb.CommitRequest{
-			Value: request.GetValue(),
-		})
-	}
+	//if s.quorum(request.Value, "Prepare") {
+	broadcast(&pb.CommitRequest{
+		Value: request.GetValue(),
+	})
+	//}
 	//fmt.Println(s.addr, "received Prepare quorum", broadcast)
 	return
 }
 
-func (s *StorageServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest) (response *pb.Empty, err error) {
+func (s *StorageServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, returnToClient func(*pb.Empty)) (response *pb.Empty, err error) {
+	fmt.Println(s.addr, "received Commit")
+	s.messages++
+	response = &pb.Empty{}
+	err = nil
+	if _, ok := s.handledMessages["Commit"]; !ok {
+		s.handledMessages["Commit"][request.Value] = 0
+	}
+	s.handledMessages["Commit"][request.Value]++
+	if s.quorum(request.Value, "Commit") && !s.alreadyAdded(request.GetValue()) {
+		s.data = append(s.data, request.GetValue())
+		s.addedMsgs[request.GetValue()] = true
+		returnToClient(&pb.Empty{})
+		return response, fmt.Errorf("successfully returned to client")
+	}
+	return
+}
+
+func (s *StorageServer) commit(ctx gorums.ServerCtx, request *pb.CommitRequest) (response *pb.Empty, err error) {
 	fmt.Println(s.addr, "received Commit")
 	s.messages++
 	response = &pb.Empty{}

@@ -18,9 +18,10 @@ func NewStorageClient(srvAddresses []string, addr string) *StorageClient {
 }
 
 func (sc *StorageClient) WriteValue(value string) error {
-	_, err := sc.view.PrePrepare(context.Background(), &pb.PrePrepareRequest{
+	resp, err := sc.view.PrePrepare(context.Background(), &pb.PrePrepareRequest{
 		Value: value,
 	})
+	log.Println(resp)
 	if err != nil {
 		log.Fatal(err)
 		return err
