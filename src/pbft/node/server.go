@@ -137,16 +137,10 @@ func (s *StorageServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest
 	s.messages++
 	response = &pb.Empty{}
 	err = nil
-	if _, ok := s.handledMessages["Prepare"][request.Value]; !ok {
-		s.handledMessages["Prepare"][request.Value] = 0
-	}
-	s.handledMessages["Prepare"][request.Value]++
-	//if s.quorum(request.Value, "Prepare") {
+	s.addToHandledMessages("Prepare", request.GetValue())
 	broadcast(&pb.CommitRequest{
 		Value: request.GetValue(),
 	})
-	//}
-	//fmt.Println(s.addr, "received Prepare quorum", broadcast)
 	return
 }
 
@@ -155,13 +149,9 @@ func (s *StorageServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, 
 	s.messages++
 	response = &pb.Empty{}
 	err = nil
-	if _, ok := s.handledMessages["Commit"]; !ok {
-		s.handledMessages["Commit"][request.Value] = 0
-	}
-	s.handledMessages["Commit"][request.Value]++
+	s.addToHandledMessages("Commit", request.GetValue())
 	if s.quorum(request.Value, "Commit") && !s.alreadyAdded(request.GetValue()) {
-		s.data = append(s.data, request.GetValue())
-		s.addedMsgs[request.GetValue()] = true
+		s.addMessage(request.GetValue())
 		returnToClient(&pb.Empty{})
 		return response, fmt.Errorf("successfully returned to client")
 	}
@@ -191,4 +181,16 @@ func (s *StorageServer) quorum(id, step string) bool {
 func (s *StorageServer) alreadyAdded(val string) bool {
 	added, ok := s.addedMsgs[val]
 	return ok && added
+}
+
+func (s *StorageServer) addToHandledMessages(method, val string) {
+	if _, ok := s.handledMessages[method][val]; !ok {
+		s.handledMessages[method][val] = 0
+	}
+	s.handledMessages[method][val]++
+}
+
+func (s *StorageServer) addMessage(val string) {
+	s.data = append(s.data, val)
+	s.addedMsgs[val] = true
 }
