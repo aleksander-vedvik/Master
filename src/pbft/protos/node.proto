@@ -6,18 +6,18 @@ import "gorums.proto";
 option go_package = ".";
 
 service PBFTNode {
-  rpc PrePrepare(PrePrepareRequest) returns (CommitResponse) {
-    option (gorums.quorumcall) = true;
+  rpc PrePrepare(PrePrepareRequest) returns (Empty) {
     option (gorums.broadcast) = true;
-    option (gorums.broadcast.call) = "Prepare";
+    //option (gorums.broadcast.call) = "Prepare";
    }
   rpc Prepare(PrepareRequest) returns (Empty) {
     option (gorums.broadcast) = true;
-    option (gorums.broadcast.call) = "Commit";
+    //option (gorums.broadcast.call) = "Commit";
    }
-  rpc Commit(CommitRequest) returns (CommitResponse) {
+  rpc Commit(CommitRequest) returns (ClientResponse) {
     option (gorums.broadcast) = true;
-    option (gorums.broadcast.call) = "Client";
+    //option (gorums.broadcast.return) = true;
+    //option (gorums.broadcast.call) = "Client";
    }
 }
 
@@ -37,6 +37,11 @@ message CommitRequest {
 }
 
 message CommitResponse {
+  int32 Id = 1;
+  string Value = 2;
+}
+
+message ClientResponse {
   int32 Id = 1;
   string Value = 2;
 }

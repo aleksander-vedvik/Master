@@ -26,7 +26,7 @@ func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	if err != nil {
 		log.Fatal("error creating config:", err)
 	}
-	quorum.AddSender(addr)
+	//quorum.AddSender(addr)
 	return quorum
 }
 
@@ -54,7 +54,7 @@ func (qs *QSpec) PrepareQF(in *pb.PrepareRequest, replies map[uint32]*pb.Empty) 
 	return replies[0], true
 }
 
-func (qs *QSpec) CommitQF(in *pb.CommitRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
+func (qs *QSpec) CommitQF(in *pb.CommitRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
 	if len(replies) < qs.quorumSize {
 		return nil, false
 	}
