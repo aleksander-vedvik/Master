@@ -29,7 +29,7 @@ func client2() {
 	if err != nil {
 		log.Println(err)
 	}
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 	fmt.Println()
 	log.Println("Client done...")
 	fmt.Println()
