@@ -3,12 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"pbft/node"
 )
 
-var values = []string{"val 1", "val 2", "val 3"}
+var values = []string{"val 1", "val 2", "val 3", "val 4", "val 5", "val 6"}
 
 func main() {
 	client2()
@@ -24,11 +25,26 @@ func client2() {
 	client := node.NewStorageClient(srvAddresses, "client")
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
-	log.Println("Writing value", values[0])
-	err := client.WriteValue(values[0])
-	if err != nil {
-		log.Println(err)
+	log.Println("Writing values:", values[0], values[1], values[2])
+	for i, val := range values {
+		if i >= 3 {
+			break
+		}
+		err := client.WriteValue(val)
+		if err != nil {
+			log.Println(err)
+		}
 	}
+	log.Println("Writing values concurrently:", values[3], values[4], values[5])
+	var wg sync.WaitGroup
+	for i := 3; i < len(values); i++ {
+		wg.Add(1)
+		go func(i int) {
+			client.WriteValue(values[i])
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 	time.Sleep(1 * time.Second)
 	fmt.Println()
 	log.Println("Client done...")
