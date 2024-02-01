@@ -20,7 +20,7 @@ func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	)
 	var err error
 	quorum, err := mgr.NewConfiguration(
-		NewQSpec(len(srvAddresses)),
+		NewQSpec(1),
 		gorums.WithNodeList(srvAddresses),
 	)
 	if err != nil {
@@ -40,11 +40,15 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
-	if len(replies) < qs.quorumSize {
+func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
+	/*if len(replies) < qs.quorumSize {
 		return nil, false
+	}*/
+	var val *pb.ClientResponse
+	for _, resp := range replies {
+		val = resp
 	}
-	return replies[0], true
+	return val, true
 }
 
 func (qs *QSpec) PrepareQF(in *pb.PrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
@@ -54,7 +58,7 @@ func (qs *QSpec) PrepareQF(in *pb.PrepareRequest, replies map[uint32]*pb.Empty) 
 	return replies[0], true
 }
 
-func (qs *QSpec) CommitQF(in *pb.CommitRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) CommitQF(in *pb.CommitRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
 	if len(replies) < qs.quorumSize {
 		return nil, false
 	}

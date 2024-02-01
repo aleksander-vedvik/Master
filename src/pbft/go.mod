@@ -8,6 +8,8 @@ require (
 	google.golang.org/protobuf v1.32.0
 )
 
+require github.com/google/uuid v1.3.1
+
 require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	golang.org/x/net v0.16.0 // indirect

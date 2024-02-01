@@ -6,7 +6,7 @@ import "gorums.proto";
 option go_package = ".";
 
 service PBFTNode {
-  rpc PrePrepare(PrePrepareRequest) returns (Empty) {
+  rpc PrePrepare(PrePrepareRequest) returns (ClientResponse) {
     option (gorums.broadcast) = true;
     //option (gorums.broadcast.call) = "Prepare";
    }
@@ -14,7 +14,7 @@ service PBFTNode {
     option (gorums.broadcast) = true;
     //option (gorums.broadcast.call) = "Commit";
    }
-  rpc Commit(CommitRequest) returns (ClientResponse) {
+  rpc Commit(CommitRequest) returns (Empty) {
     option (gorums.broadcast) = true;
     //option (gorums.broadcast.return) = true;
     //option (gorums.broadcast.call) = "Client";

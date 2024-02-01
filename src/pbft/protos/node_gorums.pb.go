@@ -9,6 +9,7 @@ package __
 import (
 	context "context"
 	fmt "fmt"
+
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -181,7 +182,7 @@ type QuorumSpec interface {
 	// supplied to the PrePrepare method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *PrePrepareRequest'.
-	PrePrepareQF(in *PrePrepareRequest, replies map[uint32]*Empty) (*Empty, bool)
+	PrePrepareQF(in *PrePrepareRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
 
 	// PrepareQF is the quorum function for the Prepare
 	// broadcast call method. The in parameter is the request object
@@ -195,20 +196,21 @@ type QuorumSpec interface {
 	// supplied to the Commit method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *CommitRequest'.
-	CommitQF(in *CommitRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
+	CommitQF(in *CommitRequest, replies map[uint32]*Empty) (*Empty, bool)
 }
 
 // PrePrepare is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (resp *Empty, err error) {
+func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (resp *ClientResponse, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.PrePrepare",
+		Sender: "client",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*Empty, len(replies))
+		r := make(map[uint32]*ClientResponse, len(replies))
 		for k, v := range replies {
-			r[k] = v.(*Empty)
+			r[k] = v.(*ClientResponse)
 		}
 		return c.qspec.PrePrepareQF(req.(*PrePrepareRequest), r)
 	}
@@ -217,7 +219,7 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 	if err != nil {
 		return nil, err
 	}
-	return res.(*Empty), err
+	return res.(*ClientResponse), err
 }
 
 // Prepare is a quorum call invoked on all nodes in configuration c,
@@ -244,15 +246,15 @@ func (c *Configuration) Prepare(ctx context.Context, in *PrepareRequest) (resp *
 
 // Commit is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *ClientResponse, err error) {
+func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Empty, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.Commit",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*ClientResponse, len(replies))
+		r := make(map[uint32]*Empty, len(replies))
 		for k, v := range replies {
-			r[k] = v.(*ClientResponse)
+			r[k] = v.(*Empty)
 		}
 		return c.qspec.CommitQF(req.(*CommitRequest), r)
 	}
@@ -261,20 +263,20 @@ func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Cl
 	if err != nil {
 		return nil, err
 	}
-	return res.(*ClientResponse), err
+	return res.(*Empty), err
 }
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast) (response *Empty, err error)
-	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast) (response *Empty, err error)
-	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) (response *ClientResponse, err error)
+	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast) (err error)
+	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast) (err error)
+	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) (err error)
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
-	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler3(impl.PrePrepare, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler3(impl.Prepare, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler3(impl.Commit, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
