@@ -13,6 +13,7 @@ import (
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	uuid "github.com/google/uuid"
 )
 
 const (
@@ -206,6 +207,7 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 		Message: in,
 		Method:  "protos.PBFTNode.PrePrepare",
 		Sender: "client",
+		BroadcastID: uuid.New().String(),
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*ClientResponse, len(replies))
@@ -280,9 +282,11 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare", gorums.RegisterBroadcastFunc(c.PrePrepare))
-	srv.RegisterBroadcastFunc("protos.PBFTNode.Prepare", gorums.RegisterBroadcastFunc(c.Prepare))
-	srv.RegisterBroadcastFunc("protos.PBFTNode.Commit", gorums.RegisterBroadcastFunc(c.Commit))
+	srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare")
+	//srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare", gorums.RegisterBroadcastFunc(c.PrePrepare))
+	srv.RegisterBroadcastFunc("protos.PBFTNode.Prepare")
+	srv.RegisterBroadcastFunc("protos.PBFTNode.Commit")
+	srv.RegisterConfig(c.RawConfiguration)
 	srv.ListenForBroadcast()
 }
 
