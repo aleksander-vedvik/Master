@@ -9,10 +9,10 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	uuid "github.com/google/uuid"
 )
 
 const (
@@ -28,8 +28,6 @@ type Configuration struct {
 	gorums.RawConfiguration
 	nodes []*Node
 	qspec QuorumSpec
-	round *uint64
-	sender string
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -81,16 +79,6 @@ func init() {
 	}
 }
 
-type View struct {
-	*gorums.View
-}
-
-func NewView(srvAddresses []string) *View {
-	view := &View{}
-	view.View = gorums.NewView(srvAddresses)
-	return view
-}
-
 // Manager maintains a connection pool of nodes on
 // which quorum calls can be performed.
 type Manager struct {
@@ -117,9 +105,7 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if len(opts) < 1 || len(opts) > 2 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
-	c = &Configuration{
-		round: new(uint64),
-	}
+	c = &Configuration{}
 	for _, opt := range opts {
 		switch v := opt.(type) {
 		case gorums.NodeListOption:
@@ -159,124 +145,121 @@ type Node struct {
 	*gorums.RawNode
 }
 
-// QuorumSpec is the interface of quorum functions for QCStorage.
-type QuorumSpec interface {
-	gorums.ConfigOption
-
-	// ReadQF is the quorum function for the Read
-	// quorum call method. The in parameter is the request object
-	// supplied to the Read method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *ReadRequest'.
-	ReadQF(in *ReadRequest, replies map[uint32]*State) (*State, bool)
-
-	// WriteQF is the quorum function for the Write
-	// quorum call method. The in parameter is the request object
-	// supplied to the Write method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *State'.
-	WriteQF(in *State, replies map[uint32]*WriteResponse) (*WriteResponse, bool)
-}
-
-// Read is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Read(ctx context.Context, in *ReadRequest) (resp *State, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.QCStorage.Read",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*State, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*State)
-		}
-		return c.qspec.ReadQF(req.(*ReadRequest), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*State), err
-}
-
-// Write is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Write(ctx context.Context, in *State) (resp *WriteResponse, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.QCStorage.Write",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*WriteResponse, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*WriteResponse)
-		}
-		return c.qspec.WriteQF(req.(*State), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*WriteResponse), err
-}
-
-// Status is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (n *Node) Status(ctx context.Context, in *StatusRequest) (resp *StatusResponse, err error) {
-	cd := gorums.CallData{
-		Message: in,
-		Method:  "protos.QCStorage.Status",
-	}
-
-	res, err := n.RawNode.RPCCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*StatusResponse), err
-}
-
-// QCStorage is the server-side API for the QCStorage Service
-type QCStorage interface {
-	Read(ctx gorums.ServerCtx, request *ReadRequest) (response *State, err error)
-	Write(ctx gorums.ServerCtx, request *State, broadcast func(*State)) (response *WriteResponse, err error)
-	//Write(ctx gorums.ServerCtx, request *State) (response *WriteResponse, err error, broadcast bool)
-	Status(ctx gorums.ServerCtx, request *StatusRequest) (response *StatusResponse, err error)
-}
-
-// BELOW MUST BE GENERATED
 type Server struct {
 	*gorums.Server
 }
 
 func NewServer() *Server {
-	return &Server{
+	srv := &Server{
 		gorums.NewServer(),
 	}
+	srv.RegisterBroadcastStruct(&Broadcast{gorums.NewBroadcastStruct()})
+	return srv
 }
 
-func RegisterQCStorageServer(srv *Server, impl QCStorage) {
-	srv.RegisterHandler("protos.QCStorage.Read", gorums.DefaultHandler(impl.Read))
-	srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler2(impl.Write, srv.Server))
-	//srv.RegisterHandler("protos.QCStorage.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+type Broadcast struct {
+	*gorums.BroadcastStruct
+}
+
+func (b *Broadcast) Broadcast(req *State) {
+	b.SetBroadcastValues("protos.UniformBroadcast.Broadcast", req)
+}
+
+func (b *Broadcast) Deliver(req *State) {
+	b.SetBroadcastValues("protos.UniformBroadcast.Deliver", req)
+}
+
+// QuorumSpec is the interface of quorum functions for UniformBroadcast.
+type QuorumSpec interface {
+	gorums.ConfigOption
+
+	// BroadcastQF is the quorum function for the Broadcast
+	// broadcast call method. The in parameter is the request object
+	// supplied to the Broadcast method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *State'.
+	BroadcastQF(in *State, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
+
+	// DeliverQF is the quorum function for the Deliver
+	// broadcast call method. The in parameter is the request object
+	// supplied to the Deliver method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *State'.
+	DeliverQF(in *State, replies map[uint32]*Empty) (*Empty, bool)
+}
+
+// Broadcast is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientResponse, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.UniformBroadcast.Broadcast",
+
+		BroadcastID: uuid.New().String(),
+		Sender:      "client",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*ClientResponse, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*ClientResponse)
+		}
+		return c.qspec.BroadcastQF(req.(*State), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*ClientResponse), err
+}
+
+// Deliver is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Deliver(ctx context.Context, in *State) (resp *Empty, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.UniformBroadcast.Deliver",
+
+		BroadcastID: uuid.New().String(),
+		Sender:      "client",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*Empty, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*Empty)
+		}
+		return c.qspec.DeliverQF(req.(*State), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*Empty), err
+}
+
+// UniformBroadcast is the server-side API for the UniformBroadcast Service
+type UniformBroadcast interface {
+	Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) (err error)
+	Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) (err error)
+}
+
+func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
+	srv.RegisterHandler("protos.UniformBroadcast.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
+	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
- 	c.round = srv.Round
-	srv.RegisterBroadcastFunc("protos.QCStorage.Write", gorums.RegisterBroadcastFunc(c.Write))
+	srv.RegisterBroadcastFunc("protos.UniformBroadcast.Broadcast")
+	srv.RegisterBroadcastFunc("protos.UniformBroadcast.Deliver")
+	srv.RegisterConfig(c.RawConfiguration)
 	srv.ListenForBroadcast()
 }
-// ABOVE MUST BE GENERATED
 
-type internalState struct {
-	nid   uint32
-	reply *State
-	err   error
+func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
+	b.SetReturnToClient(resp, err)
 }
 
-type internalWriteResponse struct {
-	nid   uint32
-	reply *WriteResponse
-	err   error
+func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
+	go srv.RetToClient(resp, err, broadcastID)
 }

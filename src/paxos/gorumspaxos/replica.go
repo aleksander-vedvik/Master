@@ -198,7 +198,7 @@ func (r *PaxosReplica) getResponse(request *pb.Value) (rsp *pb.Response, err err
 				return
 			// Check if there are any responses matching the request
 			default:
-				//time.Sleep(10 * time.Millisecond)
+				time.Sleep(10 * time.Millisecond)
 				r.Lock()
 				val := checkResponseList(r.responseList, request)
 				// Unlocking and exiting the goroutine if a response is found

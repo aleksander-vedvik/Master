@@ -11,39 +11,14 @@ import (
 var values = []string{"val 1", "val 2", "val 3"}
 
 func main() {
-	client2()
+	client()
 }
 
-func client1() {
-	time.Sleep(1 * time.Second)
-	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
-	client := storage.NewStorageClient(srvAddresses)
-	log.Println("Created client...")
-	val, err := client.ReadValue()
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Reading inital value (should be empty): \"", val, "\"")
-	log.Println("Writing values...")
-	for _, val := range values {
-		err = client.WriteValue(val)
-		if err != nil {
-			log.Println(err)
-		}
-		log.Println("\t- Wrote:", val)
-	}
-
-	val, err = client.ReadValue()
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Reading last value:", val)
-}
-
-func client2() {
-	time.Sleep(1 * time.Second)
+func client() {
+	time.Sleep(2 * time.Second)
 	srvAddresses := []string{"localhost:5000"}
 	client := storage.NewStorageClient(srvAddresses)
+	fmt.Println()
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
 	log.Println("Writing value", values[0])
@@ -51,13 +26,7 @@ func client2() {
 	if err != nil {
 		log.Println(err)
 	}
-	time.Sleep(5 * time.Second)
 	fmt.Println()
-	val, err := client.ReadValue()
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println("Reading last value:", val)
 	log.Println("Client done...")
 	fmt.Println()
 }

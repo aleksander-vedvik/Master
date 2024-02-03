@@ -5,30 +5,23 @@ package protos;
 import "gorums.proto";
 option go_package = ".";
 
-service QCStorage {
-  rpc Read(ReadRequest) returns (State) {
-    option (gorums.quorumcall) = true;
+service UniformBroadcast {
+  rpc Broadcast(State) returns (ClientResponse) {
+    option (gorums.broadcast) = true;
    }
-  rpc Write(State) returns (WriteResponse) {
-    option (gorums.quorumcall) = true;
+  rpc Deliver(State) returns (Empty) {
+    option (gorums.broadcast) = true;
    }
-   rpc Status(StatusRequest) returns (StatusResponse) {}
 }
 
 message State {
-  string Value = 1;
-  int64 Timestamp = 2;
-}
-
-message WriteResponse {
-  bool New = 1;
-}
-
-message ReadRequest {}
-
-message StatusRequest {}
-message StatusResponse {
-  string Value = 1;
-  int64 Messages = 2;
+  int64 Id = 1;
+  string Value = 2;
   int64 Timestamp = 3;
 }
+
+message ClientResponse {
+  bool Success = 1;
+}
+
+message Empty {}
