@@ -250,8 +250,6 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 }
 
 func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.RegisterBroadcastFunc("protos.UniformBroadcast.Broadcast")
-	srv.RegisterBroadcastFunc("protos.UniformBroadcast.Deliver")
 	srv.RegisterConfig(c.RawConfiguration)
 	srv.ListenForBroadcast()
 }
