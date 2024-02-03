@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/aleksander-vedvik/Master/storage"
+	"github.com/aleksander-vedvik/Master/storage/server"
 )
 
 func main() {
@@ -18,7 +18,7 @@ func startServers() {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
 	}
 	for _, srvAddr := range srvAddresses {
-		srv := storage.NewStorageServer(srvAddr, srvAddresses)
+		srv := server.NewStorageServer(srvAddr, srvAddresses)
 		go srv.Start(srvAddr)
 		go srv.Run()
 	}

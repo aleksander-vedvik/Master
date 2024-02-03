@@ -22,6 +22,7 @@ message State {
 
 message ClientResponse {
   bool Success = 1;
+  string Value = 2;
 }
 
 message Empty {}

@@ -1,4 +1,4 @@
-package storage
+package server
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
+	"github.com/aleksander-vedvik/Master/storage/client"
 	"github.com/relab/gorums"
 )
 
@@ -60,12 +61,19 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 		otherServers = append(otherServers, srvAddr)
 	}
 	srv.peers = otherServers
-	srv.RegisterMiddlewares(func() {
-		srv.Lock()
-		defer srv.Unlock()
-		srv.messages++
-	})
+	srv.RegisterMiddlewares(srv.authenticate, srv.countMsgs)
 	return &srv
+}
+
+func (s *StorageServer) authenticate() error {
+	return nil
+}
+
+func (s *StorageServer) countMsgs() error {
+	s.Lock()
+	defer s.Unlock()
+	s.messages++
+	return nil
 }
 
 func printable(addrs []string) string {
@@ -105,7 +113,7 @@ func (s *StorageServer) Start(addr string) {
 
 func (s *StorageServer) Run() {
 	time.Sleep(1 * time.Second)
-	s.RegisterConfiguration(getConfig(s.peers))
+	s.RegisterConfiguration(client.GetConfig(s.peers))
 }
 
 func (s *StorageServer) status() {
@@ -154,22 +162,23 @@ func (s *StorageServer) inPending(req *pb.State) bool {
 	return false
 }
 
-func (s *StorageServer) deliver() {
+func (srv *StorageServer) deliver() {
 	for {
-		s.Lock()
-		newPending := make([]*Data, 0, len(s.pending))
-		for _, msg := range s.pending {
-			if s.canDeliver(msg.Id) {
-				s.data = append(s.data, msg)
-				s.ReturnToClient(&pb.ClientResponse{
+		srv.Lock()
+		newPending := make([]*Data, 0, len(srv.pending))
+		for _, msg := range srv.pending {
+			if srv.canDeliver(msg.Id) {
+				srv.data = append(srv.data, msg)
+				srv.ReturnToClient(&pb.ClientResponse{
 					Success: true,
+					Value:   msg.Value,
 				}, nil, msg.BroadcastID)
 			} else {
 				newPending = append(newPending, msg)
 			}
 		}
-		s.pending = newPending
-		s.Unlock()
+		srv.pending = newPending
+		srv.Unlock()
 		time.Sleep(6 * time.Second)
 	}
 }

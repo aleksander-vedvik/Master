@@ -1,4 +1,4 @@
-package storage
+package client
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type StorageClient struct {
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func NewStorageClient(srvAddresses []string) *StorageClient {
 	return &StorageClient{
-		view:   getConfig(srvAddresses),
+		view:   GetConfig(srvAddresses),
 		msgIds: 0,
 	}
 }

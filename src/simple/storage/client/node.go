@@ -1,4 +1,4 @@
-package storage
+package client
 
 import (
 	"log"
@@ -10,22 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type Node struct {
-	node *gorums.GorumsNode
-}
-
-func NewNode() *Node {
-	node := gorums.NewGorumsNode()
-
-	node.RegisterClient(NewStorageClient([]string{}))
-	//node.RegisterServer(NewStorageServer())
-
-	node.NewConfiguration([]string{})
-
-	return &Node{node}
-}
-
-func getConfig(srvAddresses []string) *pb.Configuration {
+func GetConfig(srvAddresses []string) *pb.Configuration {
 	mgr := pb.NewManager(
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(

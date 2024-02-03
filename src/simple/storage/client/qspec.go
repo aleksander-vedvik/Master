@@ -1,4 +1,4 @@
-package storage
+package client
 
 import pb "github.com/aleksander-vedvik/Master/protos"
 
