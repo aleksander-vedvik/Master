@@ -249,9 +249,10 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
-func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.RegisterConfig(c.RawConfiguration)
+func (srv *Server) RegisterConfiguration(srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterConfig(srvAddrs, opts...)
 	srv.ListenForBroadcast()
+	return err
 }
 
 func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {

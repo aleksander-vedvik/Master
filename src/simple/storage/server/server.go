@@ -9,8 +9,9 @@ import (
 	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
-	"github.com/aleksander-vedvik/Master/storage/client"
 	"github.com/relab/gorums"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Data struct {
@@ -113,7 +114,13 @@ func (s *StorageServer) Start(addr string) {
 
 func (s *StorageServer) Run() {
 	time.Sleep(1 * time.Second)
-	s.RegisterConfiguration(client.GetConfig(s.peers))
+	s.RegisterConfiguration(s.peers,
+		gorums.WithDialTimeout(50*time.Millisecond),
+		gorums.WithGrpcDialOptions(
+			grpc.WithBlock(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		),
+	)
 }
 
 func (s *StorageServer) status() {
@@ -188,5 +195,5 @@ func (s *StorageServer) canDeliver(reqId int64) bool {
 	if !ok {
 		return false
 	}
-	return acks >= len(s.peers)
+	return acks >= len(s.peers)/2
 }

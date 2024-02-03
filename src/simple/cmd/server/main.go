@@ -18,7 +18,8 @@ func startServers() {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
 	}
 	for _, srvAddr := range srvAddresses {
-		srv := server.NewStorageServer(srvAddr, srvAddresses)
+		peers := append(srvAddresses, "localhost:5010")
+		srv := server.NewStorageServer(srvAddr, peers)
 		go srv.Start(srvAddr)
 		go srv.Run()
 	}
