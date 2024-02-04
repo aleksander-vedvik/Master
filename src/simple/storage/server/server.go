@@ -139,7 +139,7 @@ func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broad
 	s.Lock()
 	defer s.Unlock()
 	// broadcastID should be retrieved from the context, not the broadcast struct
-	//ctx.GetBroadcastValue(gorums.BroadcastID)
+	//log.Println("CTX:", ctx.GetBroadcastValue(gorums.BroadcastID))
 	s.pending = append(s.pending, newData(request, broadcast.GetBroadcastID()))
 	broadcast.Deliver(request)
 	return nil
