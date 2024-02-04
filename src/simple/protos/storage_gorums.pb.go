@@ -9,10 +9,11 @@ package __
 import (
 	context "context"
 	fmt "fmt"
+
+	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	uuid "github.com/google/uuid"
 )
 
 const (
@@ -205,7 +206,10 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientR
 		}
 		return c.qspec.BroadcastQF(req.(*State), r)
 	}
-
+	//ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("BroadcastID", "broadcast"))
+	//ctx = context.WithValue(ctx, "testKey", "testVal")
+	//ctxMd, _ := metadata.FromOutgoingContext(ctx)
+	//log.Println("Init CTX:", ctxMd)
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
 		return nil, err

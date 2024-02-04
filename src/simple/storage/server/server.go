@@ -66,11 +66,12 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 	return &srv
 }
 
-func (s *StorageServer) authenticate() error {
+func (s *StorageServer) authenticate(ctx gorums.ServerCtx) error {
+	//log.Println("CTX:", ctx.GetBroadcastValues())
 	return nil
 }
 
-func (s *StorageServer) countMsgs() error {
+func (s *StorageServer) countMsgs(gorums.ServerCtx) error {
 	s.Lock()
 	defer s.Unlock()
 	s.messages++
@@ -137,6 +138,8 @@ func (s *StorageServer) status() {
 func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
 	s.Lock()
 	defer s.Unlock()
+	// broadcastID should be retrieved from the context, not the broadcast struct
+	//ctx.GetBroadcastValue(gorums.BroadcastID)
 	s.pending = append(s.pending, newData(request, broadcast.GetBroadcastID()))
 	broadcast.Deliver(request)
 	return nil

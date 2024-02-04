@@ -23,7 +23,10 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 // Writes the provided value to a random server
 func (sc *StorageClient) WriteValue(value string) error {
 	sc.msgIds++
-	_, err := sc.view.Broadcast(context.Background(), &pb.State{
+	//ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	//defer cancel()
+	ctx := context.Background()
+	_, err := sc.view.Broadcast(ctx, &pb.State{
 		Id:        sc.msgIds,
 		Value:     value,
 		Timestamp: time.Now().Unix(),
