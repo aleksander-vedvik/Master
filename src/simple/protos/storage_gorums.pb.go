@@ -244,8 +244,8 @@ func (c *Configuration) Deliver(ctx context.Context, in *State) (resp *Empty, er
 
 // UniformBroadcast is the server-side API for the UniformBroadcast Service
 type UniformBroadcast interface {
-	Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) (err error)
-	Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) (err error)
+	Broadcast(ctx gorums.BroadcastCtx, request *State, broadcast *Broadcast) (err error)
+	Deliver(ctx gorums.BroadcastCtx, request *State, broadcast *Broadcast) (err error)
 }
 
 func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
@@ -253,8 +253,8 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
-func (srv *Server) RegisterConfiguration(srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterConfig(srvAddrs, opts...)
+func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
 	srv.ListenForBroadcast()
 	return err
 }

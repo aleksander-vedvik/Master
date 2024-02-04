@@ -66,12 +66,13 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 	return &srv
 }
 
-func (s *StorageServer) authenticate(ctx gorums.ServerCtx) error {
+func (s *StorageServer) authenticate(ctx gorums.BroadcastCtx) error {
 	//log.Println("CTX:", ctx.GetBroadcastValues())
+	log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
 	return nil
 }
 
-func (s *StorageServer) countMsgs(gorums.ServerCtx) error {
+func (s *StorageServer) countMsgs(gorums.BroadcastCtx) error {
 	s.Lock()
 	defer s.Unlock()
 	s.messages++
@@ -115,7 +116,7 @@ func (s *StorageServer) Start(addr string) {
 
 func (s *StorageServer) Run() {
 	time.Sleep(1 * time.Second)
-	s.RegisterConfiguration(s.peers,
+	s.RegisterConfiguration(s.addr, s.peers,
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
 			grpc.WithBlock(),
@@ -135,7 +136,7 @@ func (s *StorageServer) status() {
 	}
 }
 
-func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
+func (s *StorageServer) Broadcast(ctx gorums.BroadcastCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
 	s.Lock()
 	defer s.Unlock()
 	// broadcastID should be retrieved from the context, not the broadcast struct
@@ -145,7 +146,7 @@ func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broad
 	return nil
 }
 
-func (s *StorageServer) Deliver(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
+func (s *StorageServer) Deliver(ctx gorums.BroadcastCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
 	s.Lock()
 	defer s.Unlock()
 	s.addAck(request.GetId())
