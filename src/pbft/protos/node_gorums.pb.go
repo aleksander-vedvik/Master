@@ -9,7 +9,6 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -158,20 +157,26 @@ func NewServer() *Server {
 	return srv
 }
 
+func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
+	srv.ListenForBroadcast()
+	return err
+}
+
 type Broadcast struct {
 	*gorums.BroadcastStruct
 }
 
-func (b *Broadcast) PrePrepare(req *PrePrepareRequest) {
-	b.SetBroadcastValues("protos.PBFTNode.PrePrepare", req)
+func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses... string) {
+	b.SetBroadcastValues("protos.PBFTNode.PrePrepare", req, serverAddresses...)
 }
 
-func (b *Broadcast) Prepare(req *PrepareRequest) {
-	b.SetBroadcastValues("protos.PBFTNode.Prepare", req)
+func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses... string) {
+	b.SetBroadcastValues("protos.PBFTNode.Prepare", req, serverAddresses...)
 }
 
-func (b *Broadcast) Commit(req *CommitRequest) {
-	b.SetBroadcastValues("protos.PBFTNode.Commit", req)
+func (b *Broadcast) Commit(req *CommitRequest, serverAddresses... string) {
+	b.SetBroadcastValues("protos.PBFTNode.Commit", req, serverAddresses...)
 }
 
 // QuorumSpec is the interface of quorum functions for PBFTNode.
@@ -206,8 +211,9 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.PrePrepare",
-		Sender: "client",
+
 		BroadcastID: uuid.New().String(),
+		Sender:      "client",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*ClientResponse, len(replies))
@@ -230,6 +236,9 @@ func (c *Configuration) Prepare(ctx context.Context, in *PrepareRequest) (resp *
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.Prepare",
+
+		BroadcastID: uuid.New().String(),
+		Sender:      "client",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Empty, len(replies))
@@ -252,6 +261,9 @@ func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Em
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.Commit",
+
+		BroadcastID: uuid.New().String(),
+		Sender:      "client",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Empty, len(replies))
@@ -270,9 +282,9 @@ func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Em
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast) (err error)
-	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast) (err error)
-	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) (err error)
+	PrePrepare(ctx gorums.BroadcastCtx, request *PrePrepareRequest, broadcast *Broadcast) (err error)
+	Prepare(ctx gorums.BroadcastCtx, request *PrepareRequest, broadcast *Broadcast) (err error)
+	Commit(ctx gorums.BroadcastCtx, request *CommitRequest, broadcast *Broadcast) (err error)
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
@@ -281,15 +293,10 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
 }
 
-func (srv *Server) RegisterConfiguration(c *Configuration) {
-	srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare")
-	//srv.RegisterBroadcastFunc("protos.PBFTNode.PrePrepare", gorums.RegisterBroadcastFunc(c.PrePrepare))
-	srv.RegisterBroadcastFunc("protos.PBFTNode.Prepare")
-	srv.RegisterBroadcastFunc("protos.PBFTNode.Commit")
-	srv.RegisterConfig(c.RawConfiguration)
-	srv.ListenForBroadcast()
-}
-
 func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
 	b.SetReturnToClient(resp, err)
+}
+
+func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
+	go srv.RetToClient(resp, err, broadcastID)
 }

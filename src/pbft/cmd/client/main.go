@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"pbft/node"
+	node "pbft/node/client"
 )
 
 var values = []string{"val 1", "val 2", "val 3", "val 4", "val 5", "val 6"}
@@ -16,15 +16,17 @@ func main() {
 }
 
 func client2() {
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	numServers := 1
 	srvAddresses := make([]string, numServers)
 	for i := range srvAddresses {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
 	}
 	client := node.NewStorageClient(srvAddresses, "client")
+	fmt.Println()
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
+	fmt.Println()
 	log.Println("Writing values:", values[0], values[1], values[2])
 	for i, val := range values {
 		if i >= 3 {
@@ -35,6 +37,7 @@ func client2() {
 			log.Println(err)
 		}
 	}
+	fmt.Println()
 	log.Println("Writing values concurrently:", values[3], values[4], values[5])
 	var wg sync.WaitGroup
 	for i := 3; i < len(values); i++ {

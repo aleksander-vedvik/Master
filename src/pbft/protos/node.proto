@@ -22,28 +22,34 @@ service PBFTNode {
 }
 
 message PrePrepareRequest {
-  int32 Id = 1;
-  string Value = 2;
+  string Id = 1;
+  string From = 2;
+  string Value = 3;
+  int64 Timestamp = 4;
 }
 
 message PrepareRequest {
-  int32 Id = 1;
+  string Id = 1;
   string Value = 2;
 }
 
 message CommitRequest {
-  int32 Id = 1;
+  string Id = 1;
   string Value = 2;
 }
 
 message CommitResponse {
-  int32 Id = 1;
+  string Id = 1;
   string Value = 2;
 }
 
 message ClientResponse {
-  int32 Id = 1;
-  string Value = 2;
+  string Id = 1;
+  int32 View = 2;
+  int64 Timestamp = 3;
+  string Client = 4;
+  string From = 5;
+  string Result = 6;
 }
 
 message Empty {}

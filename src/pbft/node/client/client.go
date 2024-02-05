@@ -21,7 +21,7 @@ func (sc *StorageClient) WriteValue(value string) error {
 	resp, err := sc.view.PrePrepare(context.Background(), &pb.PrePrepareRequest{
 		Value: value,
 	})
-	log.Println("received a response at client:", resp.GetValue())
+	log.Println("\treceived a response at client:", resp.GetValue())
 	if err != nil {
 		log.Fatal(err)
 		return err
