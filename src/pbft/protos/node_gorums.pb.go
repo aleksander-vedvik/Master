@@ -167,15 +167,19 @@ type Broadcast struct {
 	*gorums.BroadcastStruct
 }
 
-func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses... string) {
+func (b *Broadcast) Write(req *WriteRequest, serverAddresses ...string) {
+	b.SetBroadcastValues("protos.PBFTNode.Write", req, serverAddresses...)
+}
+
+func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses ...string) {
 	b.SetBroadcastValues("protos.PBFTNode.PrePrepare", req, serverAddresses...)
 }
 
-func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses... string) {
+func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses ...string) {
 	b.SetBroadcastValues("protos.PBFTNode.Prepare", req, serverAddresses...)
 }
 
-func (b *Broadcast) Commit(req *CommitRequest, serverAddresses... string) {
+func (b *Broadcast) Commit(req *CommitRequest, serverAddresses ...string) {
 	b.SetBroadcastValues("protos.PBFTNode.Commit", req, serverAddresses...)
 }
 
@@ -183,12 +187,19 @@ func (b *Broadcast) Commit(req *CommitRequest, serverAddresses... string) {
 type QuorumSpec interface {
 	gorums.ConfigOption
 
+	// WriteQF is the quorum function for the Write
+	// broadcast call method. The in parameter is the request object
+	// supplied to the Write method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *WriteRequest'.
+	WriteQF(in *WriteRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
+
 	// PrePrepareQF is the quorum function for the PrePrepare
 	// broadcast call method. The in parameter is the request object
 	// supplied to the PrePrepare method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *PrePrepareRequest'.
-	PrePrepareQF(in *PrePrepareRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
+	PrePrepareQF(in *PrePrepareRequest, replies map[uint32]*Empty) (*Empty, bool)
 
 	// PrepareQF is the quorum function for the Prepare
 	// broadcast call method. The in parameter is the request object
@@ -205,12 +216,12 @@ type QuorumSpec interface {
 	CommitQF(in *CommitRequest, replies map[uint32]*Empty) (*Empty, bool)
 }
 
-// PrePrepare is a quorum call invoked on all nodes in configuration c,
+// Write is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protos.PBFTNode.PrePrepare",
+		Method:  "protos.PBFTNode.Write",
 
 		BroadcastID: uuid.New().String(),
 		Sender:      "client",
@@ -220,7 +231,7 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 		for k, v := range replies {
 			r[k] = v.(*ClientResponse)
 		}
-		return c.qspec.PrePrepareQF(req.(*PrePrepareRequest), r)
+		return c.qspec.WriteQF(req.(*WriteRequest), r)
 	}
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
@@ -228,6 +239,31 @@ func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (
 		return nil, err
 	}
 	return res.(*ClientResponse), err
+}
+
+// PrePrepare is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (resp *Empty, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.PBFTNode.PrePrepare",
+
+		BroadcastID: uuid.New().String(),
+		Sender:      "client",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*Empty, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*Empty)
+		}
+		return c.qspec.PrePrepareQF(req.(*PrePrepareRequest), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*Empty), err
 }
 
 // Prepare is a quorum call invoked on all nodes in configuration c,
@@ -282,12 +318,14 @@ func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Em
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
+	Write(ctx gorums.BroadcastCtx, request *WriteRequest, broadcast *Broadcast) (err error)
 	PrePrepare(ctx gorums.BroadcastCtx, request *PrePrepareRequest, broadcast *Broadcast) (err error)
 	Prepare(ctx gorums.BroadcastCtx, request *PrepareRequest, broadcast *Broadcast) (err error)
 	Commit(ctx gorums.BroadcastCtx, request *CommitRequest, broadcast *Broadcast) (err error)
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
+	srv.RegisterHandler("protos.PBFTNode.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))

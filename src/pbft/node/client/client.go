@@ -18,10 +18,10 @@ func NewStorageClient(srvAddresses []string, addr string) *StorageClient {
 }
 
 func (sc *StorageClient) WriteValue(value string) error {
-	resp, err := sc.view.PrePrepare(context.Background(), &pb.PrePrepareRequest{
+	resp, err := sc.view.Write(context.Background(), &pb.WriteRequest{
 		Value: value,
 	})
-	log.Println("\treceived a response at client:", resp.GetValue())
+	log.Println("\treceived a response at client:", resp)
 	if err != nil {
 		log.Fatal(err)
 		return err

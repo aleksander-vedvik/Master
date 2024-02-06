@@ -24,7 +24,12 @@ type PBFTServer struct {
 	messages        int
 	handledMessages map[string]map[string]int
 	addedMsgs       map[string]bool
-	leader          bool
+	leader          string
+	messageLog      []any
+	viewNumber      int32
+	state           string
+	requestQueue    []*pb.PrePrepareRequest
+	maxLimitOfReqs  int
 }
 
 // Creates a new StorageServer.
@@ -40,7 +45,8 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 		peers:           make([]string, 0),
 		handledMessages: handledMessages,
 		addedMsgs:       make(map[string]bool),
-		leader:          true,
+		leader:          addr,
+		messageLog:      make([]any, 0),
 	}
 	//srv.gorumsSrv.AddTmp(addr)
 	otherServers := make([]string, 0, len(srvAddresses)-1)
@@ -136,13 +142,33 @@ func (s *PBFTServer) status() {
 	}
 }
 
-func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) (err error) {
-	if !s.leader {
+func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) (err error) {
+	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.ReturnToClient(val, nil)
+		} else {
+			broadcast.PrePrepare(&pb.PrePrepareRequest{}, s.getLeaderAddr())
 		}
 		return nil
 	}
+	broadcast.PrePrepare(&pb.PrePrepareRequest{
+		Value: request.GetValue(),
+	})
+	return nil
+}
+
+func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) (err error) {
+	if !s.isInView(1) {
+		return nil
+	}
+	if s.sequenceNumberIsValid(1) {
+		return nil
+	}
+	if s.hasAlreadyAcceptedSequenceNumber(1) {
+		return nil
+	}
+	s.addSequenceNumber(1)
+	s.messageLog = append(s.messageLog, request)
 	broadcast.Prepare(&pb.PrepareRequest{
 		Value: request.GetValue(),
 	})
@@ -150,20 +176,51 @@ func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareR
 }
 
 func (s *PBFTServer) Prepare(ctx gorums.BroadcastCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) (err error) {
-	broadcast.Commit(&pb.CommitRequest{
-		Value: request.GetValue(),
-	})
+	if !s.isInView(1) {
+		return nil
+	}
+	if s.sequenceNumberIsValid(1) {
+		return nil
+	}
+	s.messageLog = append(s.messageLog, request)
+	if s.prepared(request) {
+		broadcast.Commit(&pb.CommitRequest{
+			Value: request.GetValue(),
+		})
+	}
 	return nil
 }
 
 func (s *PBFTServer) Commit(ctx gorums.BroadcastCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) (err error) {
-	if s.quorum(ctx) {
+	if !s.isInView(1) {
+		return nil
+	}
+	if s.sequenceNumberIsValid(1) {
+		return nil
+	}
+	s.messageLog = append(s.messageLog, request)
+	if s.committed(request) {
 		s.addMessage(request.GetValue())
 		broadcast.ReturnToClient(&pb.ClientResponse{
-			Value: request.GetValue(),
+			Result: request.GetValue(),
 		}, nil)
 	}
 	return nil
+}
+
+func (s *PBFTServer) committed(req *pb.CommitRequest) bool {
+	/*
+		We define the committed and committed-local predi-
+		cates as follows: committed(m, v, n) is true if and only
+		if prepared(m, v, n, i) is true for all i in some set of
+		f+1 non-faulty replicas; and committed-local(m, v, n, i)
+		is true if and only if prepared(m, v, n, i) is true and i has
+		accepted 2f + 1 commits (possibly including its own)
+		from different replicas that match the pre-prepare for m;
+		a commit matches a pre-prepare if they have the same
+		view, sequence number, and digest.
+	*/
+	return false
 }
 
 func (s *PBFTServer) quorum(ctx gorums.BroadcastCtx) bool {
@@ -191,8 +248,44 @@ func (s *PBFTServer) addMessage(val string) {
 	s.addedMsgs[val] = true
 }
 
-func (s *PBFTServer) requestIsAlreadyProcessed(req *pb.PrePrepareRequest) (*pb.ClientResponse, bool) {
+func (s *PBFTServer) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.ClientResponse, bool) {
 	return nil, false
+}
+
+func (s *PBFTServer) getLeaderAddr() string {
+	return s.leader
+}
+
+func (s *PBFTServer) isLeader() bool {
+	return s.leader == s.addr
+}
+
+func (s *PBFTServer) isInView(view int32) bool {
+	// request is in the current view of this node
+	return s.viewNumber == view
+}
+
+func (s *PBFTServer) sequenceNumberIsValid(n int32) bool {
+	// the sequence number is between h and H
+	return true
+}
+
+func (s *PBFTServer) hasAlreadyAcceptedSequenceNumber(n int32) bool {
+	// checks if the node has already accepted a pre-prepare request
+	// for this view and sequence number
+	return false
+}
+
+func (s *PBFTServer) addSequenceNumber(n int32) {
+	// adds sequence number and view to accepted pre-prepare requests
+}
+
+func (s *PBFTServer) prepared(req *pb.PrepareRequest) bool {
+	// the request m, a pre-prepare for m in view v with sequence number n,
+	// and 2f prepares from different backups that match the pre-prepare.
+	// The replicas verify whether the prepares match the pre-prepare by
+	// checking that they have the same view, sequence number, and digest.
+	return false
 }
 
 /*func (s *StorageServer) prePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest) (response *pb.Empty, err error, broadcast bool) {

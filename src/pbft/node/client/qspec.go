@@ -40,7 +40,7 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
 	/*if len(replies) < qs.quorumSize {
 		return nil, false
 	}*/
@@ -49,6 +49,10 @@ func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.C
 		val = resp
 	}
 	return val, true
+}
+
+func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
+	return nil, true
 }
 
 func (qs *QSpec) PrepareQF(in *pb.PrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
