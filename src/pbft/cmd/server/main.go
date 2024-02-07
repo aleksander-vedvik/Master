@@ -13,7 +13,7 @@ func main() {
 }
 
 func startServers() {
-	numServers := 3
+	numServers := 5
 	srvAddresses := make([]string, numServers)
 	for i := range srvAddresses {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
@@ -21,7 +21,7 @@ func startServers() {
 	for _, srvAddr := range srvAddresses {
 		srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
 		_ = srv.StartServer(srvAddr)
-		go srv.Run()
+		//go srv.Run()
 	}
 	log.Printf("Servers started. Listening on addresses: %s\n", srvAddresses)
 	fmt.Scanln()
@@ -70,7 +70,7 @@ func startServersTree() {
 func createServer(srvAddr string, srvAddresses []string) {
 	srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
 	_ = srv.StartServer(srvAddr)
-	srv.Run()
+	//srv.Run()
 }
 
 func startDockerServer() {

@@ -92,11 +92,6 @@ func (s *PBFTServer) StartServer(addr string) string {
 		s.Serve(lis)
 	}()
 	go s.status()
-	return <-addrChan
-}
-
-func (s *PBFTServer) Run() {
-	time.Sleep(1 * time.Second)
 	s.RegisterConfiguration(s.addr, s.peers,
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
@@ -104,7 +99,19 @@ func (s *PBFTServer) Run() {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
+	return <-addrChan
 }
+
+//func (s *PBFTServer) Run() {
+//	time.Sleep(10 * time.Millisecond)
+//	s.RegisterConfiguration(s.addr, s.peers,
+//		gorums.WithDialTimeout(50*time.Millisecond),
+//		gorums.WithGrpcDialOptions(
+//			grpc.WithBlock(),
+//			grpc.WithTransportCredentials(insecure.NewCredentials()),
+//		),
+//	)
+//}
 
 func (s *PBFTServer) Start(addr string) {
 	lis, err := net.Listen("tcp4", addr)
@@ -251,7 +258,7 @@ func (s *PBFTServer) prepared(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(reqs) >= 2*len(s.peers)/3
+	return found && len(reqs) > 2*len(s.peers)/3
 }
 
 func (s *PBFTServer) committed(n int32) bool {
@@ -271,9 +278,9 @@ func (s *PBFTServer) committed(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	if !found || len(reqs) < 2*len(s.peers)/3 {
+	if !found || len(reqs) <= 2*len(s.peers)/3 {
 		return false
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(commits) >= 2*len(s.peers)/3
+	return found && len(commits) > 2*len(s.peers)/3
 }
