@@ -7,6 +7,7 @@ option go_package = ".";
 
 service UniformBroadcast {
   rpc Broadcast(State) returns (ClientResponse) {
+    option (gorums.quorumcall) = true;
     option (gorums.broadcast) = true;
    }
   rpc Deliver(State) returns (Empty) {

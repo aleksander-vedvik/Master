@@ -50,21 +50,3 @@ func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies map[uint32]*pb.ClientRespo
 	}
 	return val, true
 }
-
-func (qs *QSpec) PrePrepareQF(in *pb.PrePrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
-	return nil, true
-}
-
-func (qs *QSpec) PrepareQF(in *pb.PrepareRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
-	if len(replies) < qs.quorumSize {
-		return nil, false
-	}
-	return replies[0], true
-}
-
-func (qs *QSpec) CommitQF(in *pb.CommitRequest, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
-	if len(replies) < qs.quorumSize {
-		return nil, false
-	}
-	return replies[0], true
-}

@@ -27,6 +27,16 @@ func c() {
 		log.Println(err)
 	}
 	fmt.Println()
+	log.Println("Client received first response...")
+	fmt.Println()
+	time.Sleep(11 * time.Second)
+	fmt.Println()
+	log.Println("Writing value", values[1])
+	err = c.WriteValue(values[1])
+	if err != nil {
+		log.Println(err)
+	}
+	fmt.Println()
 	log.Println("Client done...")
 	fmt.Println()
 }

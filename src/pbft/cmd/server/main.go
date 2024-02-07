@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"pbft/node/server"
+	nodeServer "pbft/node/server"
 )
 
 func main() {
@@ -19,7 +19,7 @@ func startServers() {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)
 	}
 	for _, srvAddr := range srvAddresses {
-		srv := server.NewStorageServer(srvAddr, srvAddresses)
+		srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
 		_ = srv.StartServer(srvAddr)
 		go srv.Run()
 	}
@@ -68,14 +68,14 @@ func startServersTree() {
 }
 
 func createServer(srvAddr string, srvAddresses []string) {
-	srv := server.NewStorageServer(srvAddr, srvAddresses)
+	srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
 	_ = srv.StartServer(srvAddr)
 	srv.Run()
 }
 
 func startDockerServer() {
 	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
-	srv := server.NewStorageServer("", srvAddresses)
+	srv := nodeServer.NewStorageServer("", srvAddresses)
 	srv.Start("0.0.0.0:8080")
 	//srv.AddConfig(srvAddresses)
 	log.Println("Server stopped.")

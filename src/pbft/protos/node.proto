@@ -7,6 +7,7 @@ option go_package = ".";
 
 service PBFTNode {
   rpc Write(WriteRequest) returns (ClientResponse) {
+    option (gorums.quorumcall) = true;
     option (gorums.broadcast) = true;
    }
   rpc PrePrepare(PrePrepareRequest) returns (Empty) {
@@ -23,7 +24,7 @@ service PBFTNode {
 message WriteRequest {
   string Id = 1;
   string From = 2;
-  string Value = 3;
+  string Message = 3;
   int64 Timestamp = 4;
 }
 
@@ -32,7 +33,8 @@ message PrePrepareRequest {
   int32 View = 2;
   int32 SequenceNumber = 3;
   string Digest = 4;
-  int64 Message = 5;
+  int64 Timestamp = 5;
+  string Message = 6;
 }
 
 message PrepareRequest {
@@ -40,16 +42,17 @@ message PrepareRequest {
   int32 View = 2;
   int32 SequenceNumber = 3;
   string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
 }
 
 message CommitRequest {
   string Id = 1;
-  string Value = 2;
-}
-
-message CommitResponse {
-  string Id = 1;
-  string Value = 2;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
 }
 
 message ClientResponse {

@@ -68,7 +68,9 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 
 func (s *StorageServer) authenticate(ctx gorums.BroadcastCtx) error {
 	//log.Println("CTX:", ctx.GetBroadcastValues())
-	log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
+	//log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
+	//bd := ctx.GetBroadcastValues()
+	//log.Println(s.addr, bd.Method, bd.SenderAddr)
 	return nil
 }
 
@@ -115,7 +117,7 @@ func (s *StorageServer) Start(addr string) {
 }
 
 func (s *StorageServer) Run() {
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Millisecond)
 	s.RegisterConfiguration(s.addr, s.peers,
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
@@ -130,7 +132,7 @@ func (s *StorageServer) status() {
 		time.Sleep(5 * time.Second)
 		s.Lock()
 		num, _ := strconv.Atoi(s.addr[len(s.addr)-1:])
-		str := fmt.Sprintf("\nnode %v running with peers = %v, msgs = %v\n\t- pending:\t%v\n\t- data:\t\t%v", num+1, printable(s.peers), s.messages, printablevals(s.pending), printablevals(s.data))
+		str := fmt.Sprintf("\nnode %v running with peers = %v, msgs = %v\n\t- pending:\t%v\n\t- data:\t\t%v\n\t- acks:\t\t%v", num+1, printable(s.peers), s.messages, printablevals(s.pending), printablevals(s.data), s.acks)
 		fmt.Println(str)
 		s.Unlock()
 	}
@@ -141,7 +143,8 @@ func (s *StorageServer) Broadcast(ctx gorums.BroadcastCtx, request *pb.State, br
 	defer s.Unlock()
 	// broadcastID should be retrieved from the context, not the broadcast struct
 	//log.Println("CTX:", ctx.GetBroadcastValue(gorums.BroadcastID))
-	s.pending = append(s.pending, newData(request, broadcast.GetBroadcastID()))
+	md := ctx.GetBroadcastValues()
+	s.pending = append(s.pending, newData(request, md.BroadcastID))
 	broadcast.Deliver(request)
 	return nil
 }
@@ -151,7 +154,8 @@ func (s *StorageServer) Deliver(ctx gorums.BroadcastCtx, request *pb.State, broa
 	defer s.Unlock()
 	s.addAck(request.GetId())
 	if !s.inPending(request) {
-		s.pending = append(s.pending, newData(request, broadcast.GetBroadcastID()))
+		md := ctx.GetBroadcastValues()
+		s.pending = append(s.pending, newData(request, md.BroadcastID))
 		broadcast.Deliver(request)
 	}
 	return nil
@@ -199,5 +203,5 @@ func (s *StorageServer) canDeliver(reqId int64) bool {
 	if !ok {
 		return false
 	}
-	return acks >= len(s.peers)/2
+	return acks >= 1+len(s.peers)/2
 }

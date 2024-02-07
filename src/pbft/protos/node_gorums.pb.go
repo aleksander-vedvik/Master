@@ -9,10 +9,10 @@ package __
 import (
 	context "context"
 	fmt "fmt"
+	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	uuid "github.com/google/uuid"
 )
 
 const (
@@ -193,27 +193,6 @@ type QuorumSpec interface {
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *WriteRequest'.
 	WriteQF(in *WriteRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
-
-	// PrePrepareQF is the quorum function for the PrePrepare
-	// broadcast call method. The in parameter is the request object
-	// supplied to the PrePrepare method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *PrePrepareRequest'.
-	PrePrepareQF(in *PrePrepareRequest, replies map[uint32]*Empty) (*Empty, bool)
-
-	// PrepareQF is the quorum function for the Prepare
-	// broadcast call method. The in parameter is the request object
-	// supplied to the Prepare method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *PrepareRequest'.
-	PrepareQF(in *PrepareRequest, replies map[uint32]*Empty) (*Empty, bool)
-
-	// CommitQF is the quorum function for the Commit
-	// broadcast call method. The in parameter is the request object
-	// supplied to the Commit method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *CommitRequest'.
-	CommitQF(in *CommitRequest, replies map[uint32]*Empty) (*Empty, bool)
 }
 
 // Write is a quorum call invoked on all nodes in configuration c,
@@ -241,81 +220,6 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 	return res.(*ClientResponse), err
 }
 
-// PrePrepare is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) PrePrepare(ctx context.Context, in *PrePrepareRequest) (resp *Empty, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.PBFTNode.PrePrepare",
-
-		BroadcastID: uuid.New().String(),
-		Sender:      "client",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*Empty, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*Empty)
-		}
-		return c.qspec.PrePrepareQF(req.(*PrePrepareRequest), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*Empty), err
-}
-
-// Prepare is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Prepare(ctx context.Context, in *PrepareRequest) (resp *Empty, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.PBFTNode.Prepare",
-
-		BroadcastID: uuid.New().String(),
-		Sender:      "client",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*Empty, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*Empty)
-		}
-		return c.qspec.PrepareQF(req.(*PrepareRequest), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*Empty), err
-}
-
-// Commit is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Commit(ctx context.Context, in *CommitRequest) (resp *Empty, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.PBFTNode.Commit",
-
-		BroadcastID: uuid.New().String(),
-		Sender:      "client",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*Empty, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*Empty)
-		}
-		return c.qspec.CommitQF(req.(*CommitRequest), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*Empty), err
-}
-
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
 	Write(ctx gorums.BroadcastCtx, request *WriteRequest, broadcast *Broadcast) (err error)
@@ -337,4 +241,10 @@ func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
 
 func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
 	go srv.RetToClient(resp, err, broadcastID)
+}
+
+type internalClientResponse struct {
+	nid   uint32
+	reply *ClientResponse
+	err   error
 }
