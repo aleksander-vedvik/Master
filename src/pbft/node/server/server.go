@@ -40,7 +40,7 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 		addr:           "",
 		peers:          make([]string, 0),
 		addedMsgs:      make(map[string]bool),
-		leader:         addr,
+		leader:         "127.0.0.1:5000",
 		messageLog:     newMessageLog(),
 		state:          nil,
 		sequenceNumber: 1,
@@ -69,8 +69,8 @@ func (s *PBFTServer) countMsgs(ctx gorums.BroadcastCtx) error {
 	s.messages++
 	//bv := ctx.GetBroadcastValues()
 	//s.addToHandledMessages(bv.Method, bv.BroadcastID)
-	bv := ctx.GetBroadcastValues()
-	log.Println(s.addr, bv.Method)
+	//bv := ctx.GetBroadcastValues()
+	//log.Println(s.addr, bv.Method)
 	return nil
 }
 
@@ -120,7 +120,11 @@ func (s *PBFTServer) Start(addr string) {
 func (s *PBFTServer) status() {
 	for {
 		time.Sleep(5 * time.Second)
-		str := fmt.Sprintf("Server %s running with:\n\t- number of messages: %v\n\t- commited values: %v\n\t- peers: %v\n", s.addr[len(s.addr)-4:], s.messages, s.data, s.peers)
+		state := ""
+		if s.state != nil {
+			state = s.state.Result
+		}
+		str := fmt.Sprintf("Server %s running with:\n\t- number of messages: %v\n\t- commited value: %v\n\t- peers: %v\n", s.addr[len(s.addr)-4:], s.messages, state, s.peers)
 		log.Println(str)
 	}
 }
@@ -130,7 +134,7 @@ func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, br
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.ReturnToClient(val, nil)
 		} else {
-			broadcast.PrePrepare(&pb.PrePrepareRequest{}, s.getLeaderAddr())
+			broadcast.Write(request, s.getLeaderAddr())
 		}
 		return nil
 	}
@@ -142,15 +146,15 @@ func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, br
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	})
+	s.sequenceNumber++
 	return nil
 }
 
 func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) (err error) {
-	log.Println("PREPREPARE", request)
 	if !s.isInView(request.View) {
 		return nil
 	}
-	if s.sequenceNumberIsValid(request.SequenceNumber) {
+	if !s.sequenceNumberIsValid(request.SequenceNumber) {
 		return nil
 	}
 	if s.hasAlreadyAcceptedSequenceNumber(request.SequenceNumber) {
@@ -172,7 +176,7 @@ func (s *PBFTServer) Prepare(ctx gorums.BroadcastCtx, request *pb.PrepareRequest
 	if !s.isInView(request.View) {
 		return nil
 	}
-	if s.sequenceNumberIsValid(request.SequenceNumber) {
+	if !s.sequenceNumberIsValid(request.SequenceNumber) {
 		return nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
@@ -192,7 +196,7 @@ func (s *PBFTServer) Commit(ctx gorums.BroadcastCtx, request *pb.CommitRequest, 
 	if !s.isInView(request.View) {
 		return nil
 	}
-	if s.sequenceNumberIsValid(request.SequenceNumber) {
+	if !s.sequenceNumberIsValid(request.SequenceNumber) {
 		return nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
@@ -222,7 +226,6 @@ func (s *PBFTServer) isLeader() bool {
 
 func (s *PBFTServer) isInView(view int32) bool {
 	// request is in the current view of this node
-	log.Println("VIEW:", s.viewNumber, view)
 	return s.viewNumber == view
 }
 
@@ -268,7 +271,7 @@ func (s *PBFTServer) committed(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	if !found || len(reqs) >= 2*len(s.peers)/3 {
+	if !found || len(reqs) < 2*len(s.peers)/3 {
 		return false
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)

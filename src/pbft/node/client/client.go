@@ -29,7 +29,7 @@ func (sc *StorageClient) WriteValue(value string) error {
 		Message:   value,
 		Timestamp: time.Now().Unix(),
 	})
-	log.Println("\treceived a response at client:", resp)
+	log.Println("\treceived a response at client:", resp.Result)
 	if err != nil {
 		log.Fatal(err)
 		return err

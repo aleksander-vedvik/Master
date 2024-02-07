@@ -14,7 +14,10 @@ type MessageLog struct {
 
 func newMessageLog() *MessageLog {
 	return &MessageLog{
-		data: make([]any, 0),
+		data:        make([]any, 0),
+		preprepares: make(map[string]*pb.PrePrepareRequest, 0),
+		prepares:    make(map[string][]*pb.PrepareRequest, 0),
+		commits:     make(map[string][]*pb.CommitRequest, 0),
 	}
 }
 

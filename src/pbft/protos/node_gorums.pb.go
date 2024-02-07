@@ -188,7 +188,7 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// WriteQF is the quorum function for the Write
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *WriteRequest'.
