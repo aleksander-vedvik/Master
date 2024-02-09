@@ -9,8 +9,12 @@ package __
 import (
 	context "context"
 	fmt "fmt"
+	net "net"
+	"sync"
+
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
+	grpc "google.golang.org/grpc"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -197,7 +201,7 @@ type QuorumSpec interface {
 
 // Write is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest, resultHandler... func(resps []*ClientResponse) bool) (resp *ClientResponse, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.Write",
@@ -218,6 +222,79 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 		return nil, err
 	}
 	return res.(*ClientResponse), err
+}
+
+type tmpServer interface {
+	client(context.Context, *ClientResponse) (any, error)
+}
+
+type tmpServerImpl struct {
+	grpcServer *grpc.Server
+	handler func(resps []*ClientResponse) bool
+	resps []*ClientResponse
+}
+
+var mutex sync.Mutex
+
+func (srv tmpServerImpl) client(ctx context.Context, resp *ClientResponse) (any, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	srv.resps = append(srv.resps, resp)
+	srv.handler(srv.resps)
+	return nil, nil
+}
+
+func (srv tmpServerImpl) handleClient() {
+	srv.grpcServer.GracefulStop()
+}
+
+func createTmpServer(addr string) (*tmpServerImpl, error) {
+	var opts []grpc.ServerOption
+	srv := tmpServerImpl{
+		grpcServer: grpc.NewServer(opts...),
+	}
+	lis, err := net.Listen("tcp4", addr)
+	if err != nil {
+		return nil, err
+	}
+	registerTmpServer(srv.grpcServer, srv)
+	go srv.grpcServer.Serve(lis)
+	return &srv, nil
+}
+
+func registerTmpServer(s grpc.ServiceRegistrar, srv tmpServer) {
+	s.RegisterService(&TmpServer_ServiceDesc, srv)
+}
+
+func _TmpServer_Client_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientResponse)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(tmpServer).client(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protos.TmpServer/Client",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(tmpServer).client(ctx, req.(*ClientResponse))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var TmpServer_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "protos.TmpServer",
+	HandlerType: (*tmpServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Client",
+			Handler:    _TmpServer_Client_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "",
 }
 
 // PBFTNode is the server-side API for the PBFTNode Service
