@@ -10,7 +10,6 @@ import (
 	context "context"
 	fmt "fmt"
 	net "net"
-	"sync"
 
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
@@ -199,15 +198,23 @@ type QuorumSpec interface {
 	WriteQF(in *WriteRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
 }
 
+type QuroumType int
+const (
+	ByzantineQuorum QuroumType = iota
+	MajorityQuorum
+	All
+)
+
 // Write is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest, resultHandler... func(resps []*ClientResponse) bool) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest, addr string, resultHandler func(resps []*ClientResponse), returnWhen QuroumType) (resp *ClientResponse, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.PBFTNode.Write",
 
 		BroadcastID: uuid.New().String(),
 		Sender:      "client",
+		OriginAddr: addr,
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*ClientResponse, len(replies))
@@ -216,11 +223,17 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest, resultHandl
 		}
 		return c.qspec.WriteQF(req.(*WriteRequest), r)
 	}
+	numServers := 3
+	tmpSrv, err := createTmpServer(addr, resultHandler, numServers)
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
 		return nil, err
 	}
+	tmpSrv.handleClient(int(returnWhen))
 	return res.(*ClientResponse), err
 }
 
@@ -230,28 +243,34 @@ type tmpServer interface {
 
 type tmpServerImpl struct {
 	grpcServer *grpc.Server
-	handler func(resps []*ClientResponse) bool
+	handler func(resps []*ClientResponse)
 	resps []*ClientResponse
+	respChan chan *ClientResponse
 }
 
-var mutex sync.Mutex
-
 func (srv tmpServerImpl) client(ctx context.Context, resp *ClientResponse) (any, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	srv.resps = append(srv.resps, resp)
-	srv.handler(srv.resps)
+	srv.respChan <- resp
 	return nil, nil
 }
 
-func (srv tmpServerImpl) handleClient() {
+func (srv tmpServerImpl) handleClient(returnWhen int) {
+	for resp := range srv.respChan {
+		srv.resps = append(srv.resps, resp)
+		if len(srv.resps) > returnWhen {
+			break
+		}
+	}
+	srv.handler(srv.resps)
 	srv.grpcServer.GracefulStop()
 }
 
-func createTmpServer(addr string) (*tmpServerImpl, error) {
+func createTmpServer(addr string, handler func(resps []*ClientResponse), maxNumResponses int) (*tmpServerImpl, error) {
 	var opts []grpc.ServerOption
 	srv := tmpServerImpl{
 		grpcServer: grpc.NewServer(opts...),
+		respChan: make(chan *ClientResponse, maxNumResponses),
+		resps: make([]*ClientResponse, maxNumResponses),
+		handler: handler,
 	}
 	lis, err := net.Listen("tcp4", addr)
 	if err != nil {
