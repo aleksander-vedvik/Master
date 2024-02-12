@@ -10,7 +10,7 @@ import (
 	context "context"
 	fmt "fmt"
 	net "net"
-
+	insecure "google.golang.org/grpc/credentials/insecure"
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
@@ -156,7 +156,10 @@ func NewServer() *Server {
 	srv := &Server{
 		gorums.NewServer(),
 	}
-	srv.RegisterBroadcastStruct(&Broadcast{gorums.NewBroadcastStruct()})
+	srv.RegisterBroadcastStruct(&Broadcast{
+		BroadcastStruct: gorums.NewBroadcastStruct(),
+		sb: &specialBroadcast{},
+	})
 	return srv
 }
 
@@ -168,22 +171,51 @@ func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts
 
 type Broadcast struct {
 	*gorums.BroadcastStruct
+	sb *specialBroadcast
 }
 
-func (b *Broadcast) Write(req *WriteRequest, serverAddresses ...string) {
+func (b *Broadcast) Write(req *WriteRequest, serverAddresses ...string) *specialBroadcast {
 	b.SetBroadcastValues("protos.PBFTNode.Write", req, serverAddresses...)
+	return b.sb
 }
 
-func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses ...string) {
+func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses ...string) *specialBroadcast {
 	b.SetBroadcastValues("protos.PBFTNode.PrePrepare", req, serverAddresses...)
+	return b.sb
 }
 
-func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses ...string) {
+func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses ...string) *specialBroadcast {
 	b.SetBroadcastValues("protos.PBFTNode.Prepare", req, serverAddresses...)
+	return b.sb
 }
 
-func (b *Broadcast) Commit(req *CommitRequest, serverAddresses ...string) {
+func (b *Broadcast) Commit(req *CommitRequest, serverAddresses ...string) *specialBroadcast {
 	b.SetBroadcastValues("protos.PBFTNode.Commit", req, serverAddresses...)
+	return b.sb
+}
+
+type specialBroadcast struct {}
+
+func (sb *specialBroadcast) To(srvAddrs... string) *specialBroadcast {
+	return sb
+}
+
+func (sb *specialBroadcast) OmitUniqueChecks() *specialBroadcast {
+	return sb
+}
+
+func returnToClientHandler(addr string, req protoreflect.ProtoMessage, opts ...grpc.CallOption) (any, error) {
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	in := req.(*ClientResponse)
+	out := new(any)
+	err = conn.Invoke(context.Background(), "/protos.TmpServer/Client", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // QuorumSpec is the interface of quorum functions for PBFTNode.
@@ -329,6 +361,7 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
+	srv.RegisterReturnToClientHandler(returnToClientHandler)
 }
 
 func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
