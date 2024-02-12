@@ -92,14 +92,14 @@ func (s *PBFTServer) StartServer(addr string) string {
 		s.Serve(lis)
 	}()
 	go s.status()
-	s.RegisterConfiguration(s.addr, s.peers,
+	s.RegisterConfiguration(<-addrChan, s.peers,
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
 			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	return <-addrChan
+	return s.addr
 }
 
 //func (s *PBFTServer) Run() {

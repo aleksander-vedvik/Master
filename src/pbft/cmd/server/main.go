@@ -13,7 +13,7 @@ func main() {
 }
 
 func startServers() {
-	numServers := 5
+	numServers := 3
 	srvAddresses := make([]string, numServers)
 	for i := range srvAddresses {
 		srvAddresses[i] = fmt.Sprintf("localhost:%v", 5000+i)

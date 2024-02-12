@@ -10,10 +10,11 @@ import (
 	context "context"
 	fmt "fmt"
 	net "net"
-	insecure "google.golang.org/grpc/credentials/insecure"
+
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
+	insecure "google.golang.org/grpc/credentials/insecure"
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -200,7 +201,7 @@ func (sb *specialBroadcast) To(srvAddrs... string) *specialBroadcast {
 	return sb
 }
 
-func (sb *specialBroadcast) OmitUniqueChecks() *specialBroadcast {
+func (sb *specialBroadcast) OmitUniquenessChecks() *specialBroadcast {
 	return sb
 }
 
@@ -265,7 +266,7 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest, addr string
 	if err != nil {
 		return nil, err
 	}
-	tmpSrv.handleClient(int(returnWhen))
+	tmpSrv.handleClient(returnWhen, numServers)
 	return res.(*ClientResponse), err
 }
 
@@ -285,10 +286,20 @@ func (srv tmpServerImpl) client(ctx context.Context, resp *ClientResponse) (any,
 	return nil, nil
 }
 
-func (srv tmpServerImpl) handleClient(returnWhen int) {
+func (srv tmpServerImpl) handleClient(returnWhen QuroumType, numServers int) {
+	limit := 0
+	if returnWhen == ByzantineQuorum {
+		limit = 1 + 2 * numServers / 3
+	}
+	if returnWhen == MajorityQuorum {
+		limit = 1 + numServers / 2
+	}
+	if returnWhen == All {
+		limit = numServers
+	}
 	for resp := range srv.respChan {
 		srv.resps = append(srv.resps, resp)
-		if len(srv.resps) > returnWhen {
+		if len(srv.resps) >= limit {
 			break
 		}
 	}
@@ -301,11 +312,11 @@ func createTmpServer(addr string, handler func(resps []*ClientResponse), maxNumR
 	srv := tmpServerImpl{
 		grpcServer: grpc.NewServer(opts...),
 		respChan: make(chan *ClientResponse, maxNumResponses),
-		resps: make([]*ClientResponse, maxNumResponses),
+		resps: make([]*ClientResponse, 0, maxNumResponses),
 		handler: handler,
 	}
 	lis, err := net.Listen("tcp4", addr)
-	if err != nil {
+	for err != nil {
 		return nil, err
 	}
 	registerTmpServer(srv.grpcServer, srv)

@@ -37,6 +37,7 @@ func client2() {
 			log.Println(err)
 		}
 	}
+	return
 	fmt.Println()
 	log.Println("Writing values concurrently:", values[3], values[4], values[5])
 	var wg sync.WaitGroup

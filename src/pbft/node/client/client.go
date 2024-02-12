@@ -23,7 +23,17 @@ func NewStorageClient(srvAddresses []string, addr string) *StorageClient {
 	}
 }
 
-func (sc *StorageClient) handleResponses(resps []*pb.ClientResponse) {}
+func (sc *StorageClient) handleResponses(resps []*pb.ClientResponse) {
+	res := strconv.Itoa(len(resps)) + " CLIENT RETURN:"
+	for _, resp := range resps {
+		if resp != nil {
+			res += " " + resp.Result
+		} else {
+			res += " nil"
+		}
+	}
+	log.Println(res)
+}
 
 func (sc *StorageClient) WriteValue(value string) error {
 	sc.id++
