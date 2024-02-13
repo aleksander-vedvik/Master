@@ -1,6 +1,8 @@
 package client
 
-import pb "github.com/aleksander-vedvik/Master/protos"
+import (
+	pb "github.com/aleksander-vedvik/Master/protos"
+)
 
 type QSpec struct {
 	quorumSize int

@@ -141,18 +141,19 @@ func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, br
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.ReturnToClient(val, nil)
 		} else {
-			broadcast.Write(request, s.getLeaderAddr())
+			broadcast.Write(request).To(s.getLeaderAddr()).OmitUniquenessChecks()
 		}
 		return nil
 	}
-	broadcast.PrePrepare(&pb.PrePrepareRequest{
+	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,
 		SequenceNumber: s.sequenceNumber,
-		Digest:         "",
+		Digest:         "digest",
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
-	})
+	}
+	broadcast.PrePrepare(req).Gossip(0.7)
 	s.sequenceNumber++
 	return nil
 }

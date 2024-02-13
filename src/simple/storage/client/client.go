@@ -26,6 +26,7 @@ func (sc *StorageClient) WriteValue(value string) error {
 	//ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	//defer cancel()
 	ctx := context.Background()
+	//ctx := context.WithValue(bg, "test", "test")
 	_, err := sc.view.Broadcast(ctx, &pb.State{
 		Id:        sc.msgIds,
 		Value:     value,

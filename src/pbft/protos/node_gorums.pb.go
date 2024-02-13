@@ -32,6 +32,7 @@ type Configuration struct {
 	gorums.RawConfiguration
 	nodes []*Node
 	qspec QuorumSpec
+	server tmpServer
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -201,6 +202,10 @@ func (sb *specialBroadcast) To(srvAddrs... string) *specialBroadcast {
 	return sb
 }
 
+func (sb *specialBroadcast) Gossip(percentage float32) *specialBroadcast {
+	return sb
+}
+
 func (sb *specialBroadcast) OmitUniquenessChecks() *specialBroadcast {
 	return sb
 }
@@ -315,7 +320,7 @@ func createTmpServer(addr string, handler func(resps []*ClientResponse), maxNumR
 		resps: make([]*ClientResponse, 0, maxNumResponses),
 		handler: handler,
 	}
-	lis, err := net.Listen("tcp4", addr)
+	lis, err := net.Listen("tcp", addr)
 	for err != nil {
 		return nil, err
 	}
