@@ -9,7 +9,6 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	encoding "google.golang.org/grpc/encoding"
@@ -156,18 +155,10 @@ func NewServer() *Server {
 	}
 	b := &Broadcast{
 		BroadcastStruct: gorums.NewBroadcastStruct(),
-		sp: gorums.NewSpBroadcastStruct(),
+		sp:              gorums.NewSpBroadcastStruct(),
 	}
 	srv.RegisterBroadcastStruct(b, assign(b), assignValues(b))
 	return srv
-}
-
-func (s *Server) Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
-	panic("Broadcast not implemented")
-}
-
-func (s *Server) Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
-	panic("Deliver not implemented")
 }
 
 func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
@@ -178,9 +169,9 @@ func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts
 
 type Broadcast struct {
 	*gorums.BroadcastStruct
-	sp *gorums.SpBroadcast
-	serverAddresses         []string
-	metadata                gorums.BroadcastMetadata
+	sp              *gorums.SpBroadcast
+	serverAddresses []string
+	metadata        gorums.BroadcastMetadata
 }
 
 func assign(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
@@ -196,7 +187,7 @@ func assignValues(b *Broadcast) func(metadata gorums.BroadcastMetadata) {
 	}
 }
 
-func (b *Broadcast) To(srvAddrs... string) *Broadcast {
+func (b *Broadcast) To(srvAddrs ...string) *Broadcast {
 	b.serverAddresses = append(b.serverAddresses, srvAddrs...)
 	return b
 }
