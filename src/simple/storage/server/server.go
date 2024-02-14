@@ -66,7 +66,7 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 	return &srv
 }
 
-func (s *StorageServer) authenticate(ctx gorums.BroadcastCtx) error {
+func (s *StorageServer) authenticate(metadata gorums.BroadcastMetadata) error {
 	//log.Println("CTX:", ctx.GetBroadcastValues())
 	//log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
 	//bd := ctx.GetBroadcastValues()
@@ -74,7 +74,7 @@ func (s *StorageServer) authenticate(ctx gorums.BroadcastCtx) error {
 	return nil
 }
 
-func (s *StorageServer) countMsgs(gorums.BroadcastCtx) error {
+func (s *StorageServer) countMsgs(gorums.BroadcastMetadata) error {
 	s.Lock()
 	defer s.Unlock()
 	s.messages++
@@ -138,27 +138,25 @@ func (s *StorageServer) status() {
 	}
 }
 
-func (s *StorageServer) Broadcast(ctx gorums.BroadcastCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
+func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
 	s.Lock()
 	defer s.Unlock()
 	// broadcastID should be retrieved from the context, not the broadcast struct
 	//log.Println("CTX:", ctx.GetBroadcastValue(gorums.BroadcastID))
-	md := ctx.GetBroadcastValues()
+	md := broadcast.GetMetadata()
 	s.pending = append(s.pending, newData(request, md.BroadcastID))
-	broadcast.Deliver(request)
-	return nil
+	go broadcast.Deliver(request)
 }
 
-func (s *StorageServer) Deliver(ctx gorums.BroadcastCtx, request *pb.State, broadcast *pb.Broadcast) (err error) {
+func (s *StorageServer) Deliver(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
 	s.Lock()
 	defer s.Unlock()
 	s.addAck(request.GetId())
 	if !s.inPending(request) {
-		md := ctx.GetBroadcastValues()
+		md := broadcast.GetMetadata()
 		s.pending = append(s.pending, newData(request, md.BroadcastID))
-		broadcast.Deliver(request)
+		go broadcast.Deliver(request)
 	}
-	return nil
 }
 
 func (s *StorageServer) addAck(reqId int64) {
@@ -184,7 +182,7 @@ func (srv *StorageServer) deliver() {
 		for _, msg := range srv.pending {
 			if srv.canDeliver(msg.Id) {
 				srv.data = append(srv.data, msg)
-				srv.ReturnToClient(&pb.ClientResponse{
+				go srv.ReturnToClient(&pb.ClientResponse{
 					Success: true,
 					Value:   msg.Value,
 				}, nil, msg.BroadcastID)

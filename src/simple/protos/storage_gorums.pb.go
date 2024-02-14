@@ -154,20 +154,71 @@ func NewServer() *Server {
 	srv := &Server{
 		gorums.NewServer(),
 	}
-	srv.RegisterBroadcastStruct(&Broadcast{gorums.NewBroadcastStruct()})
+	b := &Broadcast{
+		BroadcastStruct: gorums.NewBroadcastStruct(),
+		sp: gorums.NewSpBroadcastStruct(),
+	}
+	srv.RegisterBroadcastStruct(b, assign(b), assignValues(b))
 	return srv
+}
+
+func (s *Server) Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
+	panic("Broadcast not implemented")
+}
+
+func (s *Server) Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
+	panic("Deliver not implemented")
+}
+
+func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
+	srv.ListenForBroadcast()
+	return err
 }
 
 type Broadcast struct {
 	*gorums.BroadcastStruct
+	sp *gorums.SpBroadcast
+	serverAddresses         []string
+	metadata                gorums.BroadcastMetadata
+}
+
+func assign(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
+	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
+		b.sp.BroadcastHandler = bh
+		b.sp.ReturnToClientHandler = ch
+	}
+}
+
+func assignValues(b *Broadcast) func(metadata gorums.BroadcastMetadata) {
+	return func(metadata gorums.BroadcastMetadata) {
+		b.metadata = metadata
+	}
+}
+
+func (b *Broadcast) To(srvAddrs... string) *Broadcast {
+	b.serverAddresses = append(b.serverAddresses, srvAddrs...)
+	return b
+}
+
+func (b *Broadcast) OmitUniquenessChecks() *Broadcast {
+	return b
+}
+
+func (b *Broadcast) Gossip(percentage float32) *Broadcast {
+	return b
+}
+
+func (b *Broadcast) GetMetadata() gorums.BroadcastMetadata {
+	return b.metadata
 }
 
 func (b *Broadcast) Broadcast(req *State) {
-	b.SetBroadcastValues("protos.UniformBroadcast.Broadcast", req)
+	b.sp.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, b.serverAddresses)
 }
 
 func (b *Broadcast) Deliver(req *State) {
-	b.SetBroadcastValues("protos.UniformBroadcast.Deliver", req)
+	b.sp.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, b.serverAddresses)
 }
 
 // QuorumSpec is the interface of quorum functions for UniformBroadcast.
@@ -175,18 +226,11 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
 	BroadcastQF(in *State, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
-
-	// DeliverQF is the quorum function for the Deliver
-	// broadcast call method. The in parameter is the request object
-	// supplied to the Deliver method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *State'.
-	DeliverQF(in *State, replies map[uint32]*Empty) (*Empty, bool)
 }
 
 // Broadcast is a quorum call invoked on all nodes in configuration c,
@@ -206,10 +250,7 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientR
 		}
 		return c.qspec.BroadcastQF(req.(*State), r)
 	}
-	//ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("BroadcastID", "broadcast"))
-	//ctx = context.WithValue(ctx, "testKey", "testVal")
-	//ctxMd, _ := metadata.FromOutgoingContext(ctx)
-	//log.Println("Init CTX:", ctxMd)
+
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
 		return nil, err
@@ -217,35 +258,10 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientR
 	return res.(*ClientResponse), err
 }
 
-// Deliver is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Deliver(ctx context.Context, in *State) (resp *Empty, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.UniformBroadcast.Deliver",
-
-		BroadcastID: uuid.New().String(),
-		Sender:      "client",
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*Empty, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*Empty)
-		}
-		return c.qspec.DeliverQF(req.(*State), r)
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	return res.(*Empty), err
-}
-
 // UniformBroadcast is the server-side API for the UniformBroadcast Service
 type UniformBroadcast interface {
-	Broadcast(ctx gorums.BroadcastCtx, request *State, broadcast *Broadcast) (err error)
-	Deliver(ctx gorums.BroadcastCtx, request *State, broadcast *Broadcast) (err error)
+	Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast)
+	Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast)
 }
 
 func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
@@ -253,16 +269,16 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
-func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
-	srv.ListenForBroadcast()
-	return err
-}
-
 func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
-	b.SetReturnToClient(resp, err)
+	b.sp.ReturnToClientHandler(resp, err, b.metadata)
 }
 
 func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
-	go srv.RetToClient(resp, err, broadcastID)
+	srv.RetToClient(resp, err, broadcastID)
+}
+
+type internalClientResponse struct {
+	nid   uint32
+	reply *ClientResponse
+	err   error
 }

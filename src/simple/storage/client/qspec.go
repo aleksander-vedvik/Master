@@ -25,8 +25,3 @@ func (qs *QSpec) BroadcastQF(in *pb.State, replies map[uint32]*pb.ClientResponse
 	}
 	return nil, false
 }
-
-// WriteQF is the quorum function for the Write RPC method.
-func (qs *QSpec) DeliverQF(in *pb.State, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
-	return &pb.Empty{}, false
-}
