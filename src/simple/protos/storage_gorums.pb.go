@@ -14,6 +14,8 @@ import (
 	encoding "google.golang.org/grpc/encoding"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	sync "sync"
+	net "net"
+	grpc "google.golang.org/grpc"
 )
 
 const (
@@ -29,6 +31,7 @@ type Configuration struct {
 	gorums.RawConfiguration
 	nodes []*Node
 	qspec QuorumSpec
+	srv *tmpServerImpl
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -167,8 +170,8 @@ func NewServer() *Server {
 	return srv
 }
 
-func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
+func (srv *Server) SetView(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterView(ownAddr, srvAddrs, opts...)
 	srv.ListenForBroadcast()
 	return err
 }
@@ -260,12 +263,16 @@ type QuorumSpec interface {
 
 // Broadcast is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientResponse, err error) {
+func (c *Configuration) Broadcast(ctx context.Context, in *State, criteria Criteria) (resp *ClientResponse, err error) {
+	if c.srv == nil {
+		return nil, fmt.Errorf("a client handler is not defined. Use configuration.RegisterClientHandler() to define a handler")
+	}
+	broadcastID := uuid.New().String()
 	cd := gorums.QuorumCallData{
 		Message: in,
 		Method:  "protos.UniformBroadcast.Broadcast",
 
-		BroadcastID: uuid.New().String(),
+		BroadcastID: broadcastID,
 		Sender:      "client",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
@@ -280,7 +287,102 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *ClientR
 	if err != nil {
 		return nil, err
 	}
+	c.srv.handleClient(AllQuorum, 3)
 	return res.(*ClientResponse), err
+}
+
+func (srv tmpServerImpl) handleClient(returnWhen Criteria, numServers int) {
+	limit := 0
+	if returnWhen == ByzantineQuorum {
+		limit = 1 + 2 * numServers / 3
+	}
+	if returnWhen == MajorityQuorum {
+		limit = 1 + numServers / 2
+	}
+	if returnWhen == AllQuorum {
+		limit = numServers
+	}
+	for resp := range srv.respChan {
+		srv.resps = append(srv.resps, resp)
+		if len(srv.resps) >= limit {
+			break
+		}
+	}
+	srv.handler(srv.resps)
+	srv.grpcServer.GracefulStop()
+}
+
+type Criteria int
+
+const (
+	ByzantineQuorum Criteria = iota
+	MajorityQuorum
+	AllQuorum
+)
+type tmpServer interface {
+	client(context.Context, *ClientResponse) (any, error)
+}
+
+type tmpServerImpl struct {
+	grpcServer *grpc.Server
+	handler func(resps []*ClientResponse)
+	resps []*ClientResponse
+	respChan chan *ClientResponse
+}
+
+func (srv tmpServerImpl) client(ctx context.Context, resp *ClientResponse) (any, error) {
+	srv.respChan <- resp
+	return nil, nil
+}
+
+func (c *Configuration) RegisterResponseHandler(addr string, handler func(resps []*ClientResponse)) {
+	maxNumResponses := 3
+	//c.clientHandler = handler
+	var opts []grpc.ServerOption
+	srv := tmpServerImpl{
+		grpcServer: grpc.NewServer(opts...),
+		respChan: make(chan *ClientResponse, maxNumResponses),
+		resps: make([]*ClientResponse, 0, maxNumResponses),
+		handler: handler,
+	}
+	lis, err := net.Listen("tcp", addr)
+	for err != nil {
+		return
+	}
+	srv.grpcServer.RegisterService(&TmpServer_ServiceDesc, srv)
+	go srv.grpcServer.Serve(lis)
+	c.srv = &srv
+}
+
+func _TmpServer_Client_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientResponse)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(tmpServer).client(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protos.TmpServer/Client",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(tmpServer).client(ctx, req.(*ClientResponse))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var TmpServer_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "protos.TmpServer",
+	HandlerType: (*tmpServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Client",
+			Handler:    _TmpServer_Client_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "",
 }
 
 // UniformBroadcast is the server-side API for the UniformBroadcast Service
@@ -301,11 +403,19 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
-func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
+func (b *Broadcast) RespondToClient(resp protoreflect.ProtoMessage, err error) {
 	b.sp.ReturnToClientHandler(resp, err, b.metadata)
 }
 
-func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
+func (srv *Server) RespondToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
+	srv.RetToClient(resp, err, broadcastID)
+}
+
+func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
+	b.sp.ReturnToClientHandler(resp, err, b.metadata)
+}
+
+func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
 	srv.RetToClient(resp, err, broadcastID)
 }
 

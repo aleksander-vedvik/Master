@@ -13,6 +13,9 @@ service UniformBroadcast {
   rpc Deliver(State) returns (Empty) {
     option (gorums.broadcast) = true;
    }
+  rpc WriteToClient(ClientResponse) returns (Empty) {
+    option (gorums.broadcast.client) = true;
+   }
 }
 
 message State {
