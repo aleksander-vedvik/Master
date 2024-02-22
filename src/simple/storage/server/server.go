@@ -10,8 +10,6 @@ import (
 
 	pb "github.com/aleksander-vedvik/Master/protos"
 	"github.com/relab/gorums"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Data struct {
@@ -118,13 +116,7 @@ func (s *StorageServer) Start(addr string) {
 
 func (s *StorageServer) Run() {
 	time.Sleep(10 * time.Millisecond)
-	s.RegisterConfiguration(s.addr, s.peers,
-		gorums.WithDialTimeout(50*time.Millisecond),
-		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		),
-	)
+	s.SetView(s.addr, s.peers)
 }
 
 func (s *StorageServer) status() {
@@ -141,11 +133,9 @@ func (s *StorageServer) status() {
 func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
 	s.Lock()
 	defer s.Unlock()
-	// broadcastID should be retrieved from the context, not the broadcast struct
-	//log.Println("CTX:", ctx.GetBroadcastValue(gorums.BroadcastID))
 	md := broadcast.GetMetadata()
 	s.pending = append(s.pending, newData(request, md.BroadcastID))
-	go broadcast.Deliver(request)
+	go broadcast.Deliver(request, gorums.WithSubset(s.peers...), gorums.WithGossip(2.0))
 }
 
 func (s *StorageServer) Deliver(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
@@ -182,7 +172,7 @@ func (srv *StorageServer) deliver() {
 		for _, msg := range srv.pending {
 			if srv.canDeliver(msg.Id) {
 				srv.data = append(srv.data, msg)
-				go srv.ReturnToClient(&pb.ClientResponse{
+				go srv.ReplyToClient(&pb.ClientResponse{
 					Success: true,
 					Value:   msg.Value,
 				}, nil, msg.BroadcastID)

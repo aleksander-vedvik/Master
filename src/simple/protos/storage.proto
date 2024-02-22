@@ -6,16 +6,24 @@ import "gorums.proto";
 option go_package = ".";
 
 service UniformBroadcast {
-  rpc Broadcast(State) returns (ClientResponse) {
+  rpc SaveStudent(State) returns(ClientResponse) {
+    option (gorums.broadcastrequest) = true;
+  }
+  rpc SaveStudents(States) returns(ClientResponse) {
+    option (gorums.broadcastrequest) = true;
+  }
+
+  rpc Broadcast(State) returns (View) {
     option (gorums.quorumcall) = true;
     option (gorums.broadcast) = true;
    }
   rpc Deliver(State) returns (Empty) {
     option (gorums.broadcast) = true;
    }
-  rpc WriteToClient(ClientResponse) returns (Empty) {
-    option (gorums.broadcast.client) = true;
-   }
+}
+
+message States {
+  repeated State reqs = 1;
 }
 
 message State {
@@ -27,6 +35,19 @@ message State {
 message ClientResponse {
   bool Success = 1;
   string Value = 2;
+}
+
+message View {
+  int32 Id = 1;
+  int32 NumberOfServers = 2;
+}
+
+message Request {
+  oneof Value {
+    View view = 1;
+    ClientResponse response = 2;
+  }
+
 }
 
 message Empty {}

@@ -14,11 +14,10 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-// ReadQF is the quorum function for the Read RPC method.
-func (qs *QSpec) BroadcastQF(in *pb.State, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) BroadcastQF(in *pb.State, replies map[uint32]*pb.View) (*pb.View, bool) {
 	if len(replies) >= qs.quorumSize {
 		for _, resp := range replies {
-			if resp.GetSuccess() {
+			if resp.GetNumberOfServers() > 0 {
 				return resp, true
 			}
 		}
