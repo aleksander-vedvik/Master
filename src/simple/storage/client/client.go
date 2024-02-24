@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
@@ -32,5 +33,17 @@ func (sc *StorageClient) WriteValue(value string) error {
 		Value:     value,
 		Timestamp: time.Now().Unix(),
 	})
+	return err
+}
+
+func (sc *StorageClient) CreateStudent(value string) error {
+	sc.msgIds++
+	ctx := context.Background()
+	resp, err := sc.view.SaveStudent(ctx, &pb.State{
+		Id:        sc.msgIds,
+		Value:     value,
+		Timestamp: time.Now().Unix(),
+	})
+	fmt.Println(resp)
 	return err
 }

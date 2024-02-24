@@ -26,5 +26,6 @@ func GetConfig(srvAddresses []string) *pb.Configuration {
 	if err != nil {
 		log.Fatal("error creating config:", err)
 	}
+	quorum.RegisterClientServer("localhost:8080", NewReplySpec(len(srvAddresses)))
 	return quorum
 }
