@@ -17,6 +17,7 @@ func NewReplySpec(qsize int) pb.ReplySpec {
 }
 
 func (rs *RepySpec) SaveStudent(reqs []*pb.ClientResponse) (*pb.ClientResponse, error) {
+	//fmt.Println("CLIENT SERVER:", len(reqs))
 	if len(reqs) < rs.qsize {
 		return nil, fmt.Errorf("not a quorum")
 	}
