@@ -9,18 +9,17 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-	net "net"
-	strings "strings"
-
 	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	insecure "google.golang.org/grpc/credentials/insecure"
 	encoding "google.golang.org/grpc/encoding"
-	"google.golang.org/grpc/metadata"
+	metadata "google.golang.org/grpc/metadata"
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	net "net"
+	strings "strings"
 )
 
 const (
@@ -294,7 +293,7 @@ func _serverClientRPC(method string) func(addr, broadcastID string, in protorefl
 			return nil, err
 		}
 		out := new(any)
-		md := metadata.Pairs("test", "test", "broadcastID", broadcastID)
+		md := metadata.Pairs("broadcastID", broadcastID)
 		ctx := metadata.NewOutgoingContext(context.Background(), md)
 		err = cc.Invoke(ctx, method, in, out, opts...)
 		if err != nil {
@@ -387,11 +386,23 @@ func _clientSaveStudents(srv interface{}, ctx context.Context, dec func(interfac
 }
 
 func (srv *clientServerImpl) clientSaveStudents(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return resp, fmt.Errorf("no metadata")
+	}
+	broadcastID := ""
+	val := md.Get("broadcastID")
+	if val != nil && len(val) >= 1 {
+		broadcastID = val[0]
+	}
+	if broadcastID == "" {
+		return resp, fmt.Errorf("no broadcastID")
+	}
 	srv.respChan <- &clientResponse{
-		broadcastID: ctx.Value("broadcastID").(string),
+		broadcastID: broadcastID,
 		data:        resp,
 	}
-	return nil, nil
+	return resp, nil
 }
 
 func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *ClientResponse, err error) {
@@ -458,7 +469,7 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
