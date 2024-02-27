@@ -43,6 +43,7 @@ func c() {
 
 func c2() {
 	time.Sleep(2 * time.Second)
+	//srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
 	srvAddresses := []string{"localhost:5000"}
 	c := client.NewStorageClient(srvAddresses)
 	fmt.Println()
