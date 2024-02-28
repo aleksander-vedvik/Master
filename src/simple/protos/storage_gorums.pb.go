@@ -13,13 +13,9 @@ import (
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
-	insecure "google.golang.org/grpc/credentials/insecure"
 	encoding "google.golang.org/grpc/encoding"
-	metadata "google.golang.org/grpc/metadata"
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	net "net"
-	strings "strings"
 )
 
 const (
@@ -33,11 +29,10 @@ const (
 // procedure calls may be invoked.
 type Configuration struct {
 	gorums.RawConfiguration
-	nodes      []*Node
-	qspec      QuorumSpec
-	srv        *clientServerImpl
-	listenAddr string
-	replySpec  ReplySpec
+	nodes     []*Node
+	qspec     QuorumSpec
+	srv       *clientServerImpl
+	replySpec ReplySpec
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -204,103 +199,33 @@ func (b *Broadcast) GetMetadata() gorums.BroadcastMetadata {
 	return b.metadata
 }
 
-type clientResponse struct {
-	broadcastID string
-	data        protoreflect.ProtoMessage
-}
-
-type clientRequest struct {
-	broadcastID string
-	doneChan    chan protoreflect.ProtoMessage
-	handler     func([]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
-}
-
 type clientServerImpl struct {
+	*gorums.ClientServer
 	grpcServer *grpc.Server
-	respChan   chan *clientResponse
-	reqChan    chan *clientRequest
-	resps      map[string][]protoreflect.ProtoMessage
-	doneChans  map[string]chan protoreflect.ProtoMessage
-	handlers   map[string]func(resps []protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
 }
 
-func (c *Configuration) RegisterClientServer(listenAddr string, replySpec ReplySpec) {
-	var opts []grpc.ServerOption
-	srv := &clientServerImpl{
+func (c *Configuration) RegisterClientServer(listenAddr string, replySpec ReplySpec, opts ...grpc.ServerOption) error {
+	srvImpl := &clientServerImpl{
 		grpcServer: grpc.NewServer(opts...),
-		respChan:   make(chan *clientResponse, 10),
-		reqChan:    make(chan *clientRequest),
-		resps:      make(map[string][]protoreflect.ProtoMessage),
-		doneChans:  make(map[string]chan protoreflect.ProtoMessage),
-		handlers:   make(map[string]func(resps []protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)),
 	}
-	lis, err := net.Listen("tcp", listenAddr)
-	for err != nil {
-		return
+	srv, lis, err := gorums.NewClientServer(listenAddr)
+	if err != nil {
+		return err
 	}
-	c.listenAddr = lis.Addr().String()
-	srv.grpcServer.RegisterService(&clientServer_ServiceDesc, srv)
-	go srv.grpcServer.Serve(lis)
-	go srv.handle()
-	c.srv = srv
+	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
+	go srvImpl.grpcServer.Serve(lis)
+	srvImpl.ClientServer = srv
+	c.srv = srvImpl
 	c.replySpec = replySpec
+	return nil
 }
 
-func (srv *clientServerImpl) handle() {
-	for {
-		select {
-		case resp := <-srv.respChan:
-			if _, ok := srv.resps[resp.broadcastID]; !ok {
-				continue
-			}
-			srv.resps[resp.broadcastID] = append(srv.resps[resp.broadcastID], resp.data)
-			response, err := srv.handlers[resp.broadcastID](srv.resps[resp.broadcastID])
-			if err == nil {
-				srv.doneChans[resp.broadcastID] <- response
-				close(srv.doneChans[resp.broadcastID])
-				delete(srv.resps, resp.broadcastID)
-				delete(srv.doneChans, resp.broadcastID)
-				delete(srv.handlers, resp.broadcastID)
-			}
-		case req := <-srv.reqChan:
-			srv.resps[req.broadcastID] = make([]protoreflect.ProtoMessage, 0)
-			srv.doneChans[req.broadcastID] = req.doneChan
-			srv.handlers[req.broadcastID] = req.handler
-		}
+func (b *Broadcast) SaveStudents(req *States, opts ...gorums.BroadcastOption) {
+	data := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&data)
 	}
-}
-
-func convertToType[T protoreflect.ProtoMessage](handler func([]T) (T, error)) func(d []protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
-	return func(d []protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
-		data := make([]T, len(d))
-		for i, elem := range d {
-			data[i] = elem.(T)
-		}
-		return handler(data)
-	}
-}
-
-func _serverClientRPC(method string) func(addr, broadcastID string, in protoreflect.ProtoMessage, opts ...grpc.CallOption) (any, error) {
-	return func(addr, broadcastID string, in protoreflect.ProtoMessage, opts ...grpc.CallOption) (any, error) {
-		tmp := strings.Split(method, ".")
-		m := ""
-		if len(tmp) >= 1 {
-			m = tmp[len(tmp)-1]
-		}
-		method = "/protos.ClientServer/Client" + m
-		cc, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			return nil, err
-		}
-		out := new(any)
-		md := metadata.Pairs("broadcastID", broadcastID)
-		ctx := metadata.NewOutgoingContext(context.Background(), md)
-		err = cc.Invoke(ctx, method, in, out, opts...)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
+	b.sp.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, data)
 }
 
 func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
@@ -328,23 +253,8 @@ func _clientSaveStudent(srv interface{}, ctx context.Context, dec func(interface
 }
 
 func (srv *clientServerImpl) clientSaveStudent(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return resp, fmt.Errorf("no metadata")
-	}
-	broadcastID := ""
-	val := md.Get("broadcastID")
-	if val != nil && len(val) >= 1 {
-		broadcastID = val[0]
-	}
-	if broadcastID == "" {
-		return resp, fmt.Errorf("no broadcastID")
-	}
-	srv.respChan <- &clientResponse{
-		broadcastID: broadcastID,
-		data:        resp,
-	}
-	return resp, nil
+	err := srv.AddResponse(ctx, resp)
+	return resp, err
 }
 
 func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *ClientResponse, err error) {
@@ -354,21 +264,7 @@ func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *Clien
 	if c.replySpec == nil {
 		return nil, fmt.Errorf("a reply spec is not defined. Use configuration.RegisterClientServer() to define a reply spec")
 	}
-	broadcastID := uuid.New().String()
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.UniformBroadcast.SaveStudent",
-
-		BroadcastID: broadcastID,
-		Sender:      gorums.BROADCASTCLIENT,
-		OriginAddr:  c.listenAddr,
-	}
-	doneChan := make(chan protoreflect.ProtoMessage)
-	c.srv.reqChan <- &clientRequest{
-		broadcastID: broadcastID,
-		doneChan:    doneChan,
-		handler:     convertToType[*ClientResponse](c.replySpec.SaveStudent),
-	}
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.replySpec.SaveStudent))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -386,23 +282,8 @@ func _clientSaveStudents(srv interface{}, ctx context.Context, dec func(interfac
 }
 
 func (srv *clientServerImpl) clientSaveStudents(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return resp, fmt.Errorf("no metadata")
-	}
-	broadcastID := ""
-	val := md.Get("broadcastID")
-	if val != nil && len(val) >= 1 {
-		broadcastID = val[0]
-	}
-	if broadcastID == "" {
-		return resp, fmt.Errorf("no broadcastID")
-	}
-	srv.respChan <- &clientResponse{
-		broadcastID: broadcastID,
-		data:        resp,
-	}
-	return resp, nil
+	err := srv.AddResponse(ctx, resp)
+	return resp, err
 }
 
 func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *ClientResponse, err error) {
@@ -412,21 +293,7 @@ func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *Cli
 	if c.replySpec == nil {
 		return nil, fmt.Errorf("a reply spec is not defined. Use configuration.RegisterClientServer() to define a reply spec")
 	}
-	broadcastID := uuid.New().String()
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.UniformBroadcast.SaveStudents",
-
-		BroadcastID: broadcastID,
-		Sender:      gorums.BROADCASTCLIENT,
-		OriginAddr:  c.listenAddr,
-	}
-	doneChan := make(chan protoreflect.ProtoMessage)
-	c.srv.reqChan <- &clientRequest{
-		broadcastID: broadcastID,
-		doneChan:    doneChan,
-		handler:     convertToType[*ClientResponse](c.replySpec.SaveStudents),
-	}
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.replySpec.SaveStudents))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -460,8 +327,8 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 }
 
 type ReplySpec interface {
-	SaveStudent(reqs []*ClientResponse) (*ClientResponse, error)
-	SaveStudents(reqs []*ClientResponse) (*ClientResponse, error)
+	SaveStudent(reqs []*ClientResponse) (*ClientResponse, bool)
+	SaveStudents(reqs []*ClientResponse) (*ClientResponse, bool)
 }
 
 // QuorumSpec is the interface of quorum functions for UniformBroadcast.
@@ -469,7 +336,7 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
@@ -484,7 +351,7 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *View, e
 		Method:  "protos.UniformBroadcast.Broadcast",
 
 		BroadcastID: uuid.New().String(),
-		Sender:      gorums.BROADCASTCLIENT,
+		Sender:      gorums.BroadcastClient,
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*View, len(replies))
@@ -524,9 +391,9 @@ func (srv *Server) Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broa
 
 func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.SaveStudent", gorums.BroadcastHandler(impl.SaveStudent, srv.Server))
-	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudent", _serverClientRPC("protos.UniformBroadcast.SaveStudent"))
+	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudent", gorums.ServerClientRPC("protos.UniformBroadcast.SaveStudent"))
 	srv.RegisterHandler("protos.UniformBroadcast.SaveStudents", gorums.BroadcastHandler(impl.SaveStudents, srv.Server))
-	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudents", _serverClientRPC("protos.UniformBroadcast.SaveStudents"))
+	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudents", gorums.ServerClientRPC("protos.UniformBroadcast.SaveStudents"))
 	srv.RegisterHandler("protos.UniformBroadcast.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }

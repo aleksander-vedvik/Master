@@ -7,10 +7,11 @@ option go_package = ".";
 
 service UniformBroadcast {
   rpc SaveStudent(State) returns(ClientResponse) {
-    option (gorums.broadcastrequest) = true;
+    option (gorums.broadcastcall) = true;
   }
   rpc SaveStudents(States) returns(ClientResponse) {
-    option (gorums.broadcastrequest) = true;
+    option (gorums.broadcastcall) = true;
+    option (gorums.broadcast) = true;
   }
 
   rpc Broadcast(State) returns (View) {
