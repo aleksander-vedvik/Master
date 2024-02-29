@@ -15,7 +15,7 @@ type StorageClient struct {
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func NewStorageClient(srvAddresses []string) *StorageClient {
 	return &StorageClient{
-		view:   GetConfig(srvAddresses),
+		view:   GetConfig(srvAddresses, 3),
 		msgIds: 0,
 	}
 }

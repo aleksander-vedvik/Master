@@ -16,6 +16,7 @@ import (
 	encoding "google.golang.org/grpc/encoding"
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	net "net"
 )
 
 const (
@@ -29,10 +30,9 @@ const (
 // procedure calls may be invoked.
 type Configuration struct {
 	gorums.RawConfiguration
-	nodes     []*Node
-	qspec     QuorumSpec
-	srv       *clientServerImpl
-	replySpec ReplySpec
+	nodes []*Node
+	qspec QuorumSpec
+	srv   *clientServerImpl
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -133,6 +133,22 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	return c, nil
 }
 
+// NewBroadcastConfiguration returns a configuration based on the provided list of nodes (required)
+// and an optional quorum specification. The QuorumSpec is necessary for call types that
+// must process replies. For configurations only used for unicast or multicast call types,
+// a QuorumSpec is not needed. The QuorumSpec interface is also a ConfigOption.
+// Nodes can be supplied using WithNodeMap or WithNodeList, or WithNodeIDs.
+// A new configuration can also be created from an existing configuration,
+// using the And, WithNewNodes, Except, and WithoutNodes methods.
+func (m *Manager) NewBroadcastConfiguration(nodeOpt gorums.NodeListOption, qSpec QuorumSpec, lis net.Listener) (c *Configuration, err error) {
+	c, err = m.NewConfiguration(nodeOpt, qSpec)
+	if err != nil {
+		return nil, err
+	}
+	c.RegisterClientServer(lis)
+	return c, nil
+}
+
 // Nodes returns a slice of available nodes on this manager.
 // IDs are returned in the order they were added at creation of the manager.
 func (m *Manager) Nodes() []*Node {
@@ -204,11 +220,11 @@ type clientServerImpl struct {
 	grpcServer *grpc.Server
 }
 
-func (c *Configuration) RegisterClientServer(listenAddr string, replySpec ReplySpec, opts ...grpc.ServerOption) error {
+func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
 	srvImpl := &clientServerImpl{
 		grpcServer: grpc.NewServer(opts...),
 	}
-	srv, lis, err := gorums.NewClientServer(listenAddr)
+	srv, err := gorums.NewClientServer(lis)
 	if err != nil {
 		return err
 	}
@@ -216,7 +232,6 @@ func (c *Configuration) RegisterClientServer(listenAddr string, replySpec ReplyS
 	go srvImpl.grpcServer.Serve(lis)
 	srvImpl.ClientServer = srv
 	c.srv = srvImpl
-	c.replySpec = replySpec
 	return nil
 }
 
@@ -261,10 +276,10 @@ func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *Clien
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
-	if c.replySpec == nil {
-		return nil, fmt.Errorf("a reply spec is not defined. Use configuration.RegisterClientServer() to define a reply spec")
+	if c.qspec == nil {
+		return nil, fmt.Errorf("a qspec is not defined.")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.replySpec.SaveStudent))
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentQF))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -290,10 +305,10 @@ func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *Cli
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
-	if c.replySpec == nil {
-		return nil, fmt.Errorf("a reply spec is not defined. Use configuration.RegisterClientServer() to define a reply spec")
+	if c.qspec == nil {
+		return nil, fmt.Errorf("a qspec is not defined.")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.replySpec.SaveStudents))
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentsQF))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -326,14 +341,23 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	Metadata: "",
 }
 
-type ReplySpec interface {
-	SaveStudent(reqs []*ClientResponse) (*ClientResponse, bool)
-	SaveStudents(reqs []*ClientResponse) (*ClientResponse, bool)
-}
-
 // QuorumSpec is the interface of quorum functions for UniformBroadcast.
 type QuorumSpec interface {
 	gorums.ConfigOption
+
+	// SaveStudentQF is the quorum function for the SaveStudent
+	// broadcastcall call method. The in parameter is the request object
+	// supplied to the SaveStudent method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *State'.
+	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
+
+	// SaveStudentsQF is the quorum function for the SaveStudents
+	// broadcast call method. The in parameter is the request object
+	// supplied to the SaveStudents method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *States'.
+	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
 	// quorum call method. The in parameter is the request object

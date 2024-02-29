@@ -181,7 +181,8 @@ func (srv *StorageServer) deliver() {
 		for _, msg := range srv.pending {
 			if srv.canDeliver(msg.Id) {
 				srv.data = append(srv.data, msg)
-				go srv.ReplyToClient(&pb.ClientResponse{
+				fmt.Println("SENDING TO CLIENT")
+				go srv.SendToClient(&pb.ClientResponse{
 					Success: true,
 					Value:   msg.Value,
 				}, nil, msg.BroadcastID)

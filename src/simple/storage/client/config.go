@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func GetConfig(srvAddresses []string) *pb.Configuration {
+func GetConfig(srvAddresses []string, numSrvs int) *pb.Configuration {
 	mgr := pb.NewManager(
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
@@ -18,14 +18,14 @@ func GetConfig(srvAddresses []string) *pb.Configuration {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	var err error
-	quorum, err := mgr.NewConfiguration(
-		NewQSpec(len(srvAddresses)),
+	quorum, err := mgr.NewBroadcastConfiguration(
 		gorums.WithNodeList(srvAddresses),
+		NewQSpec(numSrvs),
+		gorums.WithListener("localhost:8080"),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)
 	}
-	quorum.RegisterClientServer("localhost:8080", NewReplySpec(len(srvAddresses)))
+	//quorum.RegisterClientServer("localhost:8080")
 	return quorum
 }

@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+
 	pb "github.com/aleksander-vedvik/Master/protos"
 )
 
@@ -23,4 +25,19 @@ func (qs *QSpec) BroadcastQF(in *pb.State, replies map[uint32]*pb.View) (*pb.Vie
 		}
 	}
 	return nil, false
+}
+
+func (rs *QSpec) SaveStudentQF(reqs []*pb.ClientResponse) (*pb.ClientResponse, bool) {
+	fmt.Println("RECEIVED")
+	if len(reqs) < rs.quorumSize {
+		return nil, false
+	}
+	return reqs[0], true
+}
+
+func (rs *QSpec) SaveStudentsQF(reqs []*pb.ClientResponse) (*pb.ClientResponse, bool) {
+	if len(reqs) < rs.quorumSize {
+		return nil, false
+	}
+	return reqs[0], true
 }
