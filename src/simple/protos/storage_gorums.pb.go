@@ -353,7 +353,7 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcast call method. The in parameter is the request object
+	// broadcastcall call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
@@ -420,14 +420,6 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudents", gorums.ServerClientRPC("protos.UniformBroadcast.SaveStudents"))
 	srv.RegisterHandler("protos.UniformBroadcast.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
-}
-
-func (b *Broadcast) Reply(resp protoreflect.ProtoMessage, err error) {
-	b.sp.ReturnToClientHandler(resp, err, b.metadata)
-}
-
-func (srv *Server) ReplyToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
-	srv.RetToClient(resp, err, broadcastID)
 }
 
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
