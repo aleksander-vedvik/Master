@@ -12,10 +12,23 @@ type StorageClient struct {
 	msgIds int64
 }
 
+const (
+	BroadcastCall string = "broadcast"
+	QuorumCall    string = "quorum"
+)
+
 // Creates a new StorageClient with the provided srvAddresses as the configuration
-func NewStorageClient(srvAddresses []string) *StorageClient {
+func NewStorageClient(srvAddresses []string, callType string, qSize ...int) *StorageClient {
+	var config *pb.Configuration
+	if callType == BroadcastCall {
+		config = GetBConfig(srvAddresses, qSize[0])
+	} else if callType == QuorumCall {
+		config = GetQConfig(srvAddresses)
+	} else {
+		return nil
+	}
 	return &StorageClient{
-		view:   GetConfig(srvAddresses, 3),
+		view:   config,
 		msgIds: 0,
 	}
 }

@@ -17,7 +17,7 @@ func main() {
 func c() {
 	time.Sleep(2 * time.Second)
 	srvAddresses := []string{"localhost:5000"}
-	c := client.NewStorageClient(srvAddresses)
+	c := client.NewStorageClient(srvAddresses, client.QuorumCall)
 	fmt.Println()
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
@@ -44,7 +44,7 @@ func c() {
 func c1() {
 	time.Sleep(2 * time.Second)
 	srvAddresses := []string{"localhost:5000"}
-	c := client.NewStorageClient(srvAddresses)
+	c := client.NewStorageClient(srvAddresses, client.BroadcastCall, 3)
 	fmt.Println()
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
@@ -72,7 +72,7 @@ func c2() {
 	time.Sleep(2 * time.Second)
 	//srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
 	srvAddresses := []string{"localhost:5000"}
-	c := client.NewStorageClient(srvAddresses)
+	c := client.NewStorageClient(srvAddresses, client.BroadcastCall, 3)
 	fmt.Println()
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
