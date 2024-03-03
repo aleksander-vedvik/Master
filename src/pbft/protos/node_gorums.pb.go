@@ -9,14 +9,13 @@ package __
 import (
 	context "context"
 	fmt "fmt"
-	net "net"
-
-	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
-	insecure "google.golang.org/grpc/credentials/insecure"
+	codes "google.golang.org/grpc/codes"
 	encoding "google.golang.org/grpc/encoding"
+	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	net "net"
 )
 
 const (
@@ -32,7 +31,7 @@ type Configuration struct {
 	gorums.RawConfiguration
 	nodes []*Node
 	qspec QuorumSpec
-	server tmpServer
+	srv   *clientServerImpl
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -133,6 +132,22 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	return c, nil
 }
 
+// NewBroadcastConfiguration returns a configuration based on the provided list of nodes (required)
+// and an optional quorum specification. The QuorumSpec is necessary for call types that
+// must process replies. For configurations only used for unicast or multicast call types,
+// a QuorumSpec is not needed. The QuorumSpec interface is also a ConfigOption.
+// Nodes can be supplied using WithNodeMap or WithNodeList, or WithNodeIDs.
+// A new configuration can also be created from an existing configuration,
+// using the And, WithNewNodes, Except, and WithoutNodes methods.
+func (m *Manager) NewBroadcastConfiguration(nodeOpt gorums.NodeListOption, qSpec QuorumSpec, lis net.Listener) (c *Configuration, err error) {
+	c, err = m.NewConfiguration(nodeOpt, qSpec)
+	if err != nil {
+		return nil, err
+	}
+	c.RegisterClientServer(lis)
+	return c, nil
+}
+
 // Nodes returns a slice of available nodes on this manager.
 // IDs are returned in the order they were added at creation of the manager.
 func (m *Manager) Nodes() []*Node {
@@ -158,70 +173,145 @@ func NewServer() *Server {
 	srv := &Server{
 		gorums.NewServer(),
 	}
-	srv.RegisterBroadcastStruct(&Broadcast{
+	b := &Broadcast{
 		BroadcastStruct: gorums.NewBroadcastStruct(),
-		sb: &specialBroadcast{},
-	})
+		sp:              gorums.NewSpBroadcastStruct(),
+	}
+	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
 	return srv
 }
 
-func (srv *Server) RegisterConfiguration(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterConfig(ownAddr, srvAddrs, opts...)
+func (srv *Server) SetView(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterView(ownAddr, srvAddrs, opts...)
 	srv.ListenForBroadcast()
 	return err
 }
 
 type Broadcast struct {
 	*gorums.BroadcastStruct
-	sb *specialBroadcast
+	sp       *gorums.SpBroadcast
+	metadata gorums.BroadcastMetadata
 }
 
-func (b *Broadcast) Write(req *WriteRequest, serverAddresses ...string) *specialBroadcast {
-	b.SetBroadcastValues("protos.PBFTNode.Write", req, serverAddresses...)
-	return b.sb
+func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
+	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
+		b.sp.BroadcastHandler = bh
+		b.sp.ReturnToClientHandler = ch
+	}
 }
 
-func (b *Broadcast) PrePrepare(req *PrePrepareRequest, serverAddresses ...string) *specialBroadcast {
-	b.SetBroadcastValues("protos.PBFTNode.PrePrepare", req, serverAddresses...)
-	return b.sb
+func configureMetadata(b *Broadcast) func(metadata gorums.BroadcastMetadata) {
+	return func(metadata gorums.BroadcastMetadata) {
+		b.metadata = metadata
+	}
 }
 
-func (b *Broadcast) Prepare(req *PrepareRequest, serverAddresses ...string) *specialBroadcast {
-	b.SetBroadcastValues("protos.PBFTNode.Prepare", req, serverAddresses...)
-	return b.sb
+// Returns a readonly struct of the metadata used in the broadcast.
+//
+// Note: Some of the data are equal across the cluster, such as BroadcastID.
+// Other fields are local, such as SenderAddr.
+func (b *Broadcast) GetMetadata() gorums.BroadcastMetadata {
+	return b.metadata
 }
 
-func (b *Broadcast) Commit(req *CommitRequest, serverAddresses ...string) *specialBroadcast {
-	b.SetBroadcastValues("protos.PBFTNode.Commit", req, serverAddresses...)
-	return b.sb
+type clientServerImpl struct {
+	*gorums.ClientServer
+	grpcServer *grpc.Server
 }
 
-type specialBroadcast struct {}
-
-func (sb *specialBroadcast) To(srvAddrs... string) *specialBroadcast {
-	return sb
-}
-
-func (sb *specialBroadcast) Gossip(percentage float32) *specialBroadcast {
-	return sb
-}
-
-func (sb *specialBroadcast) OmitUniquenessChecks() *specialBroadcast {
-	return sb
-}
-
-func returnToClientHandler(addr string, req protoreflect.ProtoMessage, opts ...grpc.CallOption) (any, error) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
+	srvImpl := &clientServerImpl{
+		grpcServer: grpc.NewServer(opts...),
+	}
+	srv, err := gorums.NewClientServer(lis)
 	if err != nil {
+		return err
+	}
+	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
+	go srvImpl.grpcServer.Serve(lis)
+	srvImpl.ClientServer = srv
+	c.srv = srvImpl
+	return nil
+}
+
+func (b *Broadcast) Write(req *WriteRequest, opts ...gorums.BroadcastOption) {
+	data := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&data)
+	}
+	b.sp.BroadcastHandler("protos.PBFTNode.Write", req, b.metadata, data)
+}
+
+func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
+	data := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&data)
+	}
+	b.sp.BroadcastHandler("protos.PBFTNode.PrePrepare", req, b.metadata, data)
+}
+
+func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {
+	data := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&data)
+	}
+	b.sp.BroadcastHandler("protos.PBFTNode.Prepare", req, b.metadata, data)
+}
+
+func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
+	data := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&data)
+	}
+	b.sp.BroadcastHandler("protos.PBFTNode.Commit", req, b.metadata, data)
+}
+
+func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientResponse)
+	if err := dec(in); err != nil {
 		return nil, err
 	}
-	in := req.(*ClientResponse)
-	out := new(any)
-	err = conn.Invoke(context.Background(), "/protos.TmpServer/Client", in, out, opts...)
-	if err != nil {
-		return nil, err
+	return srv.(clientServer).clientWrite(ctx, in)
+}
+
+func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
+	err := srv.AddResponse(ctx, resp)
+	return resp, err
+}
+
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
+	if c.srv == nil {
+		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
-	return out, nil
+	if c.qspec == nil {
+		return nil, fmt.Errorf("a qspec is not defined.")
+	}
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF))
+	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
+	response, ok := <-doneChan
+	if !ok {
+		return nil, fmt.Errorf("done channel was closed before returning a value")
+	}
+	return response.(*ClientResponse), err
+}
+
+// clientServer is the client server API for the PBFTNode Service
+type clientServer interface {
+	clientWrite(ctx context.Context, request *ClientResponse) (*ClientResponse, error)
+}
+
+var clientServer_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "protos.ClientServer",
+	HandlerType: (*clientServer)(nil),
+	Methods: []grpc.MethodDesc{
+
+		{
+			MethodName: "ClientWrite",
+			Handler:    _clientWrite,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "",
 }
 
 // QuorumSpec is the interface of quorum functions for PBFTNode.
@@ -229,167 +319,46 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// WriteQF is the quorum function for the Write
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *WriteRequest'.
-	WriteQF(in *WriteRequest, replies map[uint32]*ClientResponse) (*ClientResponse, bool)
-}
-
-type QuroumType int
-const (
-	ByzantineQuorum QuroumType = iota
-	MajorityQuorum
-	All
-)
-
-// Write is a quorum call invoked on all nodes in configuration c,
-// with the same argument in, and returns a combined result.
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest, addr string, resultHandler func(resps []*ClientResponse), returnWhen QuroumType) (resp *ClientResponse, err error) {
-	cd := gorums.QuorumCallData{
-		Message: in,
-		Method:  "protos.PBFTNode.Write",
-
-		BroadcastID: uuid.New().String(),
-		Sender:      "client",
-		OriginAddr: addr,
-	}
-	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*ClientResponse, len(replies))
-		for k, v := range replies {
-			r[k] = v.(*ClientResponse)
-		}
-		return c.qspec.WriteQF(req.(*WriteRequest), r)
-	}
-	numServers := 3
-	tmpSrv, err := createTmpServer(addr, resultHandler, numServers)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
-	if err != nil {
-		return nil, err
-	}
-	tmpSrv.handleClient(returnWhen, numServers)
-	return res.(*ClientResponse), err
-}
-
-type tmpServer interface {
-	client(context.Context, *ClientResponse) (any, error)
-}
-
-type tmpServerImpl struct {
-	grpcServer *grpc.Server
-	handler func(resps []*ClientResponse)
-	resps []*ClientResponse
-	respChan chan *ClientResponse
-}
-
-func (srv tmpServerImpl) client(ctx context.Context, resp *ClientResponse) (any, error) {
-	srv.respChan <- resp
-	return nil, nil
-}
-
-func (srv tmpServerImpl) handleClient(returnWhen QuroumType, numServers int) {
-	limit := 0
-	if returnWhen == ByzantineQuorum {
-		limit = 1 + 2 * numServers / 3
-	}
-	if returnWhen == MajorityQuorum {
-		limit = 1 + numServers / 2
-	}
-	if returnWhen == All {
-		limit = numServers
-	}
-	for resp := range srv.respChan {
-		srv.resps = append(srv.resps, resp)
-		if len(srv.resps) >= limit {
-			break
-		}
-	}
-	srv.handler(srv.resps)
-	srv.grpcServer.GracefulStop()
-}
-
-func createTmpServer(addr string, handler func(resps []*ClientResponse), maxNumResponses int) (*tmpServerImpl, error) {
-	var opts []grpc.ServerOption
-	srv := tmpServerImpl{
-		grpcServer: grpc.NewServer(opts...),
-		respChan: make(chan *ClientResponse, maxNumResponses),
-		resps: make([]*ClientResponse, 0, maxNumResponses),
-		handler: handler,
-	}
-	lis, err := net.Listen("tcp", addr)
-	for err != nil {
-		return nil, err
-	}
-	registerTmpServer(srv.grpcServer, srv)
-	go srv.grpcServer.Serve(lis)
-	return &srv, nil
-}
-
-func registerTmpServer(s grpc.ServiceRegistrar, srv tmpServer) {
-	s.RegisterService(&TmpServer_ServiceDesc, srv)
-}
-
-func _TmpServer_Client_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClientResponse)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(tmpServer).client(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.TmpServer/Client",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(tmpServer).client(ctx, req.(*ClientResponse))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var TmpServer_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "protos.TmpServer",
-	HandlerType: (*tmpServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Client",
-			Handler:    _TmpServer_Client_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "",
+	WriteQF(replies []*ClientResponse) (*ClientResponse, bool)
 }
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	Write(ctx gorums.BroadcastCtx, request *WriteRequest, broadcast *Broadcast) (err error)
-	PrePrepare(ctx gorums.BroadcastCtx, request *PrePrepareRequest, broadcast *Broadcast) (err error)
-	Prepare(ctx gorums.BroadcastCtx, request *PrepareRequest, broadcast *Broadcast) (err error)
-	Commit(ctx gorums.BroadcastCtx, request *CommitRequest, broadcast *Broadcast) (err error)
+	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast)
+	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
+	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
+	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
+}
+
+func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method Write not implemented"))
+}
+func (srv *Server) PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method PrePrepare not implemented"))
+}
+func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method Prepare not implemented"))
+}
+func (srv *Server) Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method Commit not implemented"))
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+	srv.RegisterClientHandler("protos.PBFTNode.Write", gorums.ServerClientRPC("protos.PBFTNode.Write"))
 	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
-	srv.RegisterReturnToClientHandler(returnToClientHandler)
 }
 
-func (b *Broadcast) ReturnToClient(resp *ClientResponse, err error) {
-	b.SetReturnToClient(resp, err)
+func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
+	b.sp.ReturnToClientHandler(resp, err, b.metadata)
 }
 
-func (srv *Server) ReturnToClient(resp *ClientResponse, err error, broadcastID string) {
-	go srv.RetToClient(resp, err, broadcastID)
-}
-
-type internalClientResponse struct {
-	nid   uint32
-	reply *ClientResponse
-	err   error
+func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
+	srv.RetToClient(resp, err, broadcastID)
 }

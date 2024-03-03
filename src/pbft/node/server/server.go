@@ -10,8 +10,6 @@ import (
 	pb "pbft/protos"
 
 	"github.com/relab/gorums"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // The storage server should implement the server interface defined in the pbbuf files
@@ -59,13 +57,13 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 	return &srv
 }
 
-func (s *PBFTServer) authenticate(ctx gorums.BroadcastCtx) error {
+func (s *PBFTServer) authenticate(ctx gorums.BroadcastMetadata) error {
 	//log.Println("CTX:", ctx.GetBroadcastValues())
 	//log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
 	return nil
 }
 
-func (s *PBFTServer) countMsgs(ctx gorums.BroadcastCtx) error {
+func (s *PBFTServer) countMsgs(ctx gorums.BroadcastMetadata) error {
 	s.messages++
 	//bv := ctx.GetBroadcastValues()
 	//s.addToHandledMessages(bv.Method, bv.BroadcastID)
@@ -92,13 +90,14 @@ func (s *PBFTServer) StartServer(addr string) string {
 		s.Serve(lis)
 	}()
 	go s.status()
-	s.RegisterConfiguration(<-addrChan, s.peers,
-		gorums.WithDialTimeout(50*time.Millisecond),
-		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		),
-	)
+	s.SetView(<-addrChan, s.peers)
+	//s.RegisterConfiguration(<-addrChan, s.peers,
+	//	gorums.WithDialTimeout(50*time.Millisecond),
+	//	gorums.WithGrpcDialOptions(
+	//		grpc.WithBlock(),
+	//		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	//	),
+	//)
 	return s.addr
 }
 
@@ -136,14 +135,14 @@ func (s *PBFTServer) status() {
 	}
 }
 
-func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) (err error) {
+func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
 	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
-			broadcast.ReturnToClient(val, nil)
+			broadcast.SendToClient(val, nil)
 		} else {
-			broadcast.Write(request).To(s.getLeaderAddr()).OmitUniquenessChecks()
+			broadcast.Write(request, gorums.WithSubset(s.leader))
 		}
-		return nil
+		return
 	}
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
@@ -153,20 +152,19 @@ func (s *PBFTServer) Write(ctx gorums.BroadcastCtx, request *pb.WriteRequest, br
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	broadcast.PrePrepare(req).Gossip(0.7)
+	broadcast.PrePrepare(req)
 	s.sequenceNumber++
-	return nil
 }
 
-func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) (err error) {
+func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
-		return nil
+		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return nil
+		return
 	}
 	if s.hasAlreadyAcceptedSequenceNumber(request.SequenceNumber) {
-		return nil
+		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	broadcast.Prepare(&pb.PrepareRequest{
@@ -177,15 +175,14 @@ func (s *PBFTServer) PrePrepare(ctx gorums.BroadcastCtx, request *pb.PrePrepareR
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	})
-	return nil
 }
 
-func (s *PBFTServer) Prepare(ctx gorums.BroadcastCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) (err error) {
+func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
-		return nil
+		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return nil
+		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
@@ -197,15 +194,14 @@ func (s *PBFTServer) Prepare(ctx gorums.BroadcastCtx, request *pb.PrepareRequest
 			Message:        request.Message,
 		})
 	}
-	return nil
 }
 
-func (s *PBFTServer) Commit(ctx gorums.BroadcastCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) (err error) {
+func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
-		return nil
+		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return nil
+		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.committed(request.SequenceNumber) {
@@ -215,9 +211,8 @@ func (s *PBFTServer) Commit(ctx gorums.BroadcastCtx, request *pb.CommitRequest, 
 			Timestamp: request.Timestamp,
 			View:      request.View,
 		}
-		broadcast.ReturnToClient(s.state, nil)
+		broadcast.SendToClient(s.state, nil)
 	}
-	return nil
 }
 
 func (s *PBFTServer) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.ClientResponse, bool) {

@@ -7,7 +7,7 @@ option go_package = ".";
 
 service PBFTNode {
   rpc Write(WriteRequest) returns (ClientResponse) {
-    option (gorums.quorumcall) = true;
+    option (gorums.broadcastcall) = true;
     option (gorums.broadcast) = true;
    }
   rpc PrePrepare(PrePrepareRequest) returns (Empty) {
@@ -19,7 +19,6 @@ service PBFTNode {
   rpc Commit(CommitRequest) returns (Empty) {
     option (gorums.broadcast) = true;
    }
-  rpc WriteResponse(ClientResponse) returns (Empty) {}
 }
 
 message WriteRequest {
