@@ -243,11 +243,11 @@ func (b *Broadcast) Write(req *WriteRequest, opts ...gorums.BroadcastOption) {
 }
 
 func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.PrePrepare", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.PBFTNode.PrePrepare", req, b.metadata, options)
 }
 
 func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {

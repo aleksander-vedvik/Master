@@ -44,7 +44,7 @@ func (sc *StorageClient) WriteValue(value string) error {
 		Message:   value,
 		Timestamp: time.Now().Unix(),
 	}
-	resp, err := sc.view.Write(ctx, req, sc.addr, sc.handleResponses, pb.MajorityQuorum)
+	resp, err := sc.view.Write(ctx, req)
 	log.Println("\treceived a response at client:", resp.Result)
 	if err != nil {
 		log.Fatal(err)

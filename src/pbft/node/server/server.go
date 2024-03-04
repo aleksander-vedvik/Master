@@ -152,7 +152,7 @@ func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broad
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	broadcast.PrePrepare(req)
+	go broadcast.PrePrepare(req)
 	s.sequenceNumber++
 }
 

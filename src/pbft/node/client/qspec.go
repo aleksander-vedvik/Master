@@ -40,7 +40,7 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies map[uint32]*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) WriteQF(replies []*pb.ClientResponse) (*pb.ClientResponse, bool) {
 	/*if len(replies) < qs.quorumSize {
 		return nil, false
 	}*/
