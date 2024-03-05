@@ -181,10 +181,19 @@ func NewServer() *Server {
 	return srv
 }
 
-func (srv *Server) SetView(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterView(ownAddr, srvAddrs, opts...)
+func (srv *Server) SetView(srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterView(srvAddrs, opts...)
 	srv.ListenForBroadcast()
 	return err
+}
+
+type IBroadcast interface {
+	gorums.IBroadcastStruct
+	Write(req *WriteRequest, opts ...gorums.BroadcastOption)
+	PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption)
+	Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption)
+	Commit(req *CommitRequest, opts ...gorums.BroadcastOption)
+	SendToClient(req *ClientResponse, opts ...gorums.BroadcastOption)
 }
 
 type Broadcast struct {
@@ -328,10 +337,10 @@ type QuorumSpec interface {
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast)
-	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
-	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
-	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
+	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast IBroadcast)
+	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast IBroadcast)
+	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast IBroadcast)
+	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast IBroadcast)
 }
 
 func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {

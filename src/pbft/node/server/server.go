@@ -52,75 +52,20 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 		otherServers = append(otherServers, srvAddr)
 	}
 	srv.peers = otherServers
-	srv.RegisterMiddlewares(srv.authenticate, srv.countMsgs)
 	pb.RegisterPBFTNodeServer(srv.Server, &srv)
 	return &srv
 }
 
-func (s *PBFTServer) authenticate(ctx gorums.BroadcastMetadata) error {
-	//log.Println("CTX:", ctx.GetBroadcastValues())
-	//log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
-	return nil
-}
-
-func (s *PBFTServer) countMsgs(ctx gorums.BroadcastMetadata) error {
-	s.messages++
-	//bv := ctx.GetBroadcastValues()
-	//s.addToHandledMessages(bv.Method, bv.BroadcastID)
-	//bv := ctx.GetBroadcastValues()
-	//log.Println(s.addr, bv.Method)
-	return nil
-}
-
-// Start the server listening on the provided address string
-// The function should be non-blocking
-// Returns the full listening address of the server as string
-// Hint: Use go routine to start the server.
-func (s *PBFTServer) StartServer(addr string) string {
-	addrChan := make(chan string)
-	go func() {
-		lis, err := net.Listen("tcp4", addr)
-		if err != nil {
-			log.Fatal(err)
-			addrChan <- ""
-			return
-		}
-		s.addr = fmt.Sprintf("%v", lis.Addr())
-		addrChan <- s.addr
-		s.Serve(lis)
-	}()
-	go s.status()
-	s.SetView(<-addrChan, s.peers)
-	//s.RegisterConfiguration(<-addrChan, s.peers,
-	//	gorums.WithDialTimeout(50*time.Millisecond),
-	//	gorums.WithGrpcDialOptions(
-	//		grpc.WithBlock(),
-	//		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	//	),
-	//)
-	return s.addr
-}
-
-//func (s *PBFTServer) Run() {
-//	time.Sleep(10 * time.Millisecond)
-//	s.RegisterConfiguration(s.addr, s.peers,
-//		gorums.WithDialTimeout(50*time.Millisecond),
-//		gorums.WithGrpcDialOptions(
-//			grpc.WithBlock(),
-//			grpc.WithTransportCredentials(insecure.NewCredentials()),
-//		),
-//	)
-//}
-
 func (s *PBFTServer) Start(addr string) {
+	s.SetView(s.peers)
 	lis, err := net.Listen("tcp4", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	s.addr = fmt.Sprintf("%v", lis.Addr())
 	go s.status()
+	go s.Serve(lis)
+	s.addr = lis.Addr().String()
 	log.Printf("Server started. Listening on address: %s\n", s.addr)
-	s.Serve(lis)
 }
 
 func (s *PBFTServer) status() {
@@ -135,7 +80,7 @@ func (s *PBFTServer) status() {
 	}
 }
 
-func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
+func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast pb.IBroadcast) {
 	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.SendToClient(val, nil)
@@ -156,7 +101,7 @@ func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broad
 	s.sequenceNumber++
 }
 
-func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) {
+func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast pb.IBroadcast) {
 	if !s.isInView(request.View) {
 		return
 	}
@@ -177,7 +122,7 @@ func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequ
 	})
 }
 
-func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) {
+func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast pb.IBroadcast) {
 	if !s.isInView(request.View) {
 		return
 	}
@@ -196,7 +141,7 @@ func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, b
 	}
 }
 
-func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) {
+func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast pb.IBroadcast) {
 	if !s.isInView(request.View) {
 		return
 	}

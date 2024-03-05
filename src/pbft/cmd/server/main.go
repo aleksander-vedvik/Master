@@ -20,8 +20,7 @@ func startServers() {
 	}
 	for _, srvAddr := range srvAddresses {
 		srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
-		_ = srv.StartServer(srvAddr)
-		//go srv.Run()
+		srv.Start(srvAddr)
 	}
 	log.Printf("Servers started. Listening on addresses: %s\n", srvAddresses)
 	fmt.Scanln()
@@ -69,8 +68,7 @@ func startServersTree() {
 
 func createServer(srvAddr string, srvAddresses []string) {
 	srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
-	_ = srv.StartServer(srvAddr)
-	//srv.Run()
+	srv.Start(srvAddr)
 }
 
 func startDockerServer() {

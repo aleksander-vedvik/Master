@@ -48,7 +48,7 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 		pending:  make([]*Data, 0),
 		acks:     make(map[int64]int),
 		messages: 0,
-		addr:     "",
+		addr:     addr,
 		peers:    make([]string, 0),
 	}
 	pb.RegisterUniformBroadcastServer(srv.Server, &srv)
@@ -60,16 +60,7 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 		otherServers = append(otherServers, srvAddr)
 	}
 	srv.peers = otherServers
-	srv.RegisterMiddlewares(srv.authenticate, srv.countMsgs)
 	return &srv
-}
-
-func (s *StorageServer) authenticate(metadata gorums.BroadcastMetadata) error {
-	//log.Println("CTX:", ctx.GetBroadcastValues())
-	//log.Println(s.addr, "CTX:", ctx.GetBroadcastValues())
-	//bd := ctx.GetBroadcastValues()
-	//log.Println(s.addr, bd.Method, bd.SenderAddr)
-	return nil
 }
 
 func (s *StorageServer) countMsgs(gorums.BroadcastMetadata) error {
@@ -102,8 +93,8 @@ func printablevals(vals []*Data) string {
 // The function should be non-blocking
 // Returns the full listening address of the server as string
 // Hint: Use go routine to start the server.
-func (s *StorageServer) Start(addr string) {
-	lis, err := net.Listen("tcp4", addr)
+func (s *StorageServer) Start() {
+	lis, err := net.Listen("tcp4", s.addr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -116,7 +107,7 @@ func (s *StorageServer) Start(addr string) {
 
 func (s *StorageServer) Run() {
 	time.Sleep(10 * time.Millisecond)
-	s.SetView(s.addr, s.peers)
+	s.SetView(s.peers)
 }
 
 func (s *StorageServer) status() {

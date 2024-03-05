@@ -175,21 +175,21 @@ func NewServer() *Server {
 		gorums.NewServer(),
 	}
 	b := &Broadcast{
-		BroadcastStruct: gorums.NewBroadcastStruct(),
+		Broadcaster: gorums.NewBroadcaster(),
 		sp:              gorums.NewSpBroadcastStruct(),
 	}
 	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
 	return srv
 }
 
-func (srv *Server) SetView(ownAddr string, srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterView(ownAddr, srvAddrs, opts...)
+func (srv *Server) SetView(srvAddrs []string, opts ...gorums.ManagerOption) error {
+	err := srv.RegisterView(srvAddrs, opts...)
 	srv.ListenForBroadcast()
 	return err
 }
 
 type Broadcast struct {
-	*gorums.BroadcastStruct
+	*gorums.Broadcaster
 	sp       *gorums.SpBroadcast
 	metadata gorums.BroadcastMetadata
 }
@@ -236,27 +236,27 @@ func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.Serv
 }
 
 func (b *Broadcast) SaveStudents(req *States, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, options)
 }
 
 func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, options)
 }
 
 func (b *Broadcast) Deliver(req *State, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, options)
 }
 
 func _clientSaveStudent(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -360,7 +360,7 @@ type QuorumSpec interface {
 	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
