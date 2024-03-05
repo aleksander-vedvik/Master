@@ -101,7 +101,7 @@ func (s *StorageServer) Start() {
 	s.addr = fmt.Sprintf("%v", lis.Addr())
 	go s.status()
 	go s.deliver()
-	log.Printf("Server started. Listening on address: %s\n", s.addr)
+	log.Printf("Server started (%s), peers: %v\n", s.addr, s.peers)
 	s.Serve(lis)
 }
 

@@ -45,6 +45,7 @@ func startServers() {
 		go srv.Run()
 	}
 	log.Printf("Servers started. Listening on addresses: %s\n", srvAddresses)
+	fmt.Println()
 	srv := server.NewStorageServer(extra, append(srvAddresses, extra))
 	time.Sleep(11 * time.Second)
 	fmt.Println()
