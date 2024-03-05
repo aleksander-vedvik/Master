@@ -22,6 +22,7 @@ func c() {
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
 	log.Println("Writing value", values[0])
+	fmt.Println()
 	err := c.WriteValue(values[0])
 	if err != nil {
 		log.Println(err)
@@ -32,6 +33,7 @@ func c() {
 	time.Sleep(11 * time.Second)
 	fmt.Println()
 	log.Println("Writing value", values[1])
+	fmt.Println()
 	err = c.WriteValue(values[1])
 	if err != nil {
 		log.Println(err)
@@ -49,6 +51,7 @@ func c1() {
 	log.Println("Created client...")
 	log.Println("\t- Only writing to servers", srvAddresses)
 	log.Println("Writing value", values[0])
+	fmt.Println()
 	err := c.CreateStudent(values[0])
 	if err != nil {
 		log.Println(err)
@@ -59,6 +62,7 @@ func c1() {
 	time.Sleep(11 * time.Second)
 	fmt.Println()
 	log.Println("Writing value", values[1])
+	fmt.Println()
 	err = c.CreateStudent(values[1])
 	if err != nil {
 		log.Println(err)

@@ -176,7 +176,7 @@ func NewServer() *Server {
 	}
 	b := &Broadcast{
 		Broadcaster: gorums.NewBroadcaster(),
-		sp:              gorums.NewSpBroadcastStruct(),
+		sp:          gorums.NewSpBroadcastStruct(),
 	}
 	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
 	return srv
@@ -353,7 +353,7 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcastcall call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
