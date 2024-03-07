@@ -7,6 +7,7 @@
 package __
 
 import (
+	"time"
 	context "context"
 	fmt "fmt"
 	gorums "github.com/relab/gorums"
@@ -117,6 +118,12 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			if err != nil {
 				return nil, err
 			}
+		case net.Listener:
+			err = c.RegisterClientServer(v)
+			if err != nil {
+				return nil, err
+			}
+			return c, nil
 		case QuorumSpec:
 			// Must be last since v may match QuorumSpec if it is interface{}
 			c.qspec = v
@@ -129,22 +136,6 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
 		return nil, fmt.Errorf("missing required QuorumSpec")
 	}
-	return c, nil
-}
-
-// NewBroadcastConfiguration returns a configuration based on the provided list of nodes (required)
-// and an optional quorum specification. The QuorumSpec is necessary for call types that
-// must process replies. For configurations only used for unicast or multicast call types,
-// a QuorumSpec is not needed. The QuorumSpec interface is also a ConfigOption.
-// Nodes can be supplied using WithNodeMap or WithNodeList, or WithNodeIDs.
-// A new configuration can also be created from an existing configuration,
-// using the And, WithNewNodes, Except, and WithoutNodes methods.
-func (m *Manager) NewBroadcastConfiguration(nodeOpt gorums.NodeListOption, qSpec QuorumSpec, lis net.Listener) (c *Configuration, err error) {
-	c, err = m.NewConfiguration(nodeOpt, qSpec)
-	if err != nil {
-		return nil, err
-	}
-	c.RegisterClientServer(lis)
 	return c, nil
 }
 
@@ -174,8 +165,8 @@ func NewServer() *Server {
 		gorums.NewServer(),
 	}
 	b := &Broadcast{
-		BroadcastStruct: gorums.NewBroadcastStruct(),
-		sp:              gorums.NewSpBroadcastStruct(),
+		Broadcaster: gorums.NewBroadcaster(),
+		sp:          gorums.NewSpBroadcastStruct(),
 	}
 	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
 	return srv
@@ -187,17 +178,8 @@ func (srv *Server) SetView(srvAddrs []string, opts ...gorums.ManagerOption) erro
 	return err
 }
 
-type IBroadcast interface {
-	gorums.IBroadcastStruct
-	Write(req *WriteRequest, opts ...gorums.BroadcastOption)
-	PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption)
-	Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption)
-	Commit(req *CommitRequest, opts ...gorums.BroadcastOption)
-	SendToClient(req *ClientResponse, opts ...gorums.BroadcastOption)
-}
-
 type Broadcast struct {
-	*gorums.BroadcastStruct
+	*gorums.Broadcaster
 	sp       *gorums.SpBroadcast
 	metadata gorums.BroadcastMetadata
 }
@@ -244,11 +226,11 @@ func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.Serv
 }
 
 func (b *Broadcast) Write(req *WriteRequest, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Write", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.PBFTNode.Write", req, b.metadata, options)
 }
 
 func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
@@ -260,19 +242,19 @@ func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastO
 }
 
 func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Prepare", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.PBFTNode.Prepare", req, b.metadata, options)
 }
 
 func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
-	data := gorums.NewBroadcastOptions()
+	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
-		opt(&data)
+		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Commit", req, b.metadata, data)
+	b.sp.BroadcastHandler("protos.PBFTNode.Commit", req, b.metadata, options)
 }
 
 func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -288,7 +270,7 @@ func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientRespon
 	return resp, err
 }
 
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest, deadline ...time.Time) (resp *ClientResponse, err error) {
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
@@ -337,10 +319,10 @@ type QuorumSpec interface {
 
 // PBFTNode is the server-side API for the PBFTNode Service
 type PBFTNode interface {
-	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast IBroadcast)
-	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast IBroadcast)
-	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast IBroadcast)
-	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast IBroadcast)
+	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast)
+	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
+	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
+	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
 }
 
 func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {

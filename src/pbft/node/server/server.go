@@ -80,7 +80,7 @@ func (s *PBFTServer) status() {
 	}
 }
 
-func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast pb.IBroadcast) {
+func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
 	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.SendToClient(val, nil)
@@ -101,7 +101,7 @@ func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broad
 	s.sequenceNumber++
 }
 
-func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast pb.IBroadcast) {
+func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
 		return
 	}
@@ -112,7 +112,7 @@ func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequ
 		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
-	broadcast.Prepare(&pb.PrepareRequest{
+	go broadcast.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
 		View:           request.View,
 		SequenceNumber: request.SequenceNumber,
@@ -122,7 +122,7 @@ func (s *PBFTServer) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequ
 	})
 }
 
-func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast pb.IBroadcast) {
+func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
 		return
 	}
@@ -131,7 +131,7 @@ func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, b
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
-		broadcast.Commit(&pb.CommitRequest{
+		go broadcast.Commit(&pb.CommitRequest{
 			Id:             request.Id,
 			Timestamp:      request.Timestamp,
 			View:           request.View,
@@ -141,7 +141,7 @@ func (s *PBFTServer) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, b
 	}
 }
 
-func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast pb.IBroadcast) {
+func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) {
 	if !s.isInView(request.View) {
 		return
 	}
@@ -156,7 +156,7 @@ func (s *PBFTServer) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, bro
 			Timestamp: request.Timestamp,
 			View:      request.View,
 		}
-		broadcast.SendToClient(s.state, nil)
+		go broadcast.SendToClient(s.state, nil)
 	}
 }
 

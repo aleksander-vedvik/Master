@@ -118,6 +118,12 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			if err != nil {
 				return nil, err
 			}
+		// HUSK DENNE ---------------------------------------------------------------------------
+		case net.Listener:
+			err = c.RegisterClientServer(v)
+			if err != nil {
+				return nil, err
+			}
 		case QuorumSpec:
 			// Must be last since v may match QuorumSpec if it is interface{}
 			c.qspec = v

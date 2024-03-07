@@ -134,7 +134,6 @@ func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broad
 	defer s.Unlock()
 	md := broadcast.GetMetadata()
 	s.pending = append(s.pending, newData(request, md.BroadcastID))
-	//go broadcast.Deliver(request, gorums.WithSubset(s.peers...), gorums.WithGossip(2.0))
 	go broadcast.Deliver(request)
 }
 
