@@ -20,8 +20,9 @@ func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	)
 	var err error
 	quorum, err := mgr.NewConfiguration(
-		NewQSpec(1),
+		NewQSpec(3),
 		gorums.WithNodeList(srvAddresses),
+		gorums.WithListener(addr),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)
@@ -41,9 +42,9 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 }
 
 func (qs *QSpec) WriteQF(replies []*pb.ClientResponse) (*pb.ClientResponse, bool) {
-	/*if len(replies) < qs.quorumSize {
+	if len(replies) < qs.quorumSize {
 		return nil, false
-	}*/
+	}
 	var val *pb.ClientResponse
 	for _, resp := range replies {
 		val = resp
