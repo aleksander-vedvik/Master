@@ -19,6 +19,9 @@ service PBFTNode {
   rpc Commit(CommitRequest) returns (Empty) {
     option (gorums.broadcast) = true;
    }
+  rpc Heartbeat(HeartbeatReq) returns (Empty) {
+    option (gorums.broadcast) = true;
+   }
 }
 
 message WriteRequest {
@@ -65,3 +68,6 @@ message ClientResponse {
 }
 
 message Empty {}
+
+message HeartbeatReq {
+  uint32 From = 1;
