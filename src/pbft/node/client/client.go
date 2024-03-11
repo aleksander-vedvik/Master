@@ -17,9 +17,8 @@ type StorageClient struct {
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func NewStorageClient(srvAddresses []string, addr string) *StorageClient {
 	return &StorageClient{
-		view: getConfig(addr, srvAddresses),
+		view: getConfig("127.0.0.1:8080", srvAddresses),
 		id:   0,
-		addr: "127.0.0.1:8080",
 	}
 }
 

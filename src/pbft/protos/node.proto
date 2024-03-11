@@ -3,6 +3,7 @@ syntax = "proto3";
 package protos;
 
 import "gorums.proto";
+import "google/protobuf/empty.proto";
 option go_package = ".";
 
 service PBFTNode {
@@ -10,17 +11,17 @@ service PBFTNode {
     option (gorums.broadcastcall) = true;
     option (gorums.broadcast) = true;
    }
-  rpc PrePrepare(PrePrepareRequest) returns (Empty) {
+  rpc PrePrepare(PrePrepareRequest) returns (google.protobuf.Empty) {
     option (gorums.broadcast) = true;
    }
-  rpc Prepare(PrepareRequest) returns (Empty) {
+  rpc Prepare(PrepareRequest) returns (google.protobuf.Empty) {
     option (gorums.broadcast) = true;
    }
-  rpc Commit(CommitRequest) returns (Empty) {
+  rpc Commit(CommitRequest) returns (google.protobuf.Empty) {
     option (gorums.broadcast) = true;
    }
-  rpc Heartbeat(HeartbeatReq) returns (Empty) {
-    option (gorums.broadcast) = true;
+  rpc Heartbeat(HeartbeatReq) returns (google.protobuf.Empty) {
+    option (gorums.multicast) = true;
    }
 }
 
@@ -67,7 +68,6 @@ message ClientResponse {
   string Result = 6;
 }
 
-message Empty {}
-
 message HeartbeatReq {
   uint32 From = 1;
+}

@@ -7,9 +7,9 @@
 package __
 
 import (
-	"time"
 	context "context"
 	fmt "fmt"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -107,7 +107,7 @@ func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
 // A new configuration can also be created from an existing configuration,
 // using the And, WithNewNodes, Except, and WithoutNodes methods.
 func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuration, err error) {
-	if len(opts) < 1 || len(opts) > 2 {
+	if len(opts) < 1 || len(opts) > 3 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
 	c = &Configuration{}
@@ -132,10 +132,10 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 		}
 	}
 	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
-	var test interface{} = struct{}{}
-	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-		return nil, fmt.Errorf("missing required QuorumSpec")
-	}
+	//var test interface{} = struct{}{}
+	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
+	//	return nil, fmt.Errorf("missing required QuorumSpec")
+	//}
 	return c, nil
 }
 
@@ -158,11 +158,12 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
+	View *Configuration
 }
 
 func NewServer() *Server {
 	srv := &Server{
-		gorums.NewServer(),
+		Server: gorums.NewServer(),
 	}
 	b := &Broadcast{
 		Broadcaster: gorums.NewBroadcaster(),
@@ -172,10 +173,21 @@ func NewServer() *Server {
 	return srv
 }
 
-func (srv *Server) SetView(srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterView(srvAddrs, opts...)
+//func (srv *Server) GetView() *Configuration {
+	//view := srv.View()
+	//if view == nil {
+		//return nil
+	//}
+	//return &Configuration{
+		//RawConfiguration: view.(gorums.RawConfiguration),
+	//}
+//}
+
+func (srv *Server) SetView(config *Configuration) {
+	srv.View = config
+	//err := srv.RegisterView(listenAddr, srvAddrs, opts...)
+	srv.RegisterConfig(config.RawConfiguration)
 	srv.ListenForBroadcast()
-	return err
 }
 
 type Broadcast struct {
@@ -270,7 +282,7 @@ func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientRespon
 	return resp, err
 }
 
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest, deadline ...time.Time) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
@@ -305,6 +317,20 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	Metadata: "",
 }
 
+// Reference imports to suppress errors if they are not otherwise used.
+var _ empty.Empty
+
+// Heartbeat is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Heartbeat(ctx context.Context, in *HeartbeatReq, opts ...gorums.CallOption) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.PBFTNode.Heartbeat",
+	}
+
+	c.RawConfiguration.Multicast(ctx, cd, opts...)
+}
+
 // QuorumSpec is the interface of quorum functions for PBFTNode.
 type QuorumSpec interface {
 	gorums.ConfigOption
@@ -323,6 +349,7 @@ type PBFTNode interface {
 	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
 	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
 	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
+	Heartbeat(ctx gorums.ServerCtx, request *HeartbeatReq)
 }
 
 func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {
@@ -337,6 +364,9 @@ func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadc
 func (srv *Server) Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) {
 	panic(status.Errorf(codes.Unimplemented, "method Commit not implemented"))
 }
+func (srv *Server) Heartbeat(ctx gorums.ServerCtx, request *HeartbeatReq) {
+	panic(status.Errorf(codes.Unimplemented, "method Heartbeat not implemented"))
+}
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
@@ -344,6 +374,11 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
+	srv.RegisterHandler("protos.PBFTNode.Heartbeat", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
+		req := in.Message.(*HeartbeatReq)
+		defer ctx.Release()
+		impl.Heartbeat(ctx, req)
+	})
 }
 
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
