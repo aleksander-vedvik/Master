@@ -107,7 +107,7 @@ func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
 // A new configuration can also be created from an existing configuration,
 // using the And, WithNewNodes, Except, and WithoutNodes methods.
 func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuration, err error) {
-	if len(opts) < 1 || len(opts) > 2 {
+	if len(opts) < 1 || len(opts) > 3 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
 	c = &Configuration{}
@@ -118,12 +118,12 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			if err != nil {
 				return nil, err
 			}
-		// HUSK DENNE ---------------------------------------------------------------------------
 		case net.Listener:
 			err = c.RegisterClientServer(v)
 			if err != nil {
 				return nil, err
 			}
+			return c, nil
 		case QuorumSpec:
 			// Must be last since v may match QuorumSpec if it is interface{}
 			c.qspec = v
@@ -131,27 +131,6 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			return nil, fmt.Errorf("unknown option type: %v", v)
 		}
 	}
-	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
-	var test interface{} = struct{}{}
-	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-		return nil, fmt.Errorf("missing required QuorumSpec")
-	}
-	return c, nil
-}
-
-// NewBroadcastConfiguration returns a configuration based on the provided list of nodes (required)
-// and an optional quorum specification. The QuorumSpec is necessary for call types that
-// must process replies. For configurations only used for unicast or multicast call types,
-// a QuorumSpec is not needed. The QuorumSpec interface is also a ConfigOption.
-// Nodes can be supplied using WithNodeMap or WithNodeList, or WithNodeIDs.
-// A new configuration can also be created from an existing configuration,
-// using the And, WithNewNodes, Except, and WithoutNodes methods.
-func (m *Manager) NewBroadcastConfiguration(nodeOpt gorums.NodeListOption, qSpec QuorumSpec, lis net.Listener) (c *Configuration, err error) {
-	c, err = m.NewConfiguration(nodeOpt, qSpec)
-	if err != nil {
-		return nil, err
-	}
-	c.RegisterClientServer(lis)
 	return c, nil
 }
 
@@ -174,11 +153,12 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
+	View *Configuration
 }
 
 func NewServer() *Server {
 	srv := &Server{
-		gorums.NewServer(),
+		Server: gorums.NewServer(),
 	}
 	b := &Broadcast{
 		Broadcaster: gorums.NewBroadcaster(),
@@ -188,10 +168,10 @@ func NewServer() *Server {
 	return srv
 }
 
-func (srv *Server) SetView(srvAddrs []string, opts ...gorums.ManagerOption) error {
-	err := srv.RegisterView(srvAddrs, opts...)
+func (srv *Server) SetView(config *Configuration) {
+	srv.View = config
+	srv.RegisterConfig(config.RawConfiguration)
 	srv.ListenForBroadcast()
-	return err
 }
 
 type Broadcast struct {
@@ -359,14 +339,14 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcast call method. The in parameter is the request object
+	// broadcastcall call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
 	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
@@ -381,7 +361,7 @@ func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *View, e
 		Method:  "protos.UniformBroadcast.Broadcast",
 
 		BroadcastID: uuid.New().String(),
-		Sender:      gorums.BroadcastClient,
+		SenderType:  gorums.BroadcastClient,
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*View, len(replies))

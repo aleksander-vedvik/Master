@@ -10,6 +10,8 @@ import (
 
 	pb "github.com/aleksander-vedvik/Master/protos"
 	"github.com/relab/gorums"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Data struct {
@@ -38,6 +40,7 @@ type StorageServer struct {
 	messages int
 	addr     string
 	peers    []string
+	mgr      *pb.Manager
 }
 
 // Creates a new StorageServer.
@@ -107,7 +110,18 @@ func (s *StorageServer) Start() {
 
 func (s *StorageServer) Run() {
 	time.Sleep(10 * time.Millisecond)
-	s.SetView(s.peers)
+	s.mgr = pb.NewManager(
+		gorums.WithDialTimeout(50*time.Millisecond),
+		gorums.WithGrpcDialOptions(
+			grpc.WithBlock(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		),
+	)
+	view, err := s.mgr.NewConfiguration(gorums.WithNodeListBroadcast(s.peers))
+	if err != nil {
+		panic(err)
+	}
+	s.SetView(view)
 }
 
 func (s *StorageServer) status() {

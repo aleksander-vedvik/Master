@@ -18,10 +18,10 @@ func GetBConfig(srvAddresses []string, numSrvs int) *pb.Configuration {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	quorum, err := mgr.NewBroadcastConfiguration(
+	quorum, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		NewQSpec(len(srvAddresses), numSrvs),
-		gorums.WithListener("localhost:8080"),
+		gorums.WithListener("127.0.0.1:8080"),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)
