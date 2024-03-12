@@ -52,7 +52,7 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 		viewNumber:     1,
 	}
 	srv.mgr = pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
+		gorums.WithDialTimeout(51*time.Millisecond),
 		gorums.WithGrpcDialOptions(
 			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
