@@ -3,9 +3,7 @@ package nodeServer
 import (
 	"fmt"
 	"log"
-	"log/slog"
 	"net"
-	"sync"
 	"time"
 
 	"pbft/leaderelection.go"
@@ -20,7 +18,6 @@ import (
 // The storage server should implement the server interface defined in the pbbuf files
 type PBFTServer struct {
 	*pb.Server
-	mu             sync.RWMutex
 	leaderElection *leaderelection.MonLeader
 	leader         string
 	data           []string
@@ -31,8 +28,8 @@ type PBFTServer struct {
 	messageLog     *MessageLog
 	viewNumber     int32
 	state          *pb.ClientResponse
-	requestQueue   []*pb.PrePrepareRequest
-	maxLimitOfReqs int
+	//requestQueue   []*pb.PrePrepareRequest
+	//maxLimitOfReqs int
 	sequenceNumber int32
 	mgr            *pb.Manager
 }
@@ -51,19 +48,23 @@ func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
 		sequenceNumber: 1,
 		viewNumber:     1,
 	}
+	srv.configureView()
+	pb.RegisterPBFTNodeServer(srv.Server, &srv)
+	return &srv
+}
+
+func (srv *PBFTServer) configureView() {
 	srv.mgr = pb.NewManager(
 		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	view, err := srv.mgr.NewConfiguration(gorums.WithNodeListBroadcast(srvAddresses))
+	view, err := srv.mgr.NewConfiguration(gorums.WithNodeListBroadcast(srv.peers))
 	if err != nil {
 		panic(err)
 	}
 	srv.SetView(view)
-	pb.RegisterPBFTNodeServer(srv.Server, &srv)
-	return &srv
 }
 
 func (s *PBFTServer) Start() {
@@ -82,7 +83,6 @@ func (s *PBFTServer) Start() {
 
 func (s *PBFTServer) listenForLeaderChanges() {
 	for leader := range s.leaderElection.Leaders() {
-		slog.Info("leader changed:", leader)
 		s.leader = leader
 	}
 }

@@ -69,10 +69,6 @@ func (s *PBFTServer) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.Client
 	return s.state, s.state != nil && s.state.Id == req.Id
 }
 
-func (s *PBFTServer) getLeaderAddr() string {
-	return s.leader
-}
-
 func (s *PBFTServer) isLeader() bool {
 	return s.leader == s.addr
 }
