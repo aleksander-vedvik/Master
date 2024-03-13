@@ -32,9 +32,7 @@ func GetBConfig(srvAddresses []string, numSrvs int) *pb.Configuration {
 
 func GetQConfig(srvAddresses []string) *pb.Configuration {
 	mgr := pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)

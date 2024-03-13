@@ -4,13 +4,11 @@ proto:
 	--gorums_out=paths=source_relative:. \
 	storage.proto
 
-protos:
-	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
-	--proto_path=paths=source_relative/protos/ \
+theprotos:
+	protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
 	--go_out=paths=source_relative:. \
 	--gorums_out=paths=source_relative:. \
 	./protos/storage.proto
-	@echo "Proto files generated successfully"
 
 docker:
 	docker compose up
@@ -34,7 +32,7 @@ dev_path				:= ./protos
 storage_proto			:= $(dev_path)/storage.proto
 proto_path 				:= $(dev_path):.
 
-.PHONY: dev 
+.PHONY: dev protos
 
 dev: 
 	@rm -f $(dev_path)/storage*.pb.go

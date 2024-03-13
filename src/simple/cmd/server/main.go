@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os/exec"
 	"time"
 
@@ -10,10 +11,11 @@ import (
 )
 
 func initREMOVE() {
+	slog.Info("init")
 	protoc := `protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
 	--go_out=paths=source_relative:. \
 	--gorums_out=paths=source_relative:. \
-	../Master/src/simple/protos/storage.proto`
+	../../protos/*.proto`
 
 	cmd := exec.Command(protoc)
 	stdout, err := cmd.Output()

@@ -3,6 +3,7 @@ package nodeServer
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"time"
 
@@ -35,7 +36,7 @@ type PBFTServer struct {
 }
 
 // Creates a new StorageServer.
-func NewStorageServer(addr string, srvAddresses []string) *PBFTServer {
+func NewPBFTServer(addr string, srvAddresses []string) *PBFTServer {
 	srv := PBFTServer{
 		Server:         pb.NewServer(),
 		data:           make([]string, 0),
@@ -60,7 +61,7 @@ func (srv *PBFTServer) configureView() {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	view, err := srv.mgr.NewConfiguration(gorums.WithNodeListBroadcast(srv.peers))
+	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers))
 	if err != nil {
 		panic(err)
 	}
@@ -72,10 +73,10 @@ func (s *PBFTServer) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go s.status()
+	//go s.status()
 	go s.Serve(lis)
 	s.addr = lis.Addr().String()
-	log.Printf("Server started. Listening on address: %s\n", s.addr)
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
 	s.leaderElection = leaderelection.New(s.View)
 	s.leaderElection.StartLeaderElection()
 	go s.listenForLeaderChanges()
@@ -83,6 +84,7 @@ func (s *PBFTServer) Start() {
 
 func (s *PBFTServer) listenForLeaderChanges() {
 	for leader := range s.leaderElection.Leaders() {
+		slog.Warn("leader changed", "leader", leader)
 		s.leader = leader
 	}
 }
@@ -104,10 +106,12 @@ func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broad
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.SendToClient(val, nil)
 		} else {
+			slog.Info("not the leader")
 			broadcast.Write(request, gorums.WithSubset(s.leader))
 		}
 		return
 	}
+	slog.Info("got client request. initiating a pBFT round")
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,

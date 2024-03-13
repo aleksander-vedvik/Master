@@ -2,14 +2,13 @@
 // versions:
 // 	protoc-gen-gorums v0.7.0-devel
 // 	protoc            v3.12.4
-// source: protos/storage.proto
+// source: multipaxos.proto
 
-package __
+package proto
 
 import (
 	context "context"
 	fmt "fmt"
-	uuid "github.com/google/uuid"
 	gorums "github.com/relab/gorums"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
@@ -107,7 +106,7 @@ func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
 // A new configuration can also be created from an existing configuration,
 // using the And, WithNewNodes, Except, and WithoutNodes methods.
 func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuration, err error) {
-	if len(opts) < 1 || len(opts) > 3 {
+	if len(opts) < 1 || len(opts) > 2 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
 	c = &Configuration{}
@@ -130,6 +129,11 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 		default:
 			return nil, fmt.Errorf("unknown option type: %v", v)
 		}
+	}
+	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
+	var test interface{} = struct{}{}
+	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
+		return nil, fmt.Errorf("missing required QuorumSpec")
 	}
 	return c, nil
 }
@@ -221,92 +225,54 @@ func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.Serv
 	return nil
 }
 
-func (b *Broadcast) SaveStudents(req *States, opts ...gorums.BroadcastOption) {
+func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, options)
+	b.sp.BroadcastHandler("proto.MultiPaxos.Accept", req, b.metadata, options)
 }
 
-func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
+func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, options)
+	b.sp.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata, options)
 }
 
-func (b *Broadcast) Deliver(req *State, opts ...gorums.BroadcastOption) {
-	options := gorums.NewBroadcastOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, options)
-}
-
-func _clientSaveStudent(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClientResponse)
+func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Response)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	return srv.(clientServer).clientSaveStudent(ctx, in)
+	return srv.(clientServer).clientWrite(ctx, in)
 }
 
-func (srv *clientServerImpl) clientSaveStudent(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
+func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *Response) (*Response, error) {
 	err := srv.AddResponse(ctx, resp)
 	return resp, err
 }
 
-func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *Value) (resp *Response, err error) {
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined.")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentQF))
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*ClientResponse), err
+	return response.(*Response), err
 }
 
-func _clientSaveStudents(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClientResponse)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	return srv.(clientServer).clientSaveStudents(ctx, in)
-}
-
-func (srv *clientServerImpl) clientSaveStudents(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
-	err := srv.AddResponse(ctx, resp)
-	return resp, err
-}
-
-func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *ClientResponse, err error) {
-	if c.srv == nil {
-		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
-	}
-	if c.qspec == nil {
-		return nil, fmt.Errorf("a qspec is not defined.")
-	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentsQF))
-	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	response, ok := <-doneChan
-	if !ok {
-		return nil, fmt.Errorf("done channel was closed before returning a value")
-	}
-	return response.(*ClientResponse), err
-}
-
-// clientServer is the client server API for the UniformBroadcast Service
+// clientServer is the client server API for the MultiPaxos Service
 type clientServer interface {
-	clientSaveStudent(ctx context.Context, request *ClientResponse) (*ClientResponse, error)
-	clientSaveStudents(ctx context.Context, request *ClientResponse) (*ClientResponse, error)
+	clientWrite(ctx context.Context, request *Response) (*Response, error)
 }
 
 var clientServer_ServiceDesc = grpc.ServiceDesc{
@@ -315,97 +281,118 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	Methods: []grpc.MethodDesc{
 
 		{
-			MethodName: "ClientSaveStudent",
-			Handler:    _clientSaveStudent,
-		},
-		{
-			MethodName: "ClientSaveStudents",
-			Handler:    _clientSaveStudents,
+			MethodName: "ClientWrite",
+			Handler:    _clientWrite,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "",
 }
 
-// QuorumSpec is the interface of quorum functions for UniformBroadcast.
+// Accept is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Accept(ctx context.Context, in *AcceptMsg, opts ...gorums.CallOption) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "proto.MultiPaxos.Accept",
+	}
+
+	c.RawConfiguration.Multicast(ctx, cd, opts...)
+}
+
+// Ping is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Ping(ctx context.Context, in *Heartbeat, opts ...gorums.CallOption) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "proto.MultiPaxos.Ping",
+	}
+
+	c.RawConfiguration.Multicast(ctx, cd, opts...)
+}
+
+// QuorumSpec is the interface of quorum functions for MultiPaxos.
 type QuorumSpec interface {
 	gorums.ConfigOption
 
-	// SaveStudentQF is the quorum function for the SaveStudent
+	// WriteQF is the quorum function for the Write
 	// broadcastcall call method. The in parameter is the request object
-	// supplied to the SaveStudent method at call time, and may or may not
+	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *State'.
-	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
+	// you should implement your quorum function with '_ *Value'.
+	WriteQF(replies []*Response) (*Response, bool)
 
-	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcast call method. The in parameter is the request object
-	// supplied to the SaveStudents method at call time, and may or may not
+	// PrepareQF is the quorum function for the Prepare
+	// quorum call method. The in parameter is the request object
+	// supplied to the Prepare method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *States'.
-	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
-
-	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
-	// supplied to the Broadcast method at call time, and may or may not
-	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *State'.
-	BroadcastQF(in *State, replies map[uint32]*View) (*View, bool)
+	// you should implement your quorum function with '_ *PrepareMsg'.
+	PrepareQF(in *PrepareMsg, replies map[uint32]*PromiseMsg) (*PromiseMsg, bool)
 }
 
-// Broadcast is a quorum call invoked on all nodes in configuration c,
+// Prepare is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Broadcast(ctx context.Context, in *State) (resp *View, err error) {
+func (c *Configuration) Prepare(ctx context.Context, in *PrepareMsg) (resp *PromiseMsg, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protos.UniformBroadcast.Broadcast",
-
-		BroadcastID: uuid.New().String(),
-		SenderType:  gorums.BroadcastClient,
+		Method:  "proto.MultiPaxos.Prepare",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
-		r := make(map[uint32]*View, len(replies))
+		r := make(map[uint32]*PromiseMsg, len(replies))
 		for k, v := range replies {
-			r[k] = v.(*View)
+			r[k] = v.(*PromiseMsg)
 		}
-		return c.qspec.BroadcastQF(req.(*State), r)
+		return c.qspec.PrepareQF(req.(*PrepareMsg), r)
 	}
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
 		return nil, err
 	}
-	return res.(*View), err
+	return res.(*PromiseMsg), err
 }
 
-// UniformBroadcast is the server-side API for the UniformBroadcast Service
-type UniformBroadcast interface {
-	SaveStudent(ctx gorums.ServerCtx, request *State, broadcast *Broadcast)
-	SaveStudents(ctx gorums.ServerCtx, request *States, broadcast *Broadcast)
-	Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast)
-	Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast)
+// MultiPaxos is the server-side API for the MultiPaxos Service
+type MultiPaxos interface {
+	Write(ctx gorums.ServerCtx, request *Value, broadcast *Broadcast)
+	Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error)
+	Accept(ctx gorums.ServerCtx, request *AcceptMsg, broadcast *Broadcast)
+	Learn(ctx gorums.ServerCtx, request *LearnMsg, broadcast *Broadcast)
+	Ping(ctx gorums.ServerCtx, request *Heartbeat)
 }
 
-func (srv *Server) SaveStudent(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
-	panic(status.Errorf(codes.Unimplemented, "method SaveStudent not implemented"))
+func (srv *Server) Write(ctx gorums.ServerCtx, request *Value, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method Write not implemented"))
 }
-func (srv *Server) SaveStudents(ctx gorums.ServerCtx, request *States, broadcast *Broadcast) {
-	panic(status.Errorf(codes.Unimplemented, "method SaveStudents not implemented"))
+func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error) {
+	panic(status.Errorf(codes.Unimplemented, "method Prepare not implemented"))
 }
-func (srv *Server) Broadcast(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
-	panic(status.Errorf(codes.Unimplemented, "method Broadcast not implemented"))
+func (srv *Server) Accept(ctx gorums.ServerCtx, request *AcceptMsg) {
+	panic(status.Errorf(codes.Unimplemented, "method Accept not implemented"))
 }
-func (srv *Server) Deliver(ctx gorums.ServerCtx, request *State, broadcast *Broadcast) {
-	panic(status.Errorf(codes.Unimplemented, "method Deliver not implemented"))
+func (srv *Server) Learn(ctx gorums.ServerCtx, request *LearnMsg, broadcast *Broadcast) {
+	panic(status.Errorf(codes.Unimplemented, "method Learn not implemented"))
+}
+func (srv *Server) Ping(ctx gorums.ServerCtx, request *Heartbeat) {
+	panic(status.Errorf(codes.Unimplemented, "method Ping not implemented"))
 }
 
-func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
-	srv.RegisterHandler("protos.UniformBroadcast.SaveStudent", gorums.BroadcastHandler(impl.SaveStudent, srv.Server))
-	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudent", gorums.ServerClientRPC("protos.UniformBroadcast.SaveStudent"))
-	srv.RegisterHandler("protos.UniformBroadcast.SaveStudents", gorums.BroadcastHandler(impl.SaveStudents, srv.Server))
-	srv.RegisterClientHandler("protos.UniformBroadcast.SaveStudents", gorums.ServerClientRPC("protos.UniformBroadcast.SaveStudents"))
-	srv.RegisterHandler("protos.UniformBroadcast.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
-	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
+func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
+	srv.RegisterHandler("proto.MultiPaxos.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+	srv.RegisterClientHandler("proto.MultiPaxos.Write", gorums.ServerClientRPC("proto.MultiPaxos.Write"))
+	srv.RegisterHandler("proto.MultiPaxos.Prepare", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*PrepareMsg)
+		defer ctx.Release()
+		resp, err := impl.Prepare(ctx, req)
+		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
+	})
+	srv.RegisterHandler("proto.MultiPaxos.Accept", gorums.BroadcastHandler(impl.Accept, srv.Server))
+	srv.RegisterHandler("proto.MultiPaxos.Learn", gorums.BroadcastHandler(impl.Learn, srv.Server))
+	srv.RegisterHandler("proto.MultiPaxos.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
+		req := in.Message.(*Heartbeat)
+		defer ctx.Release()
+		impl.Ping(ctx, req)
+	})
 }
 
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
@@ -416,8 +403,8 @@ func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broad
 	srv.RetToClient(resp, err, broadcastID)
 }
 
-type internalView struct {
+type internalPromiseMsg struct {
 	nid   uint32
-	reply *View
+	reply *PromiseMsg
 	err   error
 }

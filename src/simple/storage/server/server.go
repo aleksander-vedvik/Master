@@ -66,13 +66,6 @@ func NewStorageServer(addr string, srvAddresses []string) *StorageServer {
 	return &srv
 }
 
-func (s *StorageServer) countMsgs(gorums.BroadcastMetadata) error {
-	s.Lock()
-	defer s.Unlock()
-	s.messages++
-	return nil
-}
-
 func printable(addrs []string) string {
 	ret := "[ "
 	for _, addr := range addrs {
@@ -111,13 +104,11 @@ func (s *StorageServer) Start() {
 func (s *StorageServer) Run() {
 	time.Sleep(10 * time.Millisecond)
 	s.mgr = pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	view, err := s.mgr.NewConfiguration(gorums.WithNodeListBroadcast(s.peers))
+	view, err := s.mgr.NewConfiguration(gorums.WithNodeList(s.peers))
 	if err != nil {
 		panic(err)
 	}

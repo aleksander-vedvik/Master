@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	pb "pbft/protos"
+	pb "paxos/proto"
 
 	"log/slog"
 
@@ -26,7 +26,7 @@ type FailureDetector struct {
 	processes      map[uint32]*process
 	config         *pb.Configuration
 	delta          time.Duration
-	sendHeartbeats func(context.Context, *pb.HeartbeatReq, ...gorums.CallOption)
+	sendHeartbeats func(context.Context, *pb.Heartbeat, ...gorums.CallOption)
 	suspectChan    chan uint32
 	restoreChan    chan uint32
 	doneChan       chan struct{}
@@ -37,7 +37,7 @@ func New(c *pb.Configuration) *FailureDetector {
 	restoreChan := make(chan uint32, 10)
 	return &FailureDetector{
 		config:         c,
-		sendHeartbeats: c.Heartbeat,
+		sendHeartbeats: c.Ping,
 		suspectChan:    suspectChan,
 		restoreChan:    restoreChan,
 		doneChan:       make(chan struct{}),
@@ -96,8 +96,8 @@ func (fd *FailureDetector) timeout() {
 		p.alive = false
 	}
 	fd.mu.Unlock()
-	req := &pb.HeartbeatReq{
-		From: fd.id,
+	req := &pb.Heartbeat{
+		Id: fd.id,
 	}
 	fd.sendHeartbeats(context.Background(), req, gorums.WithNoSendWaiting())
 	time.Sleep(fd.delta)
@@ -111,10 +111,10 @@ func (p *process) restore() {
 	p.restoreChan <- p.id
 }
 
-func (fd *FailureDetector) Heartbeat(request *pb.HeartbeatReq) {
+func (fd *FailureDetector) Ping(request *pb.Heartbeat) {
 	fd.mu.Lock()
 	defer fd.mu.Unlock()
-	if p, ok := fd.processes[request.From]; ok {
+	if p, ok := fd.processes[request.Id]; ok {
 		p.alive = true
 	}
 }

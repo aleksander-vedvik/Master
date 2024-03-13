@@ -1,15 +1,34 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	nodeServer "pbft/node/server"
 )
 
+var srvAddrs = []string{"127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002"}
+
 func main() {
-	startServers()
+	startServer()
+}
+
+func startServer() {
+	port := flag.Int("port", 0, "listening port")
+	flag.Parse()
+
+	if *port == 0 {
+		slog.Error("must specify a port")
+		return
+	}
+	addr := fmt.Sprintf("127.0.0.1:%v", *port)
+	srv := nodeServer.NewPBFTServer(addr, srvAddrs)
+	srv.Start()
+	fmt.Scanln()
+	log.Println("Server stopped.")
 }
 
 func startServers() {
@@ -19,7 +38,7 @@ func startServers() {
 		srvAddresses[i] = fmt.Sprintf("127.0.0.1:%v", 5000+i)
 	}
 	for _, srvAddr := range srvAddresses {
-		srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
+		srv := nodeServer.NewPBFTServer(srvAddr, srvAddresses)
 		srv.Start()
 	}
 	log.Printf("Servers started. Listening on addresses: %s\n", srvAddresses)
@@ -67,13 +86,13 @@ func startServersTree() {
 }
 
 func createServer(srvAddr string, srvAddresses []string) {
-	srv := nodeServer.NewStorageServer(srvAddr, srvAddresses)
+	srv := nodeServer.NewPBFTServer(srvAddr, srvAddresses)
 	srv.Start()
 }
 
 func startDockerServer() {
 	srvAddresses := []string{"localhost:5000", "localhost:5001", "localhost:5002"}
-	srv := nodeServer.NewStorageServer("0.0.0.0:8080", srvAddresses)
+	srv := nodeServer.NewPBFTServer("0.0.0.0:8080", srvAddresses)
 	srv.Start()
 	//srv.AddConfig(srvAddresses)
 	log.Println("Server stopped.")

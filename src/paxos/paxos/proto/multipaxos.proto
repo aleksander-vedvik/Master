@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+import "gorums.proto";
+
+package proto;
+
+option go_package = "paxos/proto";
+
+service MultiPaxos {
+	rpc Write(Value) returns (Response) {
+		option (gorums.broadcastcall) = true;
+	}
+
+	rpc Prepare(PrepareMsg) returns (PromiseMsg) {
+		option (gorums.quorumcall) = true;
+	}
+
+	rpc Accept(AcceptMsg) returns (Empty) {
+		option (gorums.multicast) = true;
+		option (gorums.broadcast) = true;
+	}
+
+	rpc Learn(LearnMsg) returns (Empty) {
+		option (gorums.broadcast) = true;
+	}
+
+	rpc Ping(Heartbeat) returns (Empty) {
+		option (gorums.multicast) = true;
+	}
+}
+
+message Heartbeat {
+	uint32 id = 1;
+}
+
+message Value {
+	string val = 1;
+}
+
+message Response {
+	bool error = 1;
+}
+
+message PrepareMsg {
+	uint32 crnd = 1;
+	uint32 slot = 2;
+}
+
+message PromiseSlot {
+	uint32 slot = 1;
+	uint32 vrnd = 2;
+	Value Value = 3;
+}
+
+// PromiseMsg is the reply from an Acceptor to the Proposer in response to a PrepareMsg.
+// The Acceptor will only respond if the PrepareMsg.rnd > Acceptor.rnd.
+message PromiseMsg {
+	uint32 rnd = 1;
+	repeated PromiseSlot slots = 2;
+	uint32 fromNode = 3;
+}
+
+// AcceptMsg is sent by the Proposer, asking the Acceptors to lock-in the value, val.
+// If AcceptMsg.rnd < Acceptor.rnd, the message will be ignored.
+message AcceptMsg {
+	uint32 rnd = 1;
+	uint32 slot = 2;
+	Value val = 3;
+}
+
+// LearnMsg is sent by an Acceptor to the Proposer, if the Acceptor agreed to lock-in the value, val.
+// The LearnMsg is also sent by the Proposer in a Commit.
+message LearnMsg {
+	uint32 rnd = 1;
+	Value val = 2;
+	uint32 slot = 3;
+	uint32 fromNode = 4;
+}
+
+// DecidedValue is sent by an Acceptor to the Learner
+message DecidedValue {
+	uint32 slot = 1;
+	Value val = 2;
+}
+
+message Empty {}

@@ -1,8 +1,8 @@
 package leaderelection
 
 import (
-	"pbft/failuredetector"
-	pb "pbft/protos"
+	"paxos/failuredetector"
+	pb "paxos/proto"
 )
 
 type process struct {
