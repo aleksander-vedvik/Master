@@ -131,6 +131,11 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			return nil, fmt.Errorf("unknown option type: %v", v)
 		}
 	}
+	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
+	//var test interface{} = struct{}{}
+	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
+	//	return nil, fmt.Errorf("missing required QuorumSpec")
+	//}
 	return c, nil
 }
 
@@ -153,7 +158,8 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
-	View *Configuration
+	broadcast *Broadcast
+	View      *Configuration
 }
 
 func NewServer() *Server {
@@ -161,10 +167,13 @@ func NewServer() *Server {
 		Server: gorums.NewServer(),
 	}
 	b := &Broadcast{
-		Broadcaster: gorums.NewBroadcaster(),
-		sp:          gorums.NewSpBroadcastStruct(),
+		Broadcaster:  gorums.NewBroadcaster(),
+		orchestrator: gorums.NewBroadcastOrchestrator(),
+		metadata:     gorums.BroadcastMetadata{},
 	}
-	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
+	srv.broadcast = b
+	set, reset := configureMetadata(b)
+	srv.RegisterBroadcaster(b, configureHandlers(b), set, reset)
 	return srv
 }
 
@@ -176,21 +185,23 @@ func (srv *Server) SetView(config *Configuration) {
 
 type Broadcast struct {
 	*gorums.Broadcaster
-	sp       *gorums.SpBroadcast
-	metadata gorums.BroadcastMetadata
+	orchestrator *gorums.BroadcastOrchestrator
+	metadata     gorums.BroadcastMetadata
 }
 
-func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
-	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
-		b.sp.BroadcastHandler = bh
-		b.sp.ReturnToClientHandler = ch
+func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
+	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
+		b.orchestrator.BroadcastHandler = bh
+		b.orchestrator.SendToClientHandler = ch
 	}
 }
 
-func configureMetadata(b *Broadcast) func(metadata gorums.BroadcastMetadata) {
+func configureMetadata(b *Broadcast) (func(metadata gorums.BroadcastMetadata), func()) {
 	return func(metadata gorums.BroadcastMetadata) {
-		b.metadata = metadata
-	}
+			b.metadata = metadata
+		}, func() {
+			b.metadata = gorums.BroadcastMetadata{}
+		}
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -221,28 +232,45 @@ func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.Serv
 	return nil
 }
 
+func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
+	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
+}
+
+func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
+	srv.RetToClient(resp, err, broadcastID)
+}
+
 func (b *Broadcast) SaveStudents(req *States, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == "" {
+		panic("broadcastID cannot be empty. Use srv.BroadcastSaveStudents instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, options)
 }
 
 func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == "" {
+		panic("broadcastID cannot be empty. Use srv.BroadcastBroadcast instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, options)
 }
 
 func (b *Broadcast) Deliver(req *State, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == "" {
+		panic("broadcastID cannot be empty. Use srv.BroadcastDeliver instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, options)
 }
 
 func _clientSaveStudent(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -346,7 +374,7 @@ type QuorumSpec interface {
 	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
@@ -408,12 +436,56 @@ func RegisterUniformBroadcastServer(srv *Server, impl UniformBroadcast) {
 	srv.RegisterHandler("protos.UniformBroadcast.Deliver", gorums.BroadcastHandler(impl.Deliver, srv.Server))
 }
 
-func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
-	b.sp.ReturnToClientHandler(resp, err, b.metadata)
+func (srv *Server) BroadcastSaveStudent(req *State, broadcastID string, opts ...gorums.BroadcastOption) {
+	if broadcastID == "" {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	metadata := gorums.BroadcastMetadata{}
+	metadata.BroadcastID = broadcastID
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudent", req, metadata, options)
 }
 
-func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
-	srv.RetToClient(resp, err, broadcastID)
+func (srv *Server) BroadcastSaveStudents(req *States, broadcastID string, opts ...gorums.BroadcastOption) {
+	if broadcastID == "" {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	metadata := gorums.BroadcastMetadata{}
+	metadata.BroadcastID = broadcastID
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, metadata, options)
+}
+
+func (srv *Server) BroadcastBroadcast(req *State, broadcastID string, opts ...gorums.BroadcastOption) {
+	if broadcastID == "" {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	metadata := gorums.BroadcastMetadata{}
+	metadata.BroadcastID = broadcastID
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, metadata, options)
+}
+
+func (srv *Server) BroadcastDeliver(req *State, broadcastID string, opts ...gorums.BroadcastOption) {
+	if broadcastID == "" {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	metadata := gorums.BroadcastMetadata{}
+	metadata.BroadcastID = broadcastID
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, metadata, options)
 }
 
 type internalView struct {

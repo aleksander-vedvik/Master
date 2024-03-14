@@ -131,7 +131,7 @@ func (s *StorageServer) SaveStudent(ctx gorums.ServerCtx, request *pb.State, bro
 	defer s.Unlock()
 	md := broadcast.GetMetadata()
 	s.pending = append(s.pending, newData(request, md.BroadcastID))
-	go broadcast.Deliver(request)
+	broadcast.Deliver(request)
 }
 
 func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
@@ -139,7 +139,7 @@ func (s *StorageServer) Broadcast(ctx gorums.ServerCtx, request *pb.State, broad
 	defer s.Unlock()
 	md := broadcast.GetMetadata()
 	s.pending = append(s.pending, newData(request, md.BroadcastID))
-	go broadcast.Deliver(request)
+	broadcast.Deliver(request)
 }
 
 func (s *StorageServer) Deliver(ctx gorums.ServerCtx, request *pb.State, broadcast *pb.Broadcast) {
@@ -149,7 +149,7 @@ func (s *StorageServer) Deliver(ctx gorums.ServerCtx, request *pb.State, broadca
 	if !s.inPending(request) {
 		md := broadcast.GetMetadata()
 		s.pending = append(s.pending, newData(request, md.BroadcastID))
-		go broadcast.Deliver(request)
+		broadcast.Deliver(request)
 	}
 }
 

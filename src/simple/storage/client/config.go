@@ -2,7 +2,6 @@ package client
 
 import (
 	"log"
-	"time"
 
 	pb "github.com/aleksander-vedvik/Master/protos"
 	"github.com/relab/gorums"
@@ -12,9 +11,7 @@ import (
 
 func GetBConfig(srvAddresses []string, numSrvs int) *pb.Configuration {
 	mgr := pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)

@@ -16,6 +16,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type clientReq struct {
+	broadcastID string
+	message     *pb.Value
+}
+
 type PaxosServer struct {
 	*pb.Server
 	leaderElection *leaderelection.MonLeader
@@ -25,7 +30,7 @@ type PaxosServer struct {
 	peers          []string
 	addedMsgs      map[string]bool
 	viewNumber     int32
-	clientReqs     []*pb.Value
+	clientReqs     []*clientReq
 	//requestQueue   []*pb.PrePrepareRequest
 	//maxLimitOfReqs int
 	sequenceNumber int32
@@ -43,6 +48,7 @@ func NewPaxosServer(addr string, srvAddresses []string) *PaxosServer {
 		addr:           addr,
 		peers:          srvAddresses,
 		addedMsgs:      make(map[string]bool),
+		clientReqs:     make([]*clientReq, 0),
 		leader:         "",
 		sequenceNumber: 1,
 		viewNumber:     1,
@@ -88,20 +94,34 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 }
 
 func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.Value, broadcast *pb.Broadcast) {
-	srv.clientReqs = append(srv.clientReqs, request)
-	go broadcast.Accept(&pb.AcceptMsg{
+	md := broadcast.GetMetadata()
+	srv.clientReqs = append(srv.clientReqs, &clientReq{
+		broadcastID: md.BroadcastID,
+		message:     request,
+	})
+	broadcast.Accept(&pb.AcceptMsg{
 		Rnd:  srv.rnd,
 		Slot: srv.maxSeenSlot,
 		Val:  request,
 	})
 }
 
-func (srv *PaxosServer) send() {
+func (srv *PaxosServer) sendWrong() {
 	for _, req := range srv.clientReqs {
-		go srv.View.Accept(context.Background(), &pb.AcceptMsg{
+		srv.View.Accept(context.Background(), &pb.AcceptMsg{
 			Rnd:  srv.rnd,
 			Slot: srv.maxSeenSlot,
-			Val:  req,
+			Val:  req.message,
 		})
+	}
+}
+
+func (srv *PaxosServer) sendCorrect() {
+	for _, req := range srv.clientReqs {
+		srv.BroadcastAccept(&pb.AcceptMsg{
+			Rnd:  srv.rnd,
+			Slot: srv.maxSeenSlot,
+			Val:  req.message,
+		}, req.broadcastID)
 	}
 }
