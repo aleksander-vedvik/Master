@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"strconv"
 	"sync"
@@ -85,6 +86,14 @@ func printablevals(vals []*Data) string {
 	return ret
 }
 
+func (s *StorageServer) stop() {
+	time.Sleep(11 * time.Second)
+	if s.addr == "127.0.0.1:5002" {
+		s.Stop()
+		slog.Info("stopped", "addr", s.addr)
+	}
+}
+
 // Start the server listening on the provided address string
 // The function should be non-blocking
 // Returns the full listening address of the server as string
@@ -97,12 +106,12 @@ func (s *StorageServer) Start() {
 	s.addr = fmt.Sprintf("%v", lis.Addr())
 	go s.status()
 	go s.deliver()
+	go s.stop()
 	log.Printf("Server started (%s), peers: %v\n", s.addr, s.peers)
 	s.Serve(lis)
 }
 
 func (s *StorageServer) Run() {
-	time.Sleep(10 * time.Millisecond)
 	s.mgr = pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),

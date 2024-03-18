@@ -33,14 +33,15 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 		return
 	}
 	srv.rnd = request.Rnd
-	if request.Slot >= srv.maxSeenSlotId {
+
+	if request.Slot >= srv.maxSeenSlot {
 		srv.slots[request.Slot] = &pb.PromiseSlot{
 			Slot:  request.Slot,
 			Vrnd:  request.Rnd,
 			Value: request.Val,
 		}
 	}
-	go broadcast.Learn(&pb.LearnMsg{
+	broadcast.Learn(&pb.LearnMsg{
 		Rnd:  srv.rnd,
 		Slot: request.Slot,
 		Val:  request.Val,
@@ -48,7 +49,13 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 }
 
 func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *pb.Broadcast) {
-	go broadcast.SendToClient(&pb.Response{}, nil)
+	if srv.quorum() {
+		broadcast.SendToClient(&pb.Response{}, nil)
+	}
+}
+
+func (srv *PaxosServer) quorum() bool {
+	return false
 }
 
 func (srv *PaxosServer) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {

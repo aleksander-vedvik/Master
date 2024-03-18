@@ -38,7 +38,6 @@ type PaxosServer struct {
 	rnd            uint32
 	maxSeenSlot    uint32
 	slots          map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
-	maxSeenSlotId  uint32                     // maxSeenSlotId: is the highest slot for which the prepare is received
 }
 
 func NewPaxosServer(addr string, srvAddresses []string) *PaxosServer {

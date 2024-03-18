@@ -1,6 +1,8 @@
 package client
 
 import (
+	"log/slog"
+
 	pb "github.com/aleksander-vedvik/Master/protos"
 )
 
@@ -26,6 +28,7 @@ func (qs *QSpec) BroadcastQF(in *pb.State, replies map[uint32]*pb.View) (*pb.Vie
 }
 
 func (qs *QSpec) SaveStudentQF(reqs []*pb.ClientResponse) (*pb.ClientResponse, bool) {
+	slog.Warn("got response")
 	if len(reqs) < qs.broadcastSize {
 		return nil, false
 	}
