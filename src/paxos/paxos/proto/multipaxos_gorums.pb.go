@@ -7,6 +7,7 @@
 package proto
 
 import (
+	"sync"
 	context "context"
 	fmt "fmt"
 	gorums "github.com/relab/gorums"
@@ -185,6 +186,7 @@ type Broadcast struct {
 	*gorums.Broadcaster
 	orchestrator *gorums.BroadcastOrchestrator
 	metadata     gorums.BroadcastMetadata
+	metadataMap sync.Map
 }
 
 func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
@@ -197,6 +199,7 @@ func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gor
 func configureMetadata(b *Broadcast) (func(metadata gorums.BroadcastMetadata), func()) {
 	return func(metadata gorums.BroadcastMetadata) {
 			b.metadata = metadata
+			b.metadataMap.Store(metadata.BroadcastID, metadata)
 		}, func() {
 			b.metadata = gorums.BroadcastMetadata{}
 		}

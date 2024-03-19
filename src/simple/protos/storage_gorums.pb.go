@@ -158,7 +158,7 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
-	broadcast *Broadcast
+	broadcast Broadcast
 	View      *Configuration
 }
 
@@ -166,15 +166,20 @@ func NewServer() *Server {
 	srv := &Server{
 		Server: gorums.NewServer(),
 	}
-	b := &Broadcast{
+	b := Broadcast{
 		Broadcaster:  gorums.NewBroadcaster(),
-		orchestrator: gorums.NewBroadcastOrchestrator(),
-		metadata:     gorums.BroadcastMetadata{},
+		orchestrator: gorums.NewBroadcastOrchestrator(srv.Server),
 	}
 	srv.broadcast = b
-	set, reset := configureMetadata(b)
-	srv.RegisterBroadcaster(b, configureHandlers(b), set, reset)
+	srv.RegisterBroadcaster(newBroadcaster)
 	return srv
+}
+
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Ibroadcaster {
+	return &Broadcast{
+			orchestrator: o,
+			metadata:     m,
+		}
 }
 
 func (srv *Server) SetView(config *Configuration) {
@@ -188,14 +193,14 @@ type Broadcast struct {
 	metadata     gorums.BroadcastMetadata
 }
 
-func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
+func configureHandlers(b Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
 	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
 		b.orchestrator.BroadcastHandler = bh
 		b.orchestrator.SendToClientHandler = ch
 	}
 }
 
-func configureMetadata(b *Broadcast) (func(metadata gorums.BroadcastMetadata), func()) {
+func configureMetadata(b Broadcast) (func(metadata gorums.BroadcastMetadata), func()) {
 	return func(metadata gorums.BroadcastMetadata) {
 			b.metadata = metadata
 		}, func() {
@@ -247,7 +252,7 @@ func (b *Broadcast) SaveStudents(req *States, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
@@ -258,7 +263,7 @@ func (b *Broadcast) Broadcast(req *State, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Deliver(req *State, opts ...gorums.BroadcastOption) {
@@ -269,7 +274,7 @@ func (b *Broadcast) Deliver(req *State, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata, options)
+	go b.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, b.metadata.BroadcastID, options)
 }
 
 func _clientSaveStudent(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -290,7 +295,7 @@ func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *Clien
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
 	if c.qspec == nil {
-		return nil, fmt.Errorf("a qspec is not defined.")
+		return nil, fmt.Errorf("a qspec is not defined")
 	}
 	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentQF))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
@@ -319,7 +324,7 @@ func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *Cli
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
 	if c.qspec == nil {
-		return nil, fmt.Errorf("a qspec is not defined.")
+		return nil, fmt.Errorf("a qspec is not defined")
 	}
 	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentsQF))
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
@@ -366,14 +371,14 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcastcall call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
 	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// broadcast call method. The in parameter is the request object
+	// quorum call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
@@ -443,9 +448,7 @@ func (srv *Server) BroadcastSaveStudent(req *State, broadcastID string, opts ...
 	for _, opt := range opts {
 		opt(&options)
 	}
-	metadata := gorums.BroadcastMetadata{}
-	metadata.BroadcastID = broadcastID
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudent", req, metadata, options)
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudent", req, broadcastID, options)
 }
 
 func (srv *Server) BroadcastSaveStudents(req *States, broadcastID string, opts ...gorums.BroadcastOption) {
@@ -456,9 +459,7 @@ func (srv *Server) BroadcastSaveStudents(req *States, broadcastID string, opts .
 	for _, opt := range opts {
 		opt(&options)
 	}
-	metadata := gorums.BroadcastMetadata{}
-	metadata.BroadcastID = broadcastID
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, metadata, options)
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.SaveStudents", req, broadcastID, options)
 }
 
 func (srv *Server) BroadcastBroadcast(req *State, broadcastID string, opts ...gorums.BroadcastOption) {
@@ -469,9 +470,7 @@ func (srv *Server) BroadcastBroadcast(req *State, broadcastID string, opts ...go
 	for _, opt := range opts {
 		opt(&options)
 	}
-	metadata := gorums.BroadcastMetadata{}
-	metadata.BroadcastID = broadcastID
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, metadata, options)
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Broadcast", req, broadcastID, options)
 }
 
 func (srv *Server) BroadcastDeliver(req *State, broadcastID string, opts ...gorums.BroadcastOption) {
@@ -482,9 +481,7 @@ func (srv *Server) BroadcastDeliver(req *State, broadcastID string, opts ...goru
 	for _, opt := range opts {
 		opt(&options)
 	}
-	metadata := gorums.BroadcastMetadata{}
-	metadata.BroadcastID = broadcastID
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, metadata, options)
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.UniformBroadcast.Deliver", req, broadcastID, options)
 }
 
 type internalView struct {

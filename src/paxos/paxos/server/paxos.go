@@ -69,13 +69,14 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 }
 
 func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *pb.Broadcast) {
-	if srv.quorum() {
+	md := broadcast.GetMetadata()
+	if srv.quorum(md.Count) {
 		broadcast.SendToClient(&pb.Response{}, nil)
 	}
 }
 
-func (srv *PaxosServer) quorum() bool {
-	return false
+func (srv *PaxosServer) quorum(count uint64) bool {
+	return int(count) > len(srv.peers)/2
 }
 
 func (srv *PaxosServer) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
