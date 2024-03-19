@@ -106,7 +106,7 @@ func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
 // A new configuration can also be created from an existing configuration,
 // using the And, WithNewNodes, Except, and WithoutNodes methods.
 func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuration, err error) {
-	if len(opts) < 1 || len(opts) > 2 {
+	if len(opts) < 1 || len(opts) > 3 {
 		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
 	}
 	c = &Configuration{}
@@ -131,10 +131,10 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 		}
 	}
 	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
-	var test interface{} = struct{}{}
-	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-		return nil, fmt.Errorf("missing required QuorumSpec")
-	}
+	//var test interface{} = struct{}{}
+	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
+	//	return nil, fmt.Errorf("missing required QuorumSpec")
+	//}
 	return c, nil
 }
 
@@ -179,7 +179,6 @@ func NewServer() *Server {
 func (srv *Server) SetView(config *Configuration) {
 	srv.View = config
 	srv.RegisterConfig(config.RawConfiguration)
-	srv.ListenForBroadcast()
 }
 
 type Broadcast struct {

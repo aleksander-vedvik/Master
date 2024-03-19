@@ -2,6 +2,7 @@ package failuredetector
 
 import (
 	"context"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -35,13 +36,14 @@ type FailureDetector struct {
 func New(c *pb.Configuration) *FailureDetector {
 	suspectChan := make(chan uint32, 10)
 	restoreChan := make(chan uint32, 10)
+	timeout := 4000 + int64(1000*(rand.Float32()-0.5))
 	return &FailureDetector{
 		config:         c,
 		sendHeartbeats: c.Ping,
 		suspectChan:    suspectChan,
 		restoreChan:    restoreChan,
 		doneChan:       make(chan struct{}),
-		delta:          3 * time.Second,
+		delta:          time.Duration(timeout) * time.Millisecond,
 	}
 }
 

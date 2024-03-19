@@ -1,20 +1,40 @@
 package server
 
 import (
+	"context"
 	pb "paxos/proto"
 
 	"github.com/relab/gorums"
 )
 
+func (srv *PaxosServer) runPhaseOne() {
+	srv.rnd = srv.pickNext()
+	_, err := srv.View.Prepare(context.Background(), &pb.PrepareMsg{
+		Rnd:  srv.rnd,
+		Slot: srv.maxSeenSlot,
+	})
+	if err != nil {
+		return
+	}
+}
+
+func (srv *PaxosServer) runPhaseTwo() {
+
+}
+
+func (srv *PaxosServer) pickNext() uint32 {
+	return 0
+}
+
 func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
-	if req.Crnd < srv.rnd {
+	if req.Rnd < srv.rnd {
 		return nil, nil
 	}
 	if req.Slot > srv.maxSeenSlot {
 		srv.maxSeenSlot = req.Slot
 	}
-	if req.Crnd > srv.rnd {
-		srv.rnd = req.Crnd
+	if req.Rnd > srv.rnd {
+		srv.rnd = req.Rnd
 	}
 	if len(srv.slots) == 0 {
 		return &pb.PromiseMsg{Rnd: srv.rnd, Slots: nil}, nil

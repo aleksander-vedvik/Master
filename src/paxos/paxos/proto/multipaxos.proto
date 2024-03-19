@@ -16,7 +16,6 @@ service MultiPaxos {
 	}
 
 	rpc Accept(AcceptMsg) returns (Empty) {
-		option (gorums.multicast) = true;
 		option (gorums.broadcast) = true;
 	}
 
@@ -42,7 +41,7 @@ message Response {
 }
 
 message PrepareMsg {
-	uint32 crnd = 1;
+	uint32 rnd = 1;
 	uint32 slot = 2;
 }
 

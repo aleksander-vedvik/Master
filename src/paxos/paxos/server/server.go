@@ -1,13 +1,12 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"log/slog"
 	"net"
 	"paxos/leaderelection"
-	"time"
+	"sync"
 
 	pb "paxos/proto"
 
@@ -29,28 +28,23 @@ type PaxosServer struct {
 	addr           string
 	peers          []string
 	addedMsgs      map[string]bool
-	viewNumber     int32
 	clientReqs     []*clientReq
-	//requestQueue   []*pb.PrePrepareRequest
-	//maxLimitOfReqs int
-	sequenceNumber int32
 	mgr            *pb.Manager
-	rnd            uint32
+	rnd            uint32 // current round
 	maxSeenSlot    uint32
 	slots          map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
+	mu             sync.Mutex
 }
 
 func NewPaxosServer(addr string, srvAddresses []string) *PaxosServer {
 	srv := PaxosServer{
-		Server:         pb.NewServer(),
-		data:           make([]string, 0),
-		addr:           addr,
-		peers:          srvAddresses,
-		addedMsgs:      make(map[string]bool),
-		clientReqs:     make([]*clientReq, 0),
-		leader:         "",
-		sequenceNumber: 1,
-		viewNumber:     1,
+		Server:     pb.NewServer(),
+		data:       make([]string, 0),
+		addr:       addr,
+		peers:      srvAddresses,
+		addedMsgs:  make(map[string]bool),
+		clientReqs: make([]*clientReq, 0),
+		leader:     "",
 	}
 	srv.configureView()
 	pb.RegisterMultiPaxosServer(srv.Server, &srv)
@@ -59,12 +53,11 @@ func NewPaxosServer(addr string, srvAddresses []string) *PaxosServer {
 
 func (srv *PaxosServer) configureView() {
 	srv.mgr = pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers))
+	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers), newQSpec(len(srv.peers)))
 	if err != nil {
 		panic(err)
 	}
@@ -89,33 +82,32 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 	for leader := range srv.leaderElection.Leaders() {
 		slog.Warn("leader changed", "leader", leader)
 		srv.leader = leader
+		if srv.isLeader() {
+			srv.runPhaseOne()
+		}
 	}
 }
 
 func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.Value, broadcast *pb.Broadcast) {
+	if !srv.isLeader() {
+		// alternatives:
+		// 1. simply ignore request 			<- ok
+		// 2. send it to the leader 			<- ok
+		// 3. reply with last committed value	<- ok
+		// 3. reply with error					<- not ok
+		return
+	}
 	md := broadcast.GetMetadata()
+	srv.mu.Lock()
 	srv.clientReqs = append(srv.clientReqs, &clientReq{
 		broadcastID: md.BroadcastID,
 		message:     request,
 	})
-	broadcast.Accept(&pb.AcceptMsg{
-		Rnd:  srv.rnd,
-		Slot: srv.maxSeenSlot,
-		Val:  request,
-	})
+	srv.mu.Unlock()
 }
 
-func (srv *PaxosServer) sendWrong() {
-	for _, req := range srv.clientReqs {
-		srv.View.Accept(context.Background(), &pb.AcceptMsg{
-			Rnd:  srv.rnd,
-			Slot: srv.maxSeenSlot,
-			Val:  req.message,
-		})
-	}
-}
-
-func (srv *PaxosServer) sendCorrect() {
+func (srv *PaxosServer) dispatch() {
+	srv.mu.Lock()
 	for _, req := range srv.clientReqs {
 		srv.BroadcastAccept(&pb.AcceptMsg{
 			Rnd:  srv.rnd,
@@ -123,4 +115,10 @@ func (srv *PaxosServer) sendCorrect() {
 			Val:  req.message,
 		}, req.broadcastID)
 	}
+	srv.clientReqs = make([]*clientReq, 0)
+	srv.mu.Unlock()
+}
+
+func (srv *PaxosServer) isLeader() bool {
+	return srv.leader == srv.addr
 }

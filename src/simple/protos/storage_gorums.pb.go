@@ -180,7 +180,6 @@ func NewServer() *Server {
 func (srv *Server) SetView(config *Configuration) {
 	srv.View = config
 	srv.RegisterConfig(config.RawConfiguration)
-	srv.ListenForBroadcast()
 }
 
 type Broadcast struct {
@@ -367,14 +366,14 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcast call method. The in parameter is the request object
+	// broadcastcall call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
 	SaveStudentsQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// BroadcastQF is the quorum function for the Broadcast
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the Broadcast method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *State'.
