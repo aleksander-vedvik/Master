@@ -2,13 +2,10 @@ package failuredetector
 
 import (
 	"context"
-	"math/rand"
 	"sync"
 	"time"
 
 	pb "paxos/proto"
-
-	"log/slog"
 
 	"github.com/relab/gorums"
 )
@@ -22,8 +19,8 @@ type process struct {
 }
 
 type FailureDetector struct {
-	mu             sync.Mutex
 	id             uint32
+	mu             sync.Mutex
 	processes      map[uint32]*process
 	config         *pb.Configuration
 	delta          time.Duration
@@ -33,17 +30,17 @@ type FailureDetector struct {
 	doneChan       chan struct{}
 }
 
-func New(c *pb.Configuration) *FailureDetector {
+func New(c *pb.Configuration, id uint32) *FailureDetector {
 	suspectChan := make(chan uint32, 10)
 	restoreChan := make(chan uint32, 10)
-	timeout := 4000 + int64(1000*(rand.Float32()-0.5))
 	return &FailureDetector{
+		id:             id,
 		config:         c,
 		sendHeartbeats: c.Ping,
 		suspectChan:    suspectChan,
 		restoreChan:    restoreChan,
 		doneChan:       make(chan struct{}),
-		delta:          time.Duration(timeout) * time.Millisecond,
+		delta:          3 * time.Second,
 	}
 }
 
@@ -85,7 +82,6 @@ func (fd *FailureDetector) Restores() <-chan uint32 {
 }
 
 func (fd *FailureDetector) timeout() {
-	slog.Info("timeout")
 	fd.mu.Lock()
 	for _, p := range fd.processes {
 		if !p.alive && !p.suspected {
@@ -113,10 +109,10 @@ func (p *process) restore() {
 	p.restoreChan <- p.id
 }
 
-func (fd *FailureDetector) Ping(request *pb.Heartbeat) {
+func (fd *FailureDetector) Ping(id uint32) {
 	fd.mu.Lock()
 	defer fd.mu.Unlock()
-	if p, ok := fd.processes[request.Id]; ok {
+	if p, ok := fd.processes[id]; ok {
 		p.alive = true
 	}
 }

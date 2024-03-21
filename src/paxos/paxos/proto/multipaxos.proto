@@ -47,8 +47,9 @@ message PrepareMsg {
 
 message PromiseSlot {
 	uint32 slot = 1;
-	uint32 vrnd = 2;
+	uint32 rnd = 2;
 	Value Value = 3;
+	bool final = 4;
 }
 
 // PromiseMsg is the reply from an Acceptor to the Proposer in response to a PrepareMsg.

@@ -2,40 +2,99 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	pb "paxos/proto"
+	"time"
 
 	"github.com/relab/gorums"
 )
 
 func (srv *PaxosServer) runPhaseOne() {
-	srv.rnd = srv.pickNext()
-	_, err := srv.View.Prepare(context.Background(), &pb.PrepareMsg{
+	srv.proposerMutex.Lock()
+	defer srv.proposerMutex.Unlock()
+	srv.mu.Lock()
+	srv.proposerCtx, srv.cancelProposer = context.WithCancel(context.Background())
+	srv.mu.Unlock()
+start:
+	select {
+	case <-srv.proposerCtx.Done():
+		return
+	default:
+	}
+	if !srv.isLeader() {
+		return
+	}
+	slog.Info("phase one: starting...")
+	srv.setNewRnd()
+	promiseMsg, err := srv.View.Prepare(context.Background(), &pb.PrepareMsg{
 		Rnd:  srv.rnd,
 		Slot: srv.maxSeenSlot,
 	})
 	if err != nil {
-		return
+		select {
+		case <-time.After(5 * time.Second):
+			goto start
+		case <-srv.proposerCtx.Done():
+			return
+		}
 	}
+	maxSlot := srv.maxSeenSlot
+	for _, slot := range promiseMsg.Slots {
+		if slot.Slot > maxSlot {
+			maxSlot = slot.Slot
+		}
+		if s, ok := srv.slots[slot.Slot]; ok {
+			if s.Final {
+				continue
+			}
+		}
+		srv.slots[slot.Slot] = slot
+	}
+	srv.maxSeenSlot = maxSlot
+	srv.runPhaseTwo()
+	slog.Info("phase one: finished")
 }
 
 func (srv *PaxosServer) runPhaseTwo() {
-
+	for {
+		select {
+		case <-srv.proposerCtx.Done():
+			return
+		default:
+		}
+		srv.mu.Lock()
+		for _, req := range srv.clientReqs {
+			srv.maxSeenSlot++
+			srv.BroadcastAccept(&pb.AcceptMsg{
+				Rnd:  srv.rnd,
+				Slot: srv.maxSeenSlot,
+				Val:  req.message,
+			}, req.broadcastID)
+		}
+		srv.clientReqs = make([]*clientReq, 0)
+		srv.mu.Unlock()
+	}
 }
 
-func (srv *PaxosServer) pickNext() uint32 {
-	return 0
+func (srv *PaxosServer) setNewRnd() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	numSrvs := uint32(len(srv.peers))
+	srv.rnd -= srv.rnd % numSrvs
+	srv.rnd += srv.id + numSrvs
 }
 
 func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	if req.Rnd < srv.rnd {
 		return nil, nil
 	}
 	if req.Slot > srv.maxSeenSlot {
 		srv.maxSeenSlot = req.Slot
 	}
-	if req.Rnd > srv.rnd {
-		srv.rnd = req.Rnd
-	}
+	// req.Rnd will always be higher or equal to srv.rnd
+	srv.rnd = req.Rnd
 	if len(srv.slots) == 0 {
 		return &pb.PromiseMsg{Rnd: srv.rnd, Slots: nil}, nil
 	}
@@ -49,17 +108,23 @@ func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.P
 }
 
 func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast *pb.Broadcast) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	if request.Rnd < srv.rnd {
 		return
 	}
 	srv.rnd = request.Rnd
 
-	if request.Slot >= srv.maxSeenSlot {
-		srv.slots[request.Slot] = &pb.PromiseSlot{
-			Slot:  request.Slot,
-			Vrnd:  request.Rnd,
-			Value: request.Val,
+	if slot, ok := srv.slots[request.Slot]; ok {
+		if slot.Final {
+			return
 		}
+	}
+	srv.slots[request.Slot] = &pb.PromiseSlot{
+		Slot:  request.Slot,
+		Rnd:   request.Rnd,
+		Value: request.Val,
+		Final: false,
 	}
 	broadcast.Learn(&pb.LearnMsg{
 		Rnd:  srv.rnd,
@@ -69,9 +134,22 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 }
 
 func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *pb.Broadcast) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	md := broadcast.GetMetadata()
 	if srv.quorum(md.Count) {
+		if s, ok := srv.slots[request.Slot]; ok {
+			s.Final = true
+		} else {
+			srv.slots[request.Slot] = &pb.PromiseSlot{
+				Slot:  request.Slot,
+				Rnd:   request.Rnd,
+				Value: request.Val,
+				Final: true,
+			}
+		}
 		broadcast.SendToClient(&pb.Response{}, nil)
+		slog.Info("commited", "val", request.Val)
 	}
 }
 
@@ -80,5 +158,5 @@ func (srv *PaxosServer) quorum(count uint64) bool {
 }
 
 func (srv *PaxosServer) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
-	srv.leaderElection.Ping(request)
+	srv.leaderElection.Ping(request.GetId())
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -22,6 +23,7 @@ type clientReq struct {
 
 type PaxosServer struct {
 	*pb.Server
+	id             uint32
 	leaderElection *leaderelection.MonLeader
 	leader         string
 	data           []string
@@ -34,16 +36,25 @@ type PaxosServer struct {
 	maxSeenSlot    uint32
 	slots          map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
 	mu             sync.Mutex
+	proposerCtx    context.Context
+	cancelProposer context.CancelFunc
+	proposerMutex  sync.Mutex
 }
 
-func NewPaxosServer(addr string, srvAddresses []string) *PaxosServer {
+func NewPaxosServer(id int, srvAddresses map[int]string) *PaxosServer {
+	srvAddrs := make([]string, 0, len(srvAddresses))
+	for _, addr := range srvAddresses {
+		srvAddrs = append(srvAddrs, addr)
+	}
 	srv := PaxosServer{
+		id:         uint32(id),
 		Server:     pb.NewServer(),
 		data:       make([]string, 0),
-		addr:       addr,
-		peers:      srvAddresses,
+		addr:       srvAddresses[id],
+		peers:      srvAddrs,
 		addedMsgs:  make(map[string]bool),
 		clientReqs: make([]*clientReq, 0),
+		slots:      make(map[uint32]*pb.PromiseSlot),
 		leader:     "",
 	}
 	srv.configureView()
@@ -57,7 +68,7 @@ func (srv *PaxosServer) configureView() {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
-	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers), newQSpec(len(srv.peers)))
+	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers), newQSpec(1+len(srv.peers)/2))
 	if err != nil {
 		panic(err)
 	}
@@ -65,25 +76,45 @@ func (srv *PaxosServer) configureView() {
 }
 
 func (srv *PaxosServer) Start() {
+	// create listener
 	lis, err := net.Listen("tcp4", srv.addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	//go s.status()
+	// start gRPC server
 	go srv.Serve(lis)
+	// add the address
 	srv.addr = lis.Addr().String()
+	// add the correct ID to the server
+	var id uint32
+	for _, node := range srv.View.Nodes() {
+		if node.Address() == srv.addr {
+			id = node.ID()
+			break
+		}
+	}
 	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", srv.addr, srv.peers))
-	srv.leaderElection = leaderelection.New(srv.View)
+	// start leader election and failure detector
+	srv.leaderElection = leaderelection.New(srv.View, id)
 	srv.leaderElection.StartLeaderElection()
+	srv.proposerCtx, srv.cancelProposer = context.WithCancel(context.Background())
 	go srv.listenForLeaderChanges()
 }
 
 func (srv *PaxosServer) listenForLeaderChanges() {
 	for leader := range srv.leaderElection.Leaders() {
-		slog.Warn("leader changed", "leader", leader)
+		slog.Warn("new leader", "leader", leader)
+		if leader == "" {
+			leader = srv.addr
+		}
+		srv.mu.Lock()
 		srv.leader = leader
+		if srv.cancelProposer != nil {
+			srv.cancelProposer()
+		}
+		srv.mu.Unlock()
 		if srv.isLeader() {
-			srv.runPhaseOne()
+			go srv.runPhaseOne()
 		}
 	}
 }
@@ -106,19 +137,8 @@ func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.Value, broadcast
 	srv.mu.Unlock()
 }
 
-func (srv *PaxosServer) dispatch() {
-	srv.mu.Lock()
-	for _, req := range srv.clientReqs {
-		srv.BroadcastAccept(&pb.AcceptMsg{
-			Rnd:  srv.rnd,
-			Slot: srv.maxSeenSlot,
-			Val:  req.message,
-		}, req.broadcastID)
-	}
-	srv.clientReqs = make([]*clientReq, 0)
-	srv.mu.Unlock()
-}
-
 func (srv *PaxosServer) isLeader() bool {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	return srv.leader == srv.addr
 }
