@@ -39,7 +39,7 @@ type Configuration struct {
 //
 // This function may for example be used to "clone" a configuration but install a different QuorumSpec:
 //
-//	cfg1, err := mgr.NewConfiguration(qspec1, opts...)
+//	cfg1, err := mgr.NewConfiguration(qspec1, opts...Configuration)
 //	cfg2 := ConfigurationFromRaw(cfg1.RawConfig, qspec2)
 func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) *Configuration {
 	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
@@ -158,7 +158,7 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
-	broadcast Broadcast
+	broadcast *Broadcast
 	View      *Configuration
 }
 
@@ -166,7 +166,7 @@ func NewServer() *Server {
 	srv := &Server{
 		Server: gorums.NewServer(),
 	}
-	b := Broadcast{
+	b := &Broadcast{
 		Broadcaster:  gorums.NewBroadcaster(),
 		orchestrator: gorums.NewBroadcastOrchestrator(srv.Server),
 	}
@@ -177,9 +177,9 @@ func NewServer() *Server {
 
 func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Ibroadcaster {
 	return &Broadcast{
-			orchestrator: o,
-			metadata:     m,
-		}
+		orchestrator: o,
+		metadata:     m,
+	}
 }
 
 func (srv *Server) SetView(config *Configuration) {
@@ -191,21 +191,6 @@ type Broadcast struct {
 	*gorums.Broadcaster
 	orchestrator *gorums.BroadcastOrchestrator
 	metadata     gorums.BroadcastMetadata
-}
-
-func configureHandlers(b Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
-	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastSendToClientHandlerFunc) {
-		b.orchestrator.BroadcastHandler = bh
-		b.orchestrator.SendToClientHandler = ch
-	}
-}
-
-func configureMetadata(b Broadcast) (func(metadata gorums.BroadcastMetadata), func()) {
-	return func(metadata gorums.BroadcastMetadata) {
-			b.metadata = metadata
-		}, func() {
-			b.metadata = gorums.BroadcastMetadata{}
-		}
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.

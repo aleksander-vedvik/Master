@@ -53,6 +53,6 @@ func addSlots(promiseMsg *pb.PromiseMsg, allSlots [][]*pb.PromiseSlot) {
 }
 
 // not used by the server
-func (q *QSpec) WriteQF(replies []*pb.Response) (*pb.Response, bool) {
+func (q *QSpec) WriteQF(replies []*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
 	return nil, true
 }

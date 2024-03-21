@@ -141,6 +141,9 @@ func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadc
 	md := broadcast.GetMetadata()
 	if srv.quorum(md.Count) {
 		if s, ok := srv.slots[request.Slot]; ok {
+			if s.Final {
+				return
+			}
 			s.Final = true
 		} else {
 			srv.slots[request.Slot] = &pb.PromiseSlot{
@@ -150,8 +153,8 @@ func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadc
 				Final: true,
 			}
 		}
-		broadcast.SendToClient(&pb.Response{}, nil)
-		slog.Info("commited", "val", request.Val)
+		broadcast.SendToClient(&pb.PaxosResponse{}, nil)
+		slog.Info("commited", "val", request.Val.Val)
 	}
 }
 

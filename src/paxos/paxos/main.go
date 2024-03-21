@@ -24,7 +24,7 @@ func main() {
 
 		fmt.Scanln()
 	} else {
-		addrs := make([]string, len(srvAddrs))
+		addrs := make([]string, 0, len(srvAddrs))
 		for _, addr := range srvAddrs {
 			addrs = append(addrs, addr)
 		}

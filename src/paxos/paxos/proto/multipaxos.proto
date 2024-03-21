@@ -7,7 +7,7 @@ package proto;
 option go_package = "paxos/proto";
 
 service MultiPaxos {
-	rpc Write(Value) returns (Response) {
+	rpc Write(PaxosValue) returns (PaxosResponse) {
 		option (gorums.broadcastcall) = true;
 	}
 
@@ -32,11 +32,11 @@ message Heartbeat {
 	uint32 id = 1;
 }
 
-message Value {
+message PaxosValue {
 	string val = 1;
 }
 
-message Response {
+message PaxosResponse {
 	bool error = 1;
 }
 
@@ -48,7 +48,7 @@ message PrepareMsg {
 message PromiseSlot {
 	uint32 slot = 1;
 	uint32 rnd = 2;
-	Value Value = 3;
+	PaxosValue Value = 3;
 	bool final = 4;
 }
 
@@ -65,14 +65,14 @@ message PromiseMsg {
 message AcceptMsg {
 	uint32 rnd = 1;
 	uint32 slot = 2;
-	Value val = 3;
+	PaxosValue val = 3;
 }
 
 // LearnMsg is sent by an Acceptor to the Proposer, if the Acceptor agreed to lock-in the value, val.
 // The LearnMsg is also sent by the Proposer in a Commit.
 message LearnMsg {
 	uint32 rnd = 1;
-	Value val = 2;
+	PaxosValue val = 2;
 	uint32 slot = 3;
 	uint32 fromNode = 4;
 }
@@ -80,7 +80,7 @@ message LearnMsg {
 // DecidedValue is sent by an Acceptor to the Learner
 message DecidedValue {
 	uint32 slot = 1;
-	Value val = 2;
+	PaxosValue val = 2;
 }
 
 message Empty {}

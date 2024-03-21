@@ -37,7 +37,7 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 func (sc *StorageClient) Write(value string) {
 	slog.Info("client: writing value", "val", value)
 	ctx := context.Background()
-	_, _ = sc.config.Write(ctx, &pb.Value{
+	_, _ = sc.config.Write(ctx, &pb.PaxosValue{
 		Val: value,
 	})
 }

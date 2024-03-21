@@ -251,39 +251,37 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 }
 
 func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Response)
+	in := new(PaxosResponse)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	return srv.(clientServer).clientWrite(ctx, in)
 }
 
-func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *Response) (*Response, error) {
+func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse) (*PaxosResponse, error) {
 	err := srv.AddResponse(ctx, resp)
 	return resp, err
 }
 
-func (c *Configuration) Write(ctx context.Context, in *Value) (resp *Response, err error) {
+func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosResponse, err error) {
 	if c.srv == nil {
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF))
-	fmt.Println("sending...")
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	fmt.Println("sent")
 	response, ok := <-doneChan
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*Response), err
+	return response.(*PaxosResponse), err
 }
 
 // clientServer is the client server API for the MultiPaxos Service
 type clientServer interface {
-	clientWrite(ctx context.Context, request *Response) (*Response, error)
+	clientWrite(ctx context.Context, request *PaxosResponse) (*PaxosResponse, error)
 }
 
 var clientServer_ServiceDesc = grpc.ServiceDesc{
@@ -319,8 +317,8 @@ type QuorumSpec interface {
 	// broadcastcall call method. The in parameter is the request object
 	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
-	// you should implement your quorum function with '_ *Value'.
-	WriteQF(replies []*Response) (*Response, bool)
+	// you should implement your quorum function with '_ *PaxosValue'.
+	WriteQF(replies []*PaxosResponse) (*PaxosResponse, bool)
 
 	// PrepareQF is the quorum function for the Prepare
 	// quorum call method. The in parameter is the request object
@@ -354,14 +352,14 @@ func (c *Configuration) Prepare(ctx context.Context, in *PrepareMsg) (resp *Prom
 
 // MultiPaxos is the server-side API for the MultiPaxos Service
 type MultiPaxos interface {
-	Write(ctx gorums.ServerCtx, request *Value, broadcast *Broadcast)
+	Write(ctx gorums.ServerCtx, request *PaxosValue, broadcast *Broadcast)
 	Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error)
 	Accept(ctx gorums.ServerCtx, request *AcceptMsg, broadcast *Broadcast)
 	Learn(ctx gorums.ServerCtx, request *LearnMsg, broadcast *Broadcast)
 	Ping(ctx gorums.ServerCtx, request *Heartbeat)
 }
 
-func (srv *Server) Write(ctx gorums.ServerCtx, request *Value, broadcast *Broadcast) {
+func (srv *Server) Write(ctx gorums.ServerCtx, request *PaxosValue, broadcast *Broadcast) {
 	panic(status.Errorf(codes.Unimplemented, "method Write not implemented"))
 }
 func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error) {
@@ -395,7 +393,7 @@ func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
 	})
 }
 
-func (srv *Server) BroadcastWrite(req *Value, broadcastID string, opts ...gorums.BroadcastOption) {
+func (srv *Server) BroadcastWrite(req *PaxosValue, broadcastID string, opts ...gorums.BroadcastOption) {
 	if broadcastID == "" {
 		panic("broadcastID cannot be empty.")
 	}

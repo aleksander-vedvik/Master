@@ -2,7 +2,7 @@ proto:
 	protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
 	--go_out=paths=source_relative:. \
 	--gorums_out=paths=source_relative:. \
-	node.proto
+	*.proto
 
 protos:
 	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \

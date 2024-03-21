@@ -18,7 +18,7 @@ import (
 
 type clientReq struct {
 	broadcastID string
-	message     *pb.Value
+	message     *pb.PaxosValue
 }
 
 type PaxosServer struct {
@@ -119,8 +119,7 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 	}
 }
 
-func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.Value, broadcast *pb.Broadcast) {
-	slog.Info("server: got write req")
+func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
 	if !srv.isLeader() {
 		// alternatives:
 		// 1. simply ignore request 			<- ok
