@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	pb "paxos/proto"
@@ -15,7 +16,7 @@ type StorageClient struct {
 	config *pb.Configuration
 }
 
-func NewStorageClient(srvAddresses []string) *StorageClient {
+func NewStorageClient(id int, srvAddresses []string) *StorageClient {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -24,7 +25,7 @@ func NewStorageClient(srvAddresses []string) *StorageClient {
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(1+len(srvAddresses)/2),
-		gorums.WithListener("127.0.0.1:8080"),
+		gorums.WithListener(fmt.Sprintf("127.0.0.1:%v", 8080+id)),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)

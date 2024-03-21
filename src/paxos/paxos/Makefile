@@ -25,8 +25,14 @@ server:
 client:
 	cd cmd/client; go run main.go
 
-run: server client
-	@echo "Done!" 
+#run: server client
+#	@echo "Done!" 
 
 tidy:
 	go mod tidy
+
+build:
+	go build -o ./bin/
+
+run: build
+	cd bin; ./run.sh
