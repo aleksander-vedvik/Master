@@ -81,8 +81,6 @@ func (srv *PaxosServer) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// start gRPC server
-	go srv.Serve(lis)
 	// add the address
 	srv.addr = lis.Addr().String()
 	// add the correct ID to the server
@@ -99,6 +97,8 @@ func (srv *PaxosServer) Start() {
 	srv.leaderElection.StartLeaderElection()
 	srv.proposerCtx, srv.cancelProposer = context.WithCancel(context.Background())
 	go srv.listenForLeaderChanges()
+	// start gRPC server
+	go srv.Serve(lis)
 }
 
 func (srv *PaxosServer) listenForLeaderChanges() {

@@ -26,7 +26,7 @@ func main() {
 		srv := server.NewPaxosServer(*id, srvAddrs)
 		srv.Start()
 
-		fmt.Scanln()
+		time.Sleep(10 * time.Second)
 	} else {
 		time.Sleep(1 * time.Second)
 		addrs := make([]string, 0, len(srvAddrs))

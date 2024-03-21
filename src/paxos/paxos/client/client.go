@@ -13,6 +13,7 @@ import (
 )
 
 type StorageClient struct {
+	id     int
 	config *pb.Configuration
 }
 
@@ -31,12 +32,13 @@ func NewStorageClient(id int, srvAddresses []string) *StorageClient {
 		log.Fatal("error creating config:", err)
 	}
 	return &StorageClient{
+		id:     id,
 		config: config,
 	}
 }
 
 func (sc *StorageClient) Write(value string) {
-	slog.Info("client: writing value", "val", value)
+	slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
 	ctx := context.Background()
 	_, _ = sc.config.Write(ctx, &pb.PaxosValue{
 		Val: value,

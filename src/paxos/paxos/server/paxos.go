@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	pb "paxos/proto"
 	"time"
@@ -154,7 +155,7 @@ func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadc
 			}
 		}
 		broadcast.SendToClient(&pb.PaxosResponse{}, nil)
-		slog.Info("commited", "val", request.Val.Val)
+		slog.Info(fmt.Sprintf("server(%v): commited", srv.id), "val", request.Val.Val)
 	}
 }
 

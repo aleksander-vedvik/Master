@@ -1,7 +1,6 @@
 package client
 
 import (
-	"log/slog"
 	pb "paxos/proto"
 )
 
@@ -19,7 +18,6 @@ func (q *QSpec) PrepareQF(in *pb.PrepareMsg, replies map[uint32]*pb.PromiseMsg) 
 }
 
 func (q *QSpec) WriteQF(replies []*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
-	slog.Info("got response", "replies", len(replies), "qsize", q.qsize)
 	if len(replies) < q.qsize {
 		return nil, false
 	}
