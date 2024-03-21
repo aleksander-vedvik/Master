@@ -268,10 +268,12 @@ func (c *Configuration) Write(ctx context.Context, in *Value) (resp *Response, e
 		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
 	}
 	if c.qspec == nil {
-		return nil, fmt.Errorf("a qspec is not defined.")
+		return nil, fmt.Errorf("a qspec is not defined")
 	}
 	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF))
+	fmt.Println("sending...")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
+	fmt.Println("sent")
 	response, ok := <-doneChan
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")

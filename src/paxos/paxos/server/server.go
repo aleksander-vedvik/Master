@@ -120,6 +120,7 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 }
 
 func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.Value, broadcast *pb.Broadcast) {
+	slog.Info("server: got write req")
 	if !srv.isLeader() {
 		// alternatives:
 		// 1. simply ignore request 			<- ok

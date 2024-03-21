@@ -51,11 +51,13 @@ start:
 		srv.slots[slot.Slot] = slot
 	}
 	srv.maxSeenSlot = maxSlot
-	srv.runPhaseTwo()
 	slog.Info("phase one: finished")
+	srv.runPhaseTwo()
 }
 
 func (srv *PaxosServer) runPhaseTwo() {
+	slog.Info("phase two: started...")
+	defer slog.Info("phase two: finished")
 	for {
 		select {
 		case <-srv.proposerCtx.Done():

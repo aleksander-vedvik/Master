@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"paxos/client"
 	"paxos/server"
 )
 
@@ -14,10 +15,20 @@ var srvAddrs = map[int]string{
 
 func main() {
 	id := flag.Int("id", 0, "nodeID")
+	t := flag.Int("type", 0, "server = 0, client = 1")
 	flag.Parse()
 
-	srv := server.NewPaxosServer(*id, srvAddrs)
-	srv.Start()
+	if *t == 0 {
+		srv := server.NewPaxosServer(*id, srvAddrs)
+		srv.Start()
 
-	fmt.Scanln()
+		fmt.Scanln()
+	} else {
+		addrs := make([]string, len(srvAddrs))
+		for _, addr := range srvAddrs {
+			addrs = append(addrs, addr)
+		}
+		c := client.NewStorageClient(addrs)
+		c.Write("test value")
+	}
 }
