@@ -39,7 +39,7 @@ type Configuration struct {
 //
 // This function may for example be used to "clone" a configuration but install a different QuorumSpec:
 //
-//	cfg1, err := mgr.NewConfiguration(qspec1, opts...Configuration)
+//	cfg1, err := mgr.NewConfiguration(qspec1, opts...)
 //	cfg2 := ConfigurationFromRaw(cfg1.RawConfig, qspec2)
 func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) *Configuration {
 	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
@@ -282,7 +282,7 @@ func (c *Configuration) SaveStudent(ctx context.Context, in *State) (resp *Clien
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentQF))
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentQF), "protos.UniformBroadcast.SaveStudent")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -311,7 +311,7 @@ func (c *Configuration) SaveStudents(ctx context.Context, in *States) (resp *Cli
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentsQF))
+	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.SaveStudentsQF), "protos.UniformBroadcast.SaveStudents")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -356,7 +356,7 @@ type QuorumSpec interface {
 	SaveStudentQF(replies []*ClientResponse) (*ClientResponse, bool)
 
 	// SaveStudentsQF is the quorum function for the SaveStudents
-	// broadcast call method. The in parameter is the request object
+	// broadcastcall call method. The in parameter is the request object
 	// supplied to the SaveStudents method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *States'.
