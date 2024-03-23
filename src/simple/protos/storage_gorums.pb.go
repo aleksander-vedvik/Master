@@ -167,7 +167,6 @@ func NewServer() *Server {
 		Server: gorums.NewServer(),
 	}
 	b := &Broadcast{
-		Broadcaster:  gorums.NewBroadcaster(),
 		orchestrator: gorums.NewBroadcastOrchestrator(srv.Server),
 	}
 	srv.broadcast = b
@@ -175,7 +174,7 @@ func NewServer() *Server {
 	return srv
 }
 
-func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Ibroadcaster {
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Broadcaster {
 	return &Broadcast{
 		orchestrator: o,
 		metadata:     m,
@@ -188,7 +187,6 @@ func (srv *Server) SetView(config *Configuration) {
 }
 
 type Broadcast struct {
-	*gorums.Broadcaster
 	orchestrator *gorums.BroadcastOrchestrator
 	metadata     gorums.BroadcastMetadata
 }
