@@ -8,7 +8,7 @@ import (
 	"github.com/aleksander-vedvik/Master/storage/client"
 )
 
-var values = []string{"val 1", "val 2", "val 3", "val 4", "val 5"}
+var values = []string{"val 1", "val 2", "val 3", "val 4", "val 5", "val 6"}
 
 func main() {
 	c1()
