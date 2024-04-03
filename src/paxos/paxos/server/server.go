@@ -39,6 +39,7 @@ type PaxosServer struct {
 	proposerCtx    context.Context
 	cancelProposer context.CancelFunc
 	proposerMutex  sync.Mutex
+	proposer       *Proposer
 }
 
 func NewPaxosServer(id int, srvAddresses map[int]string) *PaxosServer {
@@ -109,12 +110,13 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 		}
 		srv.mu.Lock()
 		srv.leader = leader
-		if srv.cancelProposer != nil {
-			srv.cancelProposer()
+		if srv.proposer != nil {
+			srv.proposer.Stop()
 		}
 		srv.mu.Unlock()
 		if srv.isLeader() {
-			go srv.runPhaseOne()
+			srv.proposer = NewProposer(srv.id, srv.peers, srv.rnd, srv.View, srv.BroadcastAccept)
+			go srv.proposer.Start()
 		}
 	}
 }
@@ -125,7 +127,7 @@ func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broa
 		// 1. simply ignore request 			<- ok
 		// 2. send it to the leader 			<- ok
 		// 3. reply with last committed value	<- ok
-		// 3. reply with error					<- not ok
+		// 4. reply with error					<- not ok
 		return
 	}
 	md := broadcast.GetMetadata()

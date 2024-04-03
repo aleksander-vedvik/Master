@@ -1,91 +1,12 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	pb "paxos/proto"
-	"time"
 
 	"github.com/relab/gorums"
 )
-
-func (srv *PaxosServer) runPhaseOne() {
-	srv.proposerMutex.Lock()
-	defer srv.proposerMutex.Unlock()
-	srv.mu.Lock()
-	srv.proposerCtx, srv.cancelProposer = context.WithCancel(context.Background())
-	srv.mu.Unlock()
-start:
-	select {
-	case <-srv.proposerCtx.Done():
-		return
-	default:
-	}
-	if !srv.isLeader() {
-		return
-	}
-	slog.Info("phase one: starting...")
-	srv.setNewRnd()
-	promiseMsg, err := srv.View.Prepare(context.Background(), &pb.PrepareMsg{
-		Rnd:  srv.rnd,
-		Slot: srv.maxSeenSlot,
-	})
-	if err != nil {
-		select {
-		case <-time.After(5 * time.Second):
-			goto start
-		case <-srv.proposerCtx.Done():
-			return
-		}
-	}
-	maxSlot := srv.maxSeenSlot
-	for _, slot := range promiseMsg.Slots {
-		if slot.Slot > maxSlot {
-			maxSlot = slot.Slot
-		}
-		if s, ok := srv.slots[slot.Slot]; ok {
-			if s.Final {
-				continue
-			}
-		}
-		srv.slots[slot.Slot] = slot
-	}
-	srv.maxSeenSlot = maxSlot
-	slog.Info("phase one: finished")
-	srv.runPhaseTwo()
-}
-
-func (srv *PaxosServer) runPhaseTwo() {
-	slog.Info("phase two: started...")
-	defer slog.Info("phase two: finished")
-	for {
-		select {
-		case <-srv.proposerCtx.Done():
-			return
-		default:
-		}
-		srv.mu.Lock()
-		for _, req := range srv.clientReqs {
-			srv.maxSeenSlot++
-			srv.BroadcastAccept(&pb.AcceptMsg{
-				Rnd:  srv.rnd,
-				Slot: srv.maxSeenSlot,
-				Val:  req.message,
-			}, req.broadcastID)
-		}
-		srv.clientReqs = make([]*clientReq, 0)
-		srv.mu.Unlock()
-	}
-}
-
-func (srv *PaxosServer) setNewRnd() {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	numSrvs := uint32(len(srv.peers))
-	srv.rnd -= srv.rnd % numSrvs
-	srv.rnd += srv.id + numSrvs
-}
 
 func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
 	srv.mu.Lock()

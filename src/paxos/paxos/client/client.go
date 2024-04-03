@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"net"
 	pb "paxos/proto"
 
 	"github.com/relab/gorums"
@@ -23,10 +24,15 @@ func NewStorageClient(id int, srvAddresses []string) *StorageClient {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
+	addr := fmt.Sprintf("127.0.0.1:%v", 8080+id)
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	mgr.AddClientServer(lis)
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(1+len(srvAddresses)/2),
-		gorums.WithListener(fmt.Sprintf("127.0.0.1:%v", 8080+id)),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)
