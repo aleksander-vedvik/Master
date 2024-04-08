@@ -100,7 +100,9 @@ func NewManager(opts ...gorums.ManagerOption) *Manager {
 }
 
 func (mgr *Manager) Close() {
-	mgr.RawManager.Close()
+	if mgr.RawManager != nil {
+		mgr.RawManager.Close()
+	}
 	if mgr.srv != nil {
 		mgr.srv.stop()
 	}
@@ -152,10 +154,10 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if m.srv != nil {
 		c.srv = m.srv
 	}
-	var test interface{} = struct{}{}
-	if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-		return nil, fmt.Errorf("config: missing required QuorumSpec")
-	}
+	//var test interface{} = struct{}{}
+	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
+	//	return nil, fmt.Errorf("config: missing required QuorumSpec")
+	//}
 	// initialize the nodes slice
 	c.nodes = make([]*Node, c.Size())
 	for i, n := range c.RawConfiguration {
@@ -239,7 +241,7 @@ func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 }
 
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
-	srv.RetToClient(resp, err, broadcastID)
+	srv.SendToClientHandler(resp, err, broadcastID)
 }
 
 func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
@@ -405,17 +407,6 @@ func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
 		defer ctx.Release()
 		impl.Ping(ctx, req)
 	})
-}
-
-func (srv *Server) BroadcastWrite(req *PaxosValue, broadcastID string, opts ...gorums.BroadcastOption) {
-	if broadcastID == "" {
-		panic("broadcastID cannot be empty.")
-	}
-	options := gorums.NewBroadcastOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-	go srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Write", req, broadcastID, options)
 }
 
 func (srv *Server) BroadcastAccept(req *AcceptMsg, broadcastID string, opts ...gorums.BroadcastOption) {
