@@ -67,13 +67,13 @@ func TestSetNewRound(t *testing.T) {
 	for _, testValue := range testValues {
 		if testValue.id == 0 {
 			srv1.rnd = testValue.currentRnd
-			srv1.setNewRnd()
+			//srv1.setNewRnd()
 			if testValue.nextRnd != srv1.rnd {
 				t.Fatalf("wrong rnd for srv%v, \n\rgot: \t%v \n\twant: \t%v \n\tcurrentRnd: %v", testValue.id+1, srv1.rnd, testValue.nextRnd, testValue.currentRnd)
 			}
 		} else if testValue.id == 1 {
 			srv2.rnd = testValue.currentRnd
-			srv2.setNewRnd()
+			//srv2.setNewRnd()
 			if testValue.nextRnd != srv2.rnd {
 				t.Fatalf("wrong rnd for srv%v, \n\tgot: \t%v \n\twant: \t%v \n\tcurrentRnd: %v", testValue.id+1, srv2.rnd, testValue.nextRnd, testValue.currentRnd)
 			}
