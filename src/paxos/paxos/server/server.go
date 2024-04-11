@@ -121,7 +121,7 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 	}
 }
 
-func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
+/*func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
 	if !srv.isLeader() {
 		// alternatives:
 		// 1. simply ignore request 			<- ok
@@ -137,6 +137,26 @@ func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broa
 		message:     request,
 	})
 	srv.mu.Unlock()
+}*/
+
+func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if srv.leader == srv.addr {
+		// alternatives:
+		// 1. simply ignore request 			<- ok
+		// 2. send it to the leader 			<- ok
+		// 3. reply with last committed value	<- ok
+		// 4. reply with error					<- not ok
+		broadcast.Forward(request, srv.leader)
+		return
+	}
+	srv.proposer.maxSeenSlot++
+	broadcast.Accept(&pb.AcceptMsg{
+		Rnd:  srv.proposer.rnd,
+		Slot: srv.proposer.maxSeenSlot,
+		Val:  request,
+	})
 }
 
 func (srv *PaxosServer) isLeader() bool {

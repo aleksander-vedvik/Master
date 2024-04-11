@@ -236,6 +236,13 @@ func (c *clientServerImpl) stop() {
 	c.grpcServer.Stop()
 }
 
+func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) {
+	if addr == "" {
+		panic("cannot forward to empty addr")
+	}
+	go b.orchestrator.ForwardHandler(req, b.metadata.OriginMethod, b.metadata.BroadcastID, addr, b.metadata.OriginAddr)
+}
+
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
 }
@@ -252,7 +259,7 @@ func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go b.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
@@ -263,7 +270,7 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go b.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
 }
 
 func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
