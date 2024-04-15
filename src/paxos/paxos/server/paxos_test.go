@@ -80,3 +80,36 @@ func TestSetNewRound(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkPaxos(b *testing.B) {
+	srvAddrs := map[int]string{
+		0: "127.0.0.1:5000",
+		1: "127.0.0.1:5001",
+		2: "127.0.0.1:5002",
+	}
+	srv := NewPaxosServer(1, srvAddrs)
+	srv.Start()
+
+	// create 3 servers
+	// create 5 servers
+	// create 7 servers
+
+	// run 1000 reqs with
+	// 	- 1 client
+	// 	- 5 clients
+	// 	- 10 clients
+
+	// run 10 000 reqs with
+	// 	- 1 client
+	// 	- 5 clients
+	// 	- 10 clients
+
+	// run 50 000 reqs with
+	// 	- 1 client
+	// 	- 5 clients
+	// 	- 10 clients
+
+	// measure average, mean, min, and max processing time
+	// measure throughput: reqs/sec
+	// measure successful and failed reqs
+}

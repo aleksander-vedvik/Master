@@ -38,7 +38,6 @@ type PaxosServer struct {
 	mu             sync.Mutex
 	proposerCtx    context.Context
 	cancelProposer context.CancelFunc
-	proposerMutex  sync.Mutex
 	proposer       *Proposer
 }
 
