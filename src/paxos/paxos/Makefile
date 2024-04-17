@@ -18,9 +18,9 @@ docker:
 docker-rebuild:
 	docker compose up --build
 
-server:
-	cd cmd/server; go run main.go --port 5000
-	cd cmd/server; go run main.go --port 5001
+srv:
+	cd cmd/server; go run main.go --type 0 --id 1
+	cd cmd/server; go run main.go --type 0 --id 2
 
 client:
 	cd cmd/client; go run main.go

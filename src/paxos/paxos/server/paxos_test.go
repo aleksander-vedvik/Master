@@ -87,8 +87,12 @@ func BenchmarkPaxos(b *testing.B) {
 		1: "127.0.0.1:5001",
 		2: "127.0.0.1:5002",
 	}
-	srv := NewPaxosServer(1, srvAddrs)
-	srv.Start()
+	srv1 := NewPaxosServer(1, srvAddrs, true)
+	srv2 := NewPaxosServer(2, srvAddrs, true)
+	srv3 := NewPaxosServer(3, srvAddrs, true)
+	srv1.Start()
+	srv2.Start()
+	srv3.Start()
 
 	// create 3 servers
 	// create 5 servers

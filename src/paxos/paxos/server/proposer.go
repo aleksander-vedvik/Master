@@ -52,18 +52,21 @@ start:
 	select {
 	case <-p.ctx.Done():
 		p.mut.Unlock()
+		slog.Info("phase one: stopping...")
 		return
 	default:
 	}
-	slog.Info("phase one: starting...")
+	//slog.Info("phase one: starting...")
+	p.mut.Unlock()
 	p.setNewRnd()
 	rnd := p.rnd
 	maxSeenSlot := p.maxSeenSlot
-	p.mut.Unlock()
-	promiseMsg, err := p.view.Prepare(context.Background(), &pb.PrepareMsg{
+	prepareCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	promiseMsg, err := p.view.Prepare(prepareCtx, &pb.PrepareMsg{
 		Rnd:  rnd,
 		Slot: maxSeenSlot,
 	})
+	cancel()
 	if err != nil {
 		select {
 		case <-time.After(5 * time.Second):
@@ -87,7 +90,7 @@ start:
 		p.slots[slot.Slot] = slot
 	}
 	p.maxSeenSlot = maxSlot
-	slog.Info("phase one: finished")
+	//slog.Info("phase one: finished")
 	p.mut.Unlock()
 }
 

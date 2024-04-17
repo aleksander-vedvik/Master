@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"log/slog"
 	"net"
 	pb "paxos/proto"
 
@@ -16,6 +15,7 @@ import (
 type StorageClient struct {
 	id     int
 	config *pb.Configuration
+	mgr    *pb.Manager
 }
 
 func NewStorageClient(id int, srvAddresses []string) *StorageClient {
@@ -40,11 +40,16 @@ func NewStorageClient(id int, srvAddresses []string) *StorageClient {
 	return &StorageClient{
 		id:     id,
 		config: config,
+		mgr:    mgr,
 	}
 }
 
+func (sc *StorageClient) Stop() {
+	sc.mgr.Close()
+}
+
 func (sc *StorageClient) Write(value string) {
-	slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
+	//slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
 	ctx := context.Background()
 	_, _ = sc.config.Write(ctx, &pb.PaxosValue{
 		Val: value,

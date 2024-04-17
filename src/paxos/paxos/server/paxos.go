@@ -1,14 +1,13 @@
 package server
 
 import (
-	"fmt"
-	"log/slog"
 	pb "paxos/proto"
 
 	"github.com/relab/gorums"
 )
 
 func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
+	//slog.Info("received prepare", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	if req.Rnd < srv.rnd {
@@ -32,6 +31,7 @@ func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.P
 }
 
 func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast *pb.Broadcast) {
+	//slog.Info("received accept", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	if request.Rnd < srv.rnd {
@@ -58,10 +58,11 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 }
 
 func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *pb.Broadcast) {
+	//slog.Info("received learn", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	md := broadcast.GetMetadata()
-	if srv.quorum(md.Count) {
+	if srv.quorum(md.BroadcastID) {
 		if s, ok := srv.slots[request.Slot]; ok {
 			if s.Final {
 				return
@@ -76,12 +77,16 @@ func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadc
 			}
 		}
 		broadcast.SendToClient(&pb.PaxosResponse{}, nil)
-		slog.Info(fmt.Sprintf("server(%v): commited", srv.id), "val", request.Val.Val)
+		//slog.Info(fmt.Sprintf("server(%v): commited", srv.id), "val", request.Val.Val)
 	}
 }
 
-func (srv *PaxosServer) quorum(count uint64) bool {
-	return int(count) > len(srv.peers)/2
+// checks how many msgs the server has received for the given broadcastID.
+// this method is only used in Learn, and does not require more advanced
+// logic.
+func (srv *PaxosServer) quorum(broadcastID uint64) bool {
+	srv.senders[broadcastID]++
+	return int(srv.senders[broadcastID]) > len(srv.peers)/2
 }
 
 func (srv *PaxosServer) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
