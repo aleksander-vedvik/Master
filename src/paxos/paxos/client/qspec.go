@@ -17,7 +17,7 @@ func (q *QSpec) PrepareQF(in *pb.PrepareMsg, replies map[uint32]*pb.PromiseMsg) 
 	return nil, true
 }
 
-func (q *QSpec) WriteQF(replies []*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
+func (q *QSpec) WriteQF(in *pb.PaxosValue, replies []*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
 	if len(replies) < q.qsize {
 		return nil, false
 	}

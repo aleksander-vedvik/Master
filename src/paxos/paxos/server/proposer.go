@@ -21,10 +21,10 @@ type Proposer struct {
 	clientReqs  []*clientReq
 	slots       map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
 	maxSeenSlot uint32
-	broadcast   func(req *pb.AcceptMsg, broadcastID string, opts ...gorums.BroadcastOption)
+	broadcast   func(req *pb.AcceptMsg, broadcastID uint64, opts ...gorums.BroadcastOption)
 }
 
-func NewProposer(id uint32, peers []string, rnd uint32, view *pb.Configuration, broadcast func(req *pb.AcceptMsg, broadcastID string, opts ...gorums.BroadcastOption)) *Proposer {
+func NewProposer(id uint32, peers []string, rnd uint32, view *pb.Configuration, broadcast func(req *pb.AcceptMsg, broadcastID uint64, opts ...gorums.BroadcastOption)) *Proposer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Proposer{
 		id:        id,
@@ -39,7 +39,7 @@ func NewProposer(id uint32, peers []string, rnd uint32, view *pb.Configuration, 
 
 func (p *Proposer) Start() {
 	p.runPhaseOne()
-	p.runPhaseTwo()
+	//p.runPhaseTwo()
 }
 
 func (p *Proposer) Stop() {
@@ -48,27 +48,32 @@ func (p *Proposer) Stop() {
 
 func (p *Proposer) runPhaseOne() {
 	p.mut.Lock()
-	defer p.mut.Unlock()
 start:
 	select {
 	case <-p.ctx.Done():
+		p.mut.Unlock()
 		return
 	default:
 	}
 	slog.Info("phase one: starting...")
 	p.setNewRnd()
+	rnd := p.rnd
+	maxSeenSlot := p.maxSeenSlot
+	p.mut.Unlock()
 	promiseMsg, err := p.view.Prepare(context.Background(), &pb.PrepareMsg{
-		Rnd:  p.rnd,
-		Slot: p.maxSeenSlot,
+		Rnd:  rnd,
+		Slot: maxSeenSlot,
 	})
 	if err != nil {
 		select {
 		case <-time.After(5 * time.Second):
+			slog.Error("phase one: error...", "err", err)
 			goto start
 		case <-p.ctx.Done():
 			return
 		}
 	}
+	p.mut.Lock()
 	maxSlot := p.maxSeenSlot
 	for _, slot := range promiseMsg.Slots {
 		if slot.Slot > maxSlot {
@@ -83,6 +88,7 @@ start:
 	}
 	p.maxSeenSlot = maxSlot
 	slog.Info("phase one: finished")
+	p.mut.Unlock()
 }
 
 func (p *Proposer) runPhaseTwo() {

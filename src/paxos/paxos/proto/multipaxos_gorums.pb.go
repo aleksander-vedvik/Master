@@ -29,9 +29,10 @@ const (
 // procedure calls may be invoked.
 type Configuration struct {
 	gorums.RawConfiguration
-	qspec QuorumSpec
-	srv   *clientServerImpl
-	nodes []*Node
+	qspec     QuorumSpec
+	srv       *clientServerImpl
+	snowflake gorums.Snowflake
+	nodes     []*Node
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -154,6 +155,7 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 	if m.srv != nil {
 		c.srv = m.srv
 	}
+	c.snowflake = m.Snowflake()
 	//var test interface{} = struct{}{}
 	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
 	//	return nil, fmt.Errorf("config: missing required QuorumSpec")
@@ -240,7 +242,7 @@ func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	if addr == "" {
 		return fmt.Errorf("cannot forward to empty addr, got: %s", addr)
 	}
-	if b.metadata.SenderType != gorums.BroadcastClient {
+	if !b.metadata.SenderType {
 		return fmt.Errorf("can only forward client requests")
 	}
 	go b.orchestrator.ForwardHandler(req, b.metadata.OriginMethod, b.metadata.BroadcastID, addr, b.metadata.OriginAddr)
@@ -251,12 +253,12 @@ func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
 }
 
-func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
+func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
 	srv.SendToClientHandler(resp, err, broadcastID)
 }
 
 func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
-	if b.metadata.BroadcastID == "" {
+	if b.metadata.BroadcastID == 0 {
 		panic("broadcastID cannot be empty. Use srv.BroadcastAccept instead")
 	}
 	options := gorums.NewBroadcastOptions()
@@ -267,7 +269,7 @@ func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 }
 
 func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
-	if b.metadata.BroadcastID == "" {
+	if b.metadata.BroadcastID == 0 {
 		panic("broadcastID cannot be empty. Use srv.BroadcastLearn instead")
 	}
 	options := gorums.NewBroadcastOptions()
@@ -297,7 +299,7 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
+	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	response, ok := <-doneChan
 	if !ok {
@@ -345,7 +347,7 @@ type QuorumSpec interface {
 	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *PaxosValue'.
-	WriteQF(replies []*PaxosResponse) (*PaxosResponse, bool)
+	WriteQF(in *PaxosValue, replies []*PaxosResponse) (*PaxosResponse, bool)
 
 	// PrepareQF is the quorum function for the Prepare
 	// quorum call method. The in parameter is the request object
@@ -420,8 +422,8 @@ func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
 	})
 }
 
-func (srv *Server) BroadcastAccept(req *AcceptMsg, broadcastID string, opts ...gorums.BroadcastOption) {
-	if broadcastID == "" {
+func (srv *Server) BroadcastAccept(req *AcceptMsg, broadcastID uint64, opts ...gorums.BroadcastOption) {
+	if broadcastID == 0 {
 		panic("broadcastID cannot be empty.")
 	}
 	options := gorums.NewBroadcastOptions()
@@ -431,8 +433,8 @@ func (srv *Server) BroadcastAccept(req *AcceptMsg, broadcastID string, opts ...g
 	go srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, broadcastID, options)
 }
 
-func (srv *Server) BroadcastLearn(req *LearnMsg, broadcastID string, opts ...gorums.BroadcastOption) {
-	if broadcastID == "" {
+func (srv *Server) BroadcastLearn(req *LearnMsg, broadcastID uint64, opts ...gorums.BroadcastOption) {
+	if broadcastID == 0 {
 		panic("broadcastID cannot be empty.")
 	}
 	options := gorums.NewBroadcastOptions()

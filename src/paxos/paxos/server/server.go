@@ -17,7 +17,7 @@ import (
 )
 
 type clientReq struct {
-	broadcastID string
+	broadcastID uint64
 	message     *pb.PaxosValue
 }
 
@@ -111,6 +111,7 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 		srv.leader = leader
 		if srv.proposer != nil {
 			srv.proposer.Stop()
+			srv.proposer = nil
 		}
 		srv.mu.Unlock()
 		if srv.isLeader() {
