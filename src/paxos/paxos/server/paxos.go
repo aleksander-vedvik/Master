@@ -10,6 +10,7 @@ func (srv *PaxosServer) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.P
 	//slog.Info("received prepare", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	srv.numMsgs[1]++
 	if req.Rnd < srv.rnd {
 		return nil, nil
 	}
@@ -34,6 +35,7 @@ func (srv *PaxosServer) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broa
 	//slog.Info("received accept", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	srv.numMsgs[2]++
 	if request.Rnd < srv.rnd {
 		return
 	}
@@ -61,6 +63,7 @@ func (srv *PaxosServer) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadc
 	//slog.Info("received learn", "srv", srv.addr)
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	srv.numMsgs[3]++
 	md := broadcast.GetMetadata()
 	if srv.quorum(md.BroadcastID) {
 		if s, ok := srv.slots[request.Slot]; ok {

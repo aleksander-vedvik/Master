@@ -40,6 +40,7 @@ type PaxosServer struct {
 	proposer              *Proposer
 	disableLeaderElection bool
 	senders               map[uint64]int
+	numMsgs               map[int]int
 }
 
 func NewPaxosServer(id int, srvAddresses map[int]string, disableLeaderElection ...bool) *PaxosServer {
@@ -63,6 +64,7 @@ func NewPaxosServer(id int, srvAddresses map[int]string, disableLeaderElection .
 		leader:                "",
 		disableLeaderElection: disable,
 		senders:               make(map[uint64]int),
+		numMsgs:               make(map[int]int),
 	}
 	srv.configureView()
 	pb.RegisterMultiPaxosServer(srv.Server, &srv)
@@ -165,6 +167,7 @@ func (srv *PaxosServer) listenForLeaderChanges() {
 func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
+	srv.numMsgs[10]++
 	if srv.leader != srv.addr {
 		// alternatives:
 		// 1. simply ignore request 			<- ok
@@ -186,4 +189,11 @@ func (srv *PaxosServer) isLeader() bool {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	return srv.leader == srv.addr
+}
+
+func (srv *PaxosServer) Status() map[int]int {
+	if srv == nil {
+		return nil
+	}
+	return srv.numMsgs
 }
