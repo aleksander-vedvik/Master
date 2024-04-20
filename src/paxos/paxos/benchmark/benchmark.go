@@ -2,69 +2,170 @@ package main
 
 import (
 	"context"
-	"paxos/benchmark/metrics"
 	"runtime"
+	"time"
 )
 
-type benchmark struct {
+type Result interface {
+	GetThroughput() uint64
+	GetAvgLatency() time.Duration
+}
+
+type Benchmark[S, C, P any] interface {
+	CreateServer(addr string, peers []string) (*S, error)
+	CreateClient(addr string, srvAddrs []string, qSize int) (*C, error)
+	Warmup(config *C)
+	StartBenchmark(config *C)
+	Run(client *C, ctx context.Context, payload *P) error
+	CreatePayload(val int) *P
+	StopBenchmark(config *C) Result
+}
+
+type PaxosPayload struct{}
+type PaxosClient struct{}
+type PaxosServer struct{}
+type PaxosBenchmark struct{}
+
+func (p PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*PaxosServer, error) {
+	return nil, nil
+}
+
+func (p PaxosBenchmark) CreateClient(addr string, srvAddrs []string, qSize int) (*PaxosClient, error) {
+	return nil, nil
+}
+
+func (p PaxosBenchmark) Warmup(config *PaxosClient) {
+}
+
+func (p PaxosBenchmark) StartBenchmark(config *PaxosClient) {
+}
+
+func (p PaxosBenchmark) StopBenchmark(config *PaxosClient) Result {
+	return nil
+}
+
+func (p PaxosBenchmark) Run(client *PaxosClient, ctx context.Context, payload *PaxosPayload) error {
+	return nil
+}
+
+func (p PaxosBenchmark) CreatePayload(val int) *PaxosPayload {
+	return nil
+}
+
+type benchmarkOption struct {
 	numServers  int
+	srvAddrs    []string
 	numClients  int
+	clientAddrs []string
 	numRequests int
 	async       bool
+	local       bool
 }
 
-var benchmarks = []benchmark{
+var benchmarks = []benchmarkOption{
 	{
 		numServers:  3,
 		numClients:  1,
 		numRequests: 1000,
 		async:       false,
+		local:       true,
 	},
 	{
 		numServers:  3,
 		numClients:  1,
 		numRequests: 1000,
 		async:       true,
+		local:       true,
 	},
 	{
 		numServers:  5,
 		numClients:  1,
 		numRequests: 1000,
 		async:       false,
+		local:       true,
 	},
 	{
 		numServers:  5,
 		numClients:  1,
 		numRequests: 1000,
 		async:       true,
+		local:       true,
 	},
 	{
 		numServers:  7,
 		numClients:  1,
 		numRequests: 1000,
 		async:       false,
+		local:       true,
 	},
 	{
 		numServers:  7,
 		numClients:  1,
 		numRequests: 1000,
 		async:       true,
+		local:       true,
 	},
 }
 
-func runBenchmark[T any](opts benchmark, benchmarkSetup func() *metrics.Metrics, benchmarkFunc func(ctx context.Context, req *T) error, createPayload func(val int) *T) *metrics.Metrics {
+var benchTypes = map[string]struct {
+	run func(benchmarkOption)
+}{
+	"Paxos": {
+		run: func(bench benchmarkOption) {
+			runBenchmark[PaxosServer, PaxosClient, PaxosPayload](bench, PaxosBenchmark{})
+		},
+	},
+}
+
+func runBenchmarks(name string) {
+	benchmark, ok := benchTypes[name]
+	if !ok {
+		return
+	}
+	for _, bench := range benchmarks {
+		benchmark.run(bench)
+	}
+}
+
+func runBenchmark[S, C, P any](opts benchmarkOption, benchmark Benchmark[S, C, P]) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var start runtime.MemStats
 	var end runtime.MemStats
 	errs := make([]error, 0, opts.numRequests)
 
-	// start the recording of metrics
-	benchmarkSetup()
+	clients := make([]*C, opts.numClients)
+	for i := 0; i < opts.numClients; i++ {
+		var err error
+		clients[i], err = benchmark.CreateClient("", opts.srvAddrs, len(opts.srvAddrs))
+		if err != nil {
+			panic(err)
+		}
+	}
 
+	var servers []*S
+	if opts.local {
+		servers = make([]*S, len(opts.srvAddrs))
+		for i, addr := range opts.srvAddrs {
+			var err error
+			servers[i], err = benchmark.CreateServer(addr, opts.srvAddrs)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	// start the recording of metrics
 	runtime.ReadMemStats(&start)
 	for i := 0; i < opts.numRequests; i++ {
-		errs[i] = benchmarkFunc(ctx, createPayload(i))
+		for _, client := range clients {
+			errs[i] = benchmark.Run(client, ctx, benchmark.CreatePayload(i))
+		}
+	}
+	for i := 0; i < opts.numRequests; i++ {
+		for _, client := range clients {
+			errs[i] = benchmark.Run(client, ctx, benchmark.CreatePayload(i))
+		}
 	}
 	runtime.ReadMemStats(&end)
 
@@ -76,7 +177,12 @@ func runBenchmark[T any](opts benchmark, benchmarkSetup func() *metrics.Metrics,
 	//return resp, nil
 
 	// stop the recording and return the metrics
-	return benchmarkSetup()
+	return
+}
+
+func timer() {
+	defer time.Since(time.Now())
+
 }
 
 /*func runServerBenchmark(opts Options, cfg *Configuration, f serverFunc) (*Result, error) {
