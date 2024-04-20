@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"net"
+	"paxos/benchmark/metrics"
 	"paxos/leaderelection"
 	"sync"
 
@@ -41,6 +42,7 @@ type PaxosServer struct {
 	disableLeaderElection bool
 	senders               map[uint64]int
 	numMsgs               map[int]int
+	metrics               *metrics.Metrics
 }
 
 func NewPaxosServer(id int, srvAddresses map[int]string, disableLeaderElection ...bool) *PaxosServer {
