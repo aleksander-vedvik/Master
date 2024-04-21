@@ -191,9 +191,9 @@ type Server struct {
 	View      *Configuration
 }
 
-func NewServer() *Server {
+func NewServer(opts ...gorums.ServerOption) *Server {
 	srv := &Server{
-		Server: gorums.NewServer(),
+		Server: gorums.NewServer(opts...),
 	}
 	b := &Broadcast{
 		orchestrator: gorums.NewBroadcastOrchestrator(srv.Server),
@@ -301,7 +301,13 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	}
 	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	response, ok := <-doneChan
+	var response protoreflect.ProtoMessage
+	var ok bool
+	select {
+	case response, ok = <-doneChan:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context cancelled")
+	}
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}

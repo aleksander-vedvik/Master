@@ -60,6 +60,9 @@ func BenchmarkPaxos(b *testing.B) {
 		client.Write(fmt.Sprintf("val %v, client %v", i, i))
 	}
 
+	for _, srv := range srvs {
+		srv.PrintStats()
+	}
 	b.ResetTimer()
 	for c, client := range clients {
 		b.RunParallel(func(pb *testing.PB) {
@@ -73,7 +76,8 @@ func BenchmarkPaxos(b *testing.B) {
 	fmt.Println()
 	fmt.Println()
 	for _, srv := range srvs {
-		fmt.Println(srv.Status())
+		//fmt.Println(srv.Status())
+		srv.PrintStats()
 	}
 	fmt.Println()
 	fmt.Println()

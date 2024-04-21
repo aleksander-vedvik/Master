@@ -56,7 +56,7 @@ func NewPaxosServer(id int, srvAddresses map[int]string, disableLeaderElection .
 	}
 	srv := PaxosServer{
 		id:                    uint32(id),
-		Server:                pb.NewServer(),
+		Server:                pb.NewServer(gorums.WithMetrics()),
 		data:                  make([]string, 0),
 		addr:                  srvAddresses[id],
 		peers:                 srvAddrs,

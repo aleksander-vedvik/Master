@@ -116,4 +116,7 @@ func BenchmarkPaxos(b *testing.B) {
 	// measure average, mean, min, and max processing time
 	// measure throughput: reqs/sec
 	// measure successful and failed reqs
+	srv1.PrintStats()
+	srv2.PrintStats()
+	srv3.PrintStats()
 }
