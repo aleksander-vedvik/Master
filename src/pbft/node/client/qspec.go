@@ -3,7 +3,6 @@ package node
 import (
 	"log"
 	pb "pbft/protos"
-	"time"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -12,9 +11,7 @@ import (
 
 func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	mgr := pb.NewManager(
-		gorums.WithDialTimeout(50*time.Millisecond),
 		gorums.WithGrpcDialOptions(
-			grpc.WithBlock(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 	)
@@ -22,7 +19,6 @@ func getConfig(addr string, srvAddresses []string) *pb.Configuration {
 	quorum, err := mgr.NewConfiguration(
 		NewQSpec(3),
 		gorums.WithNodeList(srvAddresses),
-		gorums.WithListener(addr),
 	)
 	if err != nil {
 		log.Fatal("error creating config:", err)
@@ -41,7 +37,7 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-func (qs *QSpec) WriteQF(replies []*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies []*pb.ClientResponse) (*pb.ClientResponse, bool) {
 	if len(replies) < qs.quorumSize {
 		return nil, false
 	}

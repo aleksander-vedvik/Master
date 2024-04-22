@@ -30,9 +30,10 @@ const (
 // procedure calls may be invoked.
 type Configuration struct {
 	gorums.RawConfiguration
-	nodes []*Node
-	qspec QuorumSpec
-	srv   *clientServerImpl
+	qspec     QuorumSpec
+	srv       *clientServerImpl
+	snowflake gorums.Snowflake
+	nodes     []*Node
 }
 
 // ConfigurationFromRaw returns a new Configuration from the given raw configuration and QuorumSpec.
@@ -41,16 +42,22 @@ type Configuration struct {
 //
 //	cfg1, err := mgr.NewConfiguration(qspec1, opts...)
 //	cfg2 := ConfigurationFromRaw(cfg1.RawConfig, qspec2)
-func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) *Configuration {
+func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) (*Configuration, error) {
 	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
 	var test interface{} = struct{}{}
 	if _, empty := test.(QuorumSpec); !empty && qspec == nil {
-		panic("QuorumSpec may not be nil")
+		return nil, fmt.Errorf("config: missing required QuorumSpec")
 	}
-	return &Configuration{
+	newCfg := &Configuration{
 		RawConfiguration: rawCfg,
 		qspec:            qspec,
 	}
+	// initialize the nodes slice
+	newCfg.nodes = make([]*Node, newCfg.Size())
+	for i, n := range rawCfg {
+		newCfg.nodes[i] = &Node{n}
+	}
+	return newCfg, nil
 }
 
 // Nodes returns a slice of each available node. IDs are returned in the same
@@ -58,12 +65,6 @@ func ConfigurationFromRaw(rawCfg gorums.RawConfiguration, qspec QuorumSpec) *Con
 //
 // NOTE: mutating the returned slice is not supported.
 func (c *Configuration) Nodes() []*Node {
-	if c.nodes == nil {
-		c.nodes = make([]*Node, 0, c.Size())
-		for _, n := range c.RawConfiguration {
-			c.nodes = append(c.nodes, &Node{n})
-		}
-	}
 	return c.nodes
 }
 
@@ -88,15 +89,40 @@ func init() {
 // which quorum calls can be performed.
 type Manager struct {
 	*gorums.RawManager
+	srv *clientServerImpl
 }
 
 // NewManager returns a new Manager for managing connection to nodes added
 // to the manager. This function accepts manager options used to configure
 // various aspects of the manager.
-func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
-	mgr = &Manager{}
-	mgr.RawManager = gorums.NewRawManager(opts...)
-	return mgr
+func NewManager(opts ...gorums.ManagerOption) *Manager {
+	return &Manager{
+		RawManager: gorums.NewRawManager(opts...),
+	}
+}
+
+func (mgr *Manager) Close() {
+	if mgr.RawManager != nil {
+		mgr.RawManager.Close()
+	}
+	if mgr.srv != nil {
+		mgr.srv.stop()
+	}
+}
+
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
+	srvImpl := &clientServerImpl{
+		grpcServer: grpc.NewServer(opts...),
+	}
+	srv, err := gorums.NewClientServer(lis)
+	if err != nil {
+		return err
+	}
+	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
+	go srvImpl.grpcServer.Serve(lis)
+	srvImpl.ClientServer = srv
+	mgr.srv = srvImpl
+	return nil
 }
 
 // NewConfiguration returns a configuration based on the provided list of nodes (required)
@@ -107,8 +133,8 @@ func NewManager(opts ...gorums.ManagerOption) (mgr *Manager) {
 // A new configuration can also be created from an existing configuration,
 // using the And, WithNewNodes, Except, and WithoutNodes methods.
 func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuration, err error) {
-	if len(opts) < 1 || len(opts) > 3 {
-		return nil, fmt.Errorf("wrong number of options: %d", len(opts))
+	if len(opts) < 1 || len(opts) > 2 {
+		return nil, fmt.Errorf("config: wrong number of options: %d", len(opts))
 	}
 	c = &Configuration{}
 	for _, opt := range opts {
@@ -118,24 +144,28 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 			if err != nil {
 				return nil, err
 			}
-		case net.Listener:
-			err = c.RegisterClientServer(v)
-			if err != nil {
-				return nil, err
-			}
-			return c, nil
 		case QuorumSpec:
 			// Must be last since v may match QuorumSpec if it is interface{}
 			c.qspec = v
 		default:
-			return nil, fmt.Errorf("unknown option type: %v", v)
+			return nil, fmt.Errorf("config: unknown option type: %v", v)
 		}
 	}
-	// return an error if the QuorumSpec interface is not empty and no implementation was provided.
+	// register the client server if it exists.
+	// used to collect responses in BroadcastCalls
+	if m.srv != nil {
+		c.srv = m.srv
+	}
+	c.snowflake = m.Snowflake()
 	//var test interface{} = struct{}{}
 	//if _, empty := test.(QuorumSpec); !empty && c.qspec == nil {
-	//	return nil, fmt.Errorf("missing required QuorumSpec")
+	//	return nil, fmt.Errorf("config: missing required QuorumSpec")
 	//}
+	// initialize the nodes slice
+	c.nodes = make([]*Node, c.Size())
+	for i, n := range c.RawConfiguration {
+		c.nodes[i] = &Node{n}
+	}
 	return c, nil
 }
 
@@ -143,9 +173,9 @@ func (m *Manager) NewConfiguration(opts ...gorums.ConfigOption) (c *Configuratio
 // IDs are returned in the order they were added at creation of the manager.
 func (m *Manager) Nodes() []*Node {
 	gorumsNodes := m.RawManager.Nodes()
-	nodes := make([]*Node, 0, len(gorumsNodes))
-	for _, n := range gorumsNodes {
-		nodes = append(nodes, &Node{n})
+	nodes := make([]*Node, len(gorumsNodes))
+	for i, n := range gorumsNodes {
+		nodes[i] = &Node{n}
 	}
 	return nodes
 }
@@ -158,55 +188,37 @@ type Node struct {
 
 type Server struct {
 	*gorums.Server
-	View *Configuration
+	broadcast *Broadcast
+	View      *Configuration
 }
 
-func NewServer() *Server {
+func NewServer(opts ...gorums.ServerOption) *Server {
 	srv := &Server{
-		Server: gorums.NewServer(),
+		Server: gorums.NewServer(opts...),
 	}
 	b := &Broadcast{
-		Broadcaster: gorums.NewBroadcaster(),
-		sp:          gorums.NewSpBroadcastStruct(),
+		orchestrator: gorums.NewBroadcastOrchestrator(srv.Server),
 	}
-	srv.RegisterBroadcastStruct(b, configureHandlers(b), configureMetadata(b))
+	srv.broadcast = b
+	srv.RegisterBroadcaster(newBroadcaster)
 	return srv
 }
 
-//func (srv *Server) GetView() *Configuration {
-	//view := srv.View()
-	//if view == nil {
-		//return nil
-	//}
-	//return &Configuration{
-		//RawConfiguration: view.(gorums.RawConfiguration),
-	//}
-//}
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Broadcaster {
+	return &Broadcast{
+		orchestrator: o,
+		metadata:     m,
+	}
+}
 
 func (srv *Server) SetView(config *Configuration) {
 	srv.View = config
-	//err := srv.RegisterView(listenAddr, srvAddrs, opts...)
 	srv.RegisterConfig(config.RawConfiguration)
-	srv.ListenForBroadcast()
 }
 
 type Broadcast struct {
-	*gorums.Broadcaster
-	sp       *gorums.SpBroadcast
-	metadata gorums.BroadcastMetadata
-}
-
-func configureHandlers(b *Broadcast) func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
-	return func(bh gorums.BroadcastHandlerFunc, ch gorums.BroadcastReturnToClientHandlerFunc) {
-		b.sp.BroadcastHandler = bh
-		b.sp.ReturnToClientHandler = ch
-	}
-}
-
-func configureMetadata(b *Broadcast) func(metadata gorums.BroadcastMetadata) {
-	return func(metadata gorums.BroadcastMetadata) {
-		b.metadata = metadata
-	}
+	orchestrator *gorums.BroadcastOrchestrator
+	metadata     gorums.BroadcastMetadata
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -222,51 +234,61 @@ type clientServerImpl struct {
 	grpcServer *grpc.Server
 }
 
-func (c *Configuration) RegisterClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srvImpl := &clientServerImpl{
-		grpcServer: grpc.NewServer(opts...),
+func (c *clientServerImpl) stop() {
+	c.ClientServer.Stop()
+	c.grpcServer.Stop()
+}
+
+func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
+	if addr == "" {
+		return fmt.Errorf("cannot forward to empty addr, got: %s", addr)
 	}
-	srv, err := gorums.NewClientServer(lis)
-	if err != nil {
-		return err
+	if !b.metadata.IsBroadcastClient {
+		return fmt.Errorf("can only forward client requests")
 	}
-	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
-	go srvImpl.grpcServer.Serve(lis)
-	srvImpl.ClientServer = srv
-	c.srv = srvImpl
+	go b.orchestrator.ForwardHandler(req, b.metadata.OriginMethod, b.metadata.BroadcastID, addr, b.metadata.OriginAddr)
 	return nil
 }
 
-func (b *Broadcast) Write(req *WriteRequest, opts ...gorums.BroadcastOption) {
-	options := gorums.NewBroadcastOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Write", req, b.metadata, options)
+func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
+	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
+}
+
+func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
+	srv.SendToClientHandler(resp, err, broadcastID)
 }
 
 func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == 0 {
+		panic("broadcastID cannot be empty. Use srv.BroadcastPrePrepare instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.PrePrepare", req, b.metadata, options)
+	b.orchestrator.BroadcastHandler("protos.PBFTNode.PrePrepare", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == 0 {
+		panic("broadcastID cannot be empty. Use srv.BroadcastPrepare instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Prepare", req, b.metadata, options)
+	b.orchestrator.BroadcastHandler("protos.PBFTNode.Prepare", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
+	if b.metadata.BroadcastID == 0 {
+		panic("broadcastID cannot be empty. Use srv.BroadcastCommit instead")
+	}
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.sp.BroadcastHandler("protos.PBFTNode.Commit", req, b.metadata, options)
+	b.orchestrator.BroadcastHandler("protos.PBFTNode.Commit", req, b.metadata.BroadcastID, options)
 }
 
 func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -284,14 +306,20 @@ func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientRespon
 
 func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
 	if c.srv == nil {
-		return nil, fmt.Errorf("a client server is not defined. Use configuration.RegisterClientServer() to define a client server")
+		return nil, fmt.Errorf("config: a client server is not defined. Use mgr.AddClientServer() to define a client server")
 	}
 	if c.qspec == nil {
-		return nil, fmt.Errorf("a qspec is not defined.")
+		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(ctx, in, gorums.ConvertToType(c.qspec.WriteQF))
+	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protos.PBFTNode.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	response, ok := <-doneChan
+	var response protoreflect.ProtoMessage
+	var ok bool
+	select {
+	case response, ok = <-doneChan:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context cancelled")
+	}
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
@@ -320,12 +348,12 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 // Reference imports to suppress errors if they are not otherwise used.
 var _ empty.Empty
 
-// Heartbeat is a quorum call invoked on all nodes in configuration c,
+// Ping is a quorum call invoked on all nodes in configuration c,
 // with the same argument in, and returns a combined result.
-func (c *Configuration) Heartbeat(ctx context.Context, in *HeartbeatReq, opts ...gorums.CallOption) {
+func (c *Configuration) Ping(ctx context.Context, in *Heartbeat, opts ...gorums.CallOption) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protos.PBFTNode.Heartbeat",
+		Method:  "protos.PBFTNode.Ping",
 	}
 
 	c.RawConfiguration.Multicast(ctx, cd, opts...)
@@ -336,11 +364,11 @@ type QuorumSpec interface {
 	gorums.ConfigOption
 
 	// WriteQF is the quorum function for the Write
-	// broadcast call method. The in parameter is the request object
+	// broadcastcall call method. The in parameter is the request object
 	// supplied to the Write method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *WriteRequest'.
-	WriteQF(replies []*ClientResponse) (*ClientResponse, bool)
+	WriteQF(in *WriteRequest, replies []*ClientResponse) (*ClientResponse, bool)
 }
 
 // PBFTNode is the server-side API for the PBFTNode Service
@@ -349,7 +377,7 @@ type PBFTNode interface {
 	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
 	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
 	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
-	Heartbeat(ctx gorums.ServerCtx, request *HeartbeatReq)
+	Ping(ctx gorums.ServerCtx, request *Heartbeat)
 }
 
 func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {
@@ -364,8 +392,8 @@ func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadc
 func (srv *Server) Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast) {
 	panic(status.Errorf(codes.Unimplemented, "method Commit not implemented"))
 }
-func (srv *Server) Heartbeat(ctx gorums.ServerCtx, request *HeartbeatReq) {
-	panic(status.Errorf(codes.Unimplemented, "method Heartbeat not implemented"))
+func (srv *Server) Ping(ctx gorums.ServerCtx, request *Heartbeat) {
+	panic(status.Errorf(codes.Unimplemented, "method Ping not implemented"))
 }
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
@@ -374,17 +402,42 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
 	srv.RegisterHandler("protos.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
-	srv.RegisterHandler("protos.PBFTNode.Heartbeat", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
-		req := in.Message.(*HeartbeatReq)
+	srv.RegisterHandler("protos.PBFTNode.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
+		req := in.Message.(*Heartbeat)
 		defer ctx.Release()
-		impl.Heartbeat(ctx, req)
+		impl.Ping(ctx, req)
 	})
 }
 
-func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
-	b.sp.ReturnToClientHandler(resp, err, b.metadata)
+func (srv *Server) BroadcastPrePrepare(req *PrePrepareRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
+	if broadcastID == 0 {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.PrePrepare", req, broadcastID, options)
 }
 
-func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID string) {
-	srv.RetToClient(resp, err, broadcastID)
+func (srv *Server) BroadcastPrepare(req *PrepareRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
+	if broadcastID == 0 {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Prepare", req, broadcastID, options)
+}
+
+func (srv *Server) BroadcastCommit(req *CommitRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
+	if broadcastID == 0 {
+		panic("broadcastID cannot be empty.")
+	}
+	options := gorums.NewBroadcastOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Commit", req, broadcastID, options)
 }

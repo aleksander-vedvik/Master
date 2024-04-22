@@ -8,6 +8,7 @@ import (
 type process struct {
 	rank      uint32
 	suspected bool
+	addr      string
 }
 
 type MonLeader struct {
@@ -19,25 +20,26 @@ type MonLeader struct {
 	doneChan      chan struct{}
 }
 
-func New(c *pb.Configuration) *MonLeader {
+func New(c *pb.Configuration, id uint32) *MonLeader {
 	if c == nil {
 		panic("config is nil")
 	}
 	return &MonLeader{
 		config:          c,
-		FailureDetector: failuredetector.New(c),
+		FailureDetector: failuredetector.New(c, id),
 		leaderChan:      make(chan string, 10),
 		doneChan:        make(chan struct{}),
 	}
 }
 
 func (l *MonLeader) StartLeaderElection() {
-	ids := l.config.NodeIDs()
-	p := make(map[uint32]*process, len(ids))
-	for _, id := range ids {
-		p[id] = &process{
-			rank:      id,
+	nodes := l.config.Nodes()
+	p := make(map[uint32]*process, len(nodes))
+	for _, node := range nodes {
+		p[node.ID()] = &process{
+			rank:      node.ID(),
 			suspected: false,
+			addr:      node.Address(),
 		}
 	}
 	l.processes = p
@@ -57,7 +59,7 @@ func (l *MonLeader) Leaders() <-chan string {
 func (l *MonLeader) election() {
 	var id uint32
 	for {
-		l.elect(id)
+		l.elect()
 		select {
 		case <-l.doneChan:
 			return
@@ -69,30 +71,29 @@ func (l *MonLeader) election() {
 	}
 }
 
-func (l *MonLeader) elect(id uint32) {
+func (l *MonLeader) elect() {
 	leader := l.maxRank()
+	if leader == nil {
+		l.leaderChan <- ""
+		return
+	}
 	if l.currentLeader == nil || leader.rank != l.currentLeader.rank {
 		l.currentLeader = leader
-		var addr string
-		for _, node := range l.config.Nodes() {
-			if node.ID() == id {
-				addr = node.Address()
-				break
-			}
-		}
-		l.leaderChan <- addr
+		l.leaderChan <- leader.addr
 	}
 }
 
 func (l *MonLeader) maxRank() *process {
 	max := 1
+	var p *process = nil
 	for _, process := range l.processes {
 		if process.suspected {
 			continue
 		}
 		if -int(process.rank) < max {
-			return process
+			max = -int(process.rank)
+			p = process
 		}
 	}
-	panic("all processes suspected")
+	return p
 }

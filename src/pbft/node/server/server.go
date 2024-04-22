@@ -76,8 +76,15 @@ func (s *PBFTServer) Start() {
 	//go s.status()
 	go s.Serve(lis)
 	s.addr = lis.Addr().String()
+	var id uint32
+	for _, node := range s.View.Nodes() {
+		if node.Address() == s.addr {
+			id = node.ID()
+			break
+		}
+	}
 	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
-	s.leaderElection = leaderelection.New(s.View)
+	s.leaderElection = leaderelection.New(s.View, id)
 	s.leaderElection.StartLeaderElection()
 	go s.listenForLeaderChanges()
 }
@@ -107,7 +114,7 @@ func (s *PBFTServer) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broad
 			broadcast.SendToClient(val, nil)
 		} else {
 			slog.Info("not the leader")
-			broadcast.Write(request, gorums.WithSubset(s.leader))
+			broadcast.Forward(request, s.leader)
 		}
 		return
 	}

@@ -7,8 +7,6 @@ import (
 
 	pb "pbft/protos"
 
-	"log/slog"
-
 	"github.com/relab/gorums"
 )
 
@@ -21,23 +19,24 @@ type process struct {
 }
 
 type FailureDetector struct {
-	mu             sync.Mutex
 	id             uint32
+	mu             sync.Mutex
 	processes      map[uint32]*process
 	config         *pb.Configuration
 	delta          time.Duration
-	sendHeartbeats func(context.Context, *pb.HeartbeatReq, ...gorums.CallOption)
+	sendHeartbeats func(context.Context, *pb.Heartbeat, ...gorums.CallOption)
 	suspectChan    chan uint32
 	restoreChan    chan uint32
 	doneChan       chan struct{}
 }
 
-func New(c *pb.Configuration) *FailureDetector {
+func New(c *pb.Configuration, id uint32) *FailureDetector {
 	suspectChan := make(chan uint32, 10)
 	restoreChan := make(chan uint32, 10)
 	return &FailureDetector{
+		id:             id,
 		config:         c,
-		sendHeartbeats: c.Heartbeat,
+		sendHeartbeats: c.Ping,
 		suspectChan:    suspectChan,
 		restoreChan:    restoreChan,
 		doneChan:       make(chan struct{}),
@@ -83,7 +82,6 @@ func (fd *FailureDetector) Restores() <-chan uint32 {
 }
 
 func (fd *FailureDetector) timeout() {
-	slog.Info("timeout")
 	fd.mu.Lock()
 	for _, p := range fd.processes {
 		if !p.alive && !p.suspected {
@@ -96,8 +94,8 @@ func (fd *FailureDetector) timeout() {
 		p.alive = false
 	}
 	fd.mu.Unlock()
-	req := &pb.HeartbeatReq{
-		From: fd.id,
+	req := &pb.Heartbeat{
+		Id: fd.id,
 	}
 	fd.sendHeartbeats(context.Background(), req, gorums.WithNoSendWaiting())
 	time.Sleep(fd.delta)
@@ -111,10 +109,10 @@ func (p *process) restore() {
 	p.restoreChan <- p.id
 }
 
-func (fd *FailureDetector) Heartbeat(request *pb.HeartbeatReq) {
+func (fd *FailureDetector) Ping(id uint32) {
 	fd.mu.Lock()
 	defer fd.mu.Unlock()
-	if p, ok := fd.processes[request.From]; ok {
+	if p, ok := fd.processes[id]; ok {
 		p.alive = true
 	}
 }

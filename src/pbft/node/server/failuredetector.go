@@ -6,6 +6,6 @@ import (
 	"github.com/relab/gorums"
 )
 
-func (s *PBFTServer) Heartbeat(ctx gorums.ServerCtx, request *pb.HeartbeatReq) {
-	s.leaderElection.Heartbeat(request)
+func (s *PBFTServer) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
+	s.leaderElection.Ping(request.GetId())
 }
