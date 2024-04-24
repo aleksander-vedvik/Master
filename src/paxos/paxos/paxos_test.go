@@ -53,7 +53,7 @@ func BenchmarkPaxos(b *testing.B) {
 	srvs, srvAddrs, cleanup := createSrvs(3)
 	defer cleanup()
 
-	clients, stop := createClients(1, srvAddrs, 1)
+	clients, stop := createClients(10, srvAddrs, 1)
 	defer stop()
 
 	for i, client := range clients {

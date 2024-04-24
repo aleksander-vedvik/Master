@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+import "gorums.proto";
+
+package proto;
+
+option go_package = "paxos/proto";
+
+service MultiPaxos {
+	rpc Write(PaxosValue) returns (PaxosResponse) {
+		option (gorums.broadcastcall) = true;
+	}
+
+	rpc Prepare(PrepareMsg) returns (PromiseMsg) {
+		option (gorums.quorumcall) = true;
+	}
+
+	rpc Accept(AcceptMsg) returns (Empty) {
+		option (gorums.broadcast) = true;
+	}
+
+	rpc Learn(LearnMsg) returns (Empty) {
+		option (gorums.broadcast) = true;
+	}
+
+	rpc Ping(Heartbeat) returns (Empty) {
+		option (gorums.multicast) = true;
+	}
+
+	rpc Benchmark(Empty) returns (Result) {
+		option (gorums.quorumcall) = true;
+	}
+}
+
+message Heartbeat {
+	uint32 id = 1;
+}
+
+message PaxosValue {
+	string val = 1;
+}
+
+message PaxosResponse {
+	bool error = 1;
+}
+
+message PrepareMsg {
+	uint32 rnd = 1;
+	uint32 slot = 2;
+}
+
+message PromiseSlot {
+	uint32 slot = 1;
+	uint32 rnd = 2;
+	PaxosValue Value = 3;
+	bool final = 4;
+}
+
+// PromiseMsg is the reply from an Acceptor to the Proposer in response to a PrepareMsg.
+// The Acceptor will only respond if the PrepareMsg.rnd > Acceptor.rnd.
+message PromiseMsg {
+	uint32 rnd = 1;
+	repeated PromiseSlot slots = 2;
+	uint32 fromNode = 3;
+}
+
+// AcceptMsg is sent by the Proposer, asking the Acceptors to lock-in the value, val.
+// If AcceptMsg.rnd < Acceptor.rnd, the message will be ignored.
+message AcceptMsg {
+	uint32 rnd = 1;
+	uint32 slot = 2;
+	PaxosValue val = 3;
+}
+
+// LearnMsg is sent by an Acceptor to the Proposer, if the Acceptor agreed to lock-in the value, val.
+// The LearnMsg is also sent by the Proposer in a Commit.
+message LearnMsg {
+	uint32 rnd = 1;
+	PaxosValue val = 2;
+	uint32 slot = 3;
+	uint32 fromNode = 4;
+}
+
+// DecidedValue is sent by an Acceptor to the Learner
+message DecidedValue {
+	uint32 slot = 1;
+	PaxosValue val = 2;
+}
+
+message Empty {}
+
+message Result {
+	repeated Metric metrics = 1;
+}
+
+message Metric {
+	uint64 TotalNum          = 1;
+	uint64 GoroutinesStarted = 2;
+	uint64 GoroutinesStopped = 3;
+	map<string, GoroutineMetric> Goroutines        = 4;
+	uint64 FinishedReqsTotal =      5;
+	uint64 FinishedReqsSuccesful =      6;
+	uint64 FinishedReqsFailed =      7;
+	uint64 Processed         =8;
+	uint64 Dropped           =9;
+	uint64 Invalid           =10;
+	uint64 AlreadyProcessed  =11;
+	TimingMetric RoundTripLatency  =12;
+	TimingMetric ReqLatency        = 13;
+	map<uint32, uint64> ShardDistribution = 14;
+}
+
+message GoroutineMetric {
+	uint64 start = 1;
+	uint64 end = 2;
+}
+
+message TimingMetric {
+	uint64 avg = 1;
+	uint64 min = 2;
+	uint64 max = 3;
+}

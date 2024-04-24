@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package protos;
+
+import "gorums.proto";
+import "google/protobuf/empty.proto";
+option go_package = ".";
+
+service PBFTNode {
+  rpc Write(WriteRequest) returns (ClientResponse) {
+    option (gorums.broadcastcall) = true;
+   }
+  rpc PrePrepare(PrePrepareRequest) returns (google.protobuf.Empty) {
+    option (gorums.broadcast) = true;
+   }
+  rpc Prepare(PrepareRequest) returns (google.protobuf.Empty) {
+    option (gorums.broadcast) = true;
+   }
+  rpc Commit(CommitRequest) returns (google.protobuf.Empty) {
+    option (gorums.broadcast) = true;
+   }
+  rpc Ping(Heartbeat) returns (google.protobuf.Empty) {
+    option (gorums.multicast) = true;
+   }
+}
+
+message WriteRequest {
+  string Id = 1;
+  string From = 2;
+  string Message = 3;
+  int64 Timestamp = 4;
+}
+
+message PrePrepareRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message PrepareRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message CommitRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message ClientResponse {
+  string Id = 1;
+  int32 View = 2;
+  int64 Timestamp = 3;
+  string Client = 4;
+  string From = 5;
+  string Result = 6;
+}
+
+message Heartbeat {
+  uint32 Id = 1;
+}
