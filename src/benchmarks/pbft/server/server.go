@@ -38,7 +38,7 @@ type Server struct {
 // Creates a new StorageServer.
 func New(addr string, srvAddresses []string) *Server {
 	srv := Server{
-		Server:         pb.NewServer(),
+		Server:         pb.NewServer(gorums.WithMetrics()),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
@@ -133,3 +133,36 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 	go broadcast.PrePrepare(req)
 	s.sequenceNumber++
 }
+
+//func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
+////srv.PrintStats()
+//metrics := srv.GetStats()
+//m := []*pb.Metric{
+//{
+//TotalNum:              metrics.TotalNum,
+//GoroutinesStarted:     metrics.GoroutinesStarted,
+//GoroutinesStopped:     metrics.GoroutinesStopped,
+//FinishedReqsTotal:     metrics.FinishedReqs.Total,
+//FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
+//FinishedReqsFailed:    metrics.FinishedReqs.Failed,
+//Processed:             metrics.Processed,
+//Dropped:               metrics.Dropped,
+//Invalid:               metrics.Invalid,
+//AlreadyProcessed:      metrics.AlreadyProcessed,
+//RoundTripLatency: &pb.TimingMetric{
+//Avg: uint64(metrics.RoundTripLatency.Avg),
+//Min: uint64(metrics.RoundTripLatency.Min),
+//Max: uint64(metrics.RoundTripLatency.Max),
+//},
+//ReqLatency: &pb.TimingMetric{
+//Avg: uint64(metrics.RoundTripLatency.Avg),
+//Min: uint64(metrics.RoundTripLatency.Min),
+//Max: uint64(metrics.RoundTripLatency.Max),
+//},
+//ShardDistribution: metrics.ShardDistribution,
+//},
+//}
+//return &pb.Result{
+//Metrics: m,
+//}, nil
+//}

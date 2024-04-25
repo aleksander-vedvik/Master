@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	bench "github.com/aleksander-vedvik/benchmark/benchmark"
 )
 
@@ -23,8 +21,7 @@ import (
 //}
 
 func main() {
-	res, _ := bench.RunSingleBenchmark("Paxos")
-	fmt.Println(res[0].GetAvgLatency())
+	bench.RunSingleBenchmark("Simple")
 }
 
 //func main() {

@@ -41,3 +41,10 @@ func (c *Client) Write(value string) (*pb.ClientResponse, error) {
 	}
 	return c.view.Write(ctx, req)
 }
+
+//func (c *Client) Benchmark() (*pb.Result, error) {
+////slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
+//ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+//defer cancel()
+//return c.config.Benchmark(ctx, &empty.Empty{})
+//}

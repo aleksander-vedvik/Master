@@ -2,41 +2,40 @@ package bench
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
-	paxosClient "github.com/aleksander-vedvik/benchmark/paxos/client"
-	paxosServer "github.com/aleksander-vedvik/benchmark/paxos/server"
+	simpleClient "github.com/aleksander-vedvik/benchmark/simple/client"
+	simpleServer "github.com/aleksander-vedvik/benchmark/simple/server"
 )
 
-type PaxosBenchmark struct{}
+type SimpleBenchmark struct{}
 
-func (PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer.Server, func(), error) {
-	srv := paxosServer.New(addr, srvAddrs, true)
+func (SimpleBenchmark) CreateServer(addr string, srvAddrs []string) (*simpleServer.Server, func(), error) {
+	srv := simpleServer.New(addr, srvAddrs)
 	srv.Start()
 	return srv, func() {
 		srv.Stop()
 	}, nil
 }
 
-func (PaxosBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
-	qSize := 1 + len(srvAddrs)/2
-	c := paxosClient.New(addr, srvAddrs, qSize)
+func (SimpleBenchmark) CreateClient(addr string, srvAddrs []string, qSize int) (*simpleClient.Client, func(), error) {
+	c := simpleClient.New(addr, srvAddrs, qSize)
 	return c, func() {
 		c.Stop()
 	}, nil
 }
 
-func (PaxosBenchmark) Warmup(client *paxosClient.Client) {
-	client.Write("warmup")
+func (SimpleBenchmark) Warmup(client *simpleClient.Client) {
+	client.Write1("warmup")
 }
 
-func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) {
+func (SimpleBenchmark) StartBenchmark(config *simpleClient.Client) {
 	config.Benchmark()
 }
 
-func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
+func (SimpleBenchmark) StopBenchmark(config *simpleClient.Client) []Result {
 	res, err := config.Benchmark()
 	if err != nil {
 		return nil
@@ -44,6 +43,7 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	result := make([]Result, len(res.Metrics))
 	for i, r := range res.Metrics {
 		result[i] = Result{
+			Id:                    r.Addr,
 			TotalNum:              r.TotalNum,
 			GoroutinesStarted:     r.GoroutinesStarted,
 			GoroutinesStopped:     r.GoroutinesStopped,
@@ -66,13 +66,13 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	return result
 }
 
-func (PaxosBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {
-	resp, err := client.Write(strconv.Itoa(val))
+func (SimpleBenchmark) Run(client *simpleClient.Client, ctx context.Context, val int) error {
+	resp, err := client.Write1(strconv.Itoa(val))
 	if err != nil {
 		return err
 	}
-	if resp.GetError() {
-		return errors.New("not successful")
+	if resp.GetMessage() != strconv.Itoa(val) {
+		return fmt.Errorf("wrong result, got: %s, want:%s", resp.GetMessage(), strconv.Itoa(val))
 	}
 	return nil
 }

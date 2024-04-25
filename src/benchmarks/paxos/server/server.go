@@ -214,6 +214,7 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Resul
 				Min: uint64(metrics.RoundTripLatency.Min),
 				Max: uint64(metrics.RoundTripLatency.Max),
 			},
+			ShardDistribution: metrics.ShardDistribution,
 		},
 	}
 	return &pb.Result{

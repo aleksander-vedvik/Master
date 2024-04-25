@@ -11,7 +11,7 @@ import (
 
 type PbftBenchmark struct{}
 
-func (p PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
+func (PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
 	srv := pbftServer.New(addr, srvAddrs)
 	srv.Start()
 	return srv, func() {
@@ -19,7 +19,7 @@ func (p PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer
 	}, nil
 }
 
-func (p PbftBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbftClient.Client, func(), error) {
+func (PbftBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbftClient.Client, func(), error) {
 	qSize := 1 + len(srvAddrs)/2
 	c := pbftClient.New(addr, srvAddrs, qSize)
 	return c, func() {
@@ -27,18 +27,18 @@ func (p PbftBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbf
 	}, nil
 }
 
-func (p PbftBenchmark) Warmup(client *pbftClient.Client) {
+func (PbftBenchmark) Warmup(client *pbftClient.Client) {
 	client.Write("warmup")
 }
 
-func (p PbftBenchmark) StartBenchmark(config *pbftClient.Client) {
+func (PbftBenchmark) StartBenchmark(config *pbftClient.Client) {
 }
 
-func (p PbftBenchmark) StopBenchmark(config *pbftClient.Client) Result {
+func (PbftBenchmark) StopBenchmark(config *pbftClient.Client) []Result {
 	return nil
 }
 
-func (p PbftBenchmark) Run(client *pbftClient.Client, ctx context.Context, val int) error {
+func (PbftBenchmark) Run(client *pbftClient.Client, ctx context.Context, val int) error {
 	value := strconv.Itoa(val)
 	resp, err := client.Write(value)
 	if err != nil {

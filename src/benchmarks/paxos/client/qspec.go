@@ -28,8 +28,11 @@ func (q *QSpec) BenchmarkQF(in *pb.Empty, replies map[uint32]*pb.Result) (*pb.Re
 	if len(replies) < q.qsize {
 		return nil, false
 	}
-	for _, reply := range replies {
-		return reply, true
+	result := &pb.Result{
+		Metrics: make([]*pb.Metric, 0, len(replies)),
 	}
-	return nil, true
+	for _, reply := range replies {
+		result.Metrics = append(result.Metrics, reply.Metrics...)
+	}
+	return result, true
 }

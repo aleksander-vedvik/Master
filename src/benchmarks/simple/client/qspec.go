@@ -4,7 +4,8 @@ import (
 	"log"
 	"net"
 
-	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	pb "github.com/aleksander-vedvik/benchmark/simple/protos"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -43,26 +44,39 @@ func NewQSpec(qSize int) pb.QuorumSpec {
 	}
 }
 
-func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies []*pb.ClientResponse) (*pb.ClientResponse, bool) {
+func (qs *QSpec) BroadcastCall1QF(in *pb.WriteRequest1, replies []*pb.WriteResponse1) (*pb.WriteResponse1, bool) {
 	if len(replies) < qs.quorumSize {
 		return nil, false
 	}
-	var val *pb.ClientResponse
+	var val *pb.WriteResponse1
 	for _, resp := range replies {
 		val = resp
+		break
 	}
 	return val, true
 }
 
-//func (qs *QSpec) BenchmarkQF(in *empty.Empty, replies map[uint32]*pb.Result) (*pb.Result, bool) {
-//if len(replies) < qs.quorumSize {
-//return nil, false
-//}
-//result := &pb.Result{
-//Metrics: make([]*pb.Metric, 0, len(replies)),
-//}
-//for _, reply := range replies {
-//result.Metrics = append(result.Metrics, reply.Metrics...)
-//}
-//return result, true
-//}
+func (qs *QSpec) BroadcastCall2QF(in *pb.WriteRequest2, replies []*pb.WriteResponse2) (*pb.WriteResponse2, bool) {
+	if len(replies) < qs.quorumSize {
+		return nil, false
+	}
+	var val *pb.WriteResponse2
+	for _, resp := range replies {
+		val = resp
+		break
+	}
+	return val, true
+}
+
+func (qs *QSpec) BenchmarkQF(in *empty.Empty, replies map[uint32]*pb.Result) (*pb.Result, bool) {
+	if len(replies) < qs.quorumSize {
+		return nil, false
+	}
+	result := &pb.Result{
+		Metrics: make([]*pb.Metric, 0, len(replies)),
+	}
+	for _, reply := range replies {
+		result.Metrics = append(result.Metrics, reply.Metrics...)
+	}
+	return result, true
+}

@@ -7,9 +7,25 @@ import (
 	"time"
 )
 
-type Result interface {
-	GetThroughput() uint64
-	GetAvgLatency() uint64
+type Result struct {
+	Id                    string
+	TotalNum              uint64
+	GoroutinesStarted     uint64
+	GoroutinesStopped     uint64
+	FinishedReqsTotal     uint64
+	FinishedReqsSuccesful uint64
+	FinishedReqsFailed    uint64
+	Processed             uint64
+	Dropped               uint64
+	Invalid               uint64
+	AlreadyProcessed      uint64
+	RoundTripLatencyAvg   time.Duration
+	RoundTripLatencyMin   time.Duration
+	RoundTripLatencyMax   time.Duration
+	ReqLatencyAvg         time.Duration
+	ReqLatencyMin         time.Duration
+	ReqLatencyMax         time.Duration
+	ShardDistribution     map[uint32]uint64
 }
 
 type Benchmark[S, C any] interface {
@@ -18,7 +34,7 @@ type Benchmark[S, C any] interface {
 	Warmup(client *C)
 	StartBenchmark(config *C)
 	Run(client *C, ctx context.Context, payload int) error
-	StopBenchmark(config *C) Result
+	StopBenchmark(config *C) []Result
 }
 
 type benchmarkOption struct {
@@ -60,9 +76,9 @@ var benchmarks = []benchmarkOption{
 	{
 		name:           "first",
 		srvAddrs:       threeServers,
-		numClients:     1,
+		numClients:     10,
 		clientBasePort: 8080,
-		numRequests:    1,
+		numRequests:    100,
 		async:          false,
 		local:          true,
 	},
@@ -80,7 +96,7 @@ var benchmarks = []benchmarkOption{
 		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
-		numRequests:    1000,
+		numRequests:    100,
 		async:          true,
 		local:          true,
 	},
@@ -149,21 +165,31 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	for i, bench := range benchmarks {
+		if i >= 3 {
+			return nil, nil
+		}
 		fmt.Println("running:", bench.name)
-		results[i], errs[i] = benchmark.run(bench)
-		break
+		//results[i], errs[i] = benchmark.run(bench)
+		start := time.Now()
+		ress, _ := benchmark.run(bench)
+		fmt.Println("took:", time.Since(start))
+		err := WriteToCsv(fmt.Sprintf("./csv/%s.%s.csv", name, bench.name), ress)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return results, errs
 }
 
-func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Result, error) {
+func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]Result, error) {
+	runtime.GC()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var config *C
 	var start runtime.MemStats
 	var end runtime.MemStats
-	errs := make([]error, opts.numRequests)
-	durations := make([]time.Duration, opts.numRequests)
+	errs := make([]error, opts.numRequests*opts.numClients)
+	durations := make([]time.Duration, opts.numRequests*opts.numClients)
 
 	if opts.quorumSize <= 0 {
 		opts.quorumSize = len(opts.srvAddrs)
@@ -208,14 +234,31 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Re
 		benchmark.Warmup(client)
 	}
 
+	resChan := make(chan struct {
+		dur time.Duration
+		err error
+	}, opts.numClients*opts.numRequests)
 	fmt.Println("starting benchmark...")
 	// start the recording of metrics
 	benchmark.StartBenchmark(config)
 	runtime.ReadMemStats(&start)
 	for i := 0; i < opts.numRequests; i++ {
 		for _, client := range clients {
-			durations[i], errs[i] = timer(benchmark.Run, client, ctx, i)
+			func(i int) {
+				start := time.Now()
+				err := benchmark.Run(client, ctx, i)
+				end := time.Since(start)
+				resChan <- struct {
+					dur time.Duration
+					err error
+				}{end, err}
+			}(i)
+			//durations[i], errs[i] = timer(benchmark.Run, client, ctx, i)
 		}
+	}
+	for i := 0; i < opts.numClients*opts.numRequests; i++ {
+		res := <-resChan
+		durations[i], errs[i] = res.dur, res.err
 	}
 	// stop the recording and return the metrics
 	runtime.ReadMemStats(&end)
@@ -231,11 +274,11 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Re
 	return result, nil
 }
 
-func timer[C any](f func(client *C, ctx context.Context, payload int) error, client *C, ctx context.Context, payload int) (time.Duration, error) {
-	start := time.Now()
-	err := f(client, ctx, payload)
-	return time.Since(start), err
-}
+//func timer[C any](f func(client *C, ctx context.Context, payload int) error, client *C, ctx context.Context, payload int) (time.Duration, error) {
+//start := time.Now()
+//err := f(client, ctx, payload)
+//return time.Since(start), err
+//}
 
 /*func runServerBenchmark(opts Options, cfg *Configuration, f serverFunc) (*Result, error) {
 	ctx, cancel := context.WithCancel(context.Background())
