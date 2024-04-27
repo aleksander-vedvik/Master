@@ -22,7 +22,7 @@ func getConfig(addr string, srvAddresses []string, qSize int) (*pb.Manager, *pb.
 	if err != nil {
 		panic(err)
 	}
-	mgr.AddClientServer(lis)
+	mgr.AddClientServer2(lis)
 	quorum, err := mgr.NewConfiguration(
 		NewQSpec(qSize),
 		gorums.WithNodeList(srvAddresses),

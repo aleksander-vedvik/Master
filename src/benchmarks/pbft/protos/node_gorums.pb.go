@@ -4,7 +4,7 @@
 // 	protoc            v3.12.4
 // source: node.proto
 
-package __
+package protos
 
 import (
 	context "context"
@@ -108,6 +108,17 @@ func (mgr *Manager) Close() {
 	if mgr.srv != nil {
 		mgr.srv.stop()
 	}
+}
+
+func (mgr *Manager) AddClientServer2(lis net.Listener, opts ...grpc.ServerOption) error {
+	srv := gorums.NewClientServer2(lis)
+	srvImpl := &clientServerImpl{
+		ClientServer: srv,
+	}
+	registerClientServerHandlers(srvImpl)
+	go srvImpl.Serve(lis)
+	mgr.srv = srvImpl
+	return nil
 }
 
 func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
@@ -236,7 +247,9 @@ type clientServerImpl struct {
 
 func (c *clientServerImpl) stop() {
 	c.ClientServer.Stop()
-	c.grpcServer.Stop()
+	if c.grpcServer != nil {
+		c.grpcServer.Stop()
+	}
 }
 
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
@@ -299,8 +312,8 @@ func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) er
 	return srv.(clientServer).clientWrite(ctx, in)
 }
 
-func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientResponse) (*ClientResponse, error) {
-	err := srv.AddResponse(ctx, resp)
+func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientResponse, broadcastID uint64) (*ClientResponse, error) {
+	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
 }
 
@@ -323,7 +336,11 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*ClientResponse), err
+	resp, ok = response.(*ClientResponse)
+	if !ok {
+		return nil, fmt.Errorf("wrong proto format")
+	}
+	return resp, nil
 }
 
 // clientServer is the client server API for the PBFTNode Service
@@ -343,6 +360,11 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "",
+}
+
+func registerClientServerHandlers(srv *clientServerImpl) {
+
+	srv.RegisterHandler("protos.PBFTNode.Write", gorums.ClientHandler(srv.clientWrite))
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -369,6 +391,35 @@ type QuorumSpec interface {
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *WriteRequest'.
 	WriteQF(in *WriteRequest, replies []*ClientResponse) (*ClientResponse, bool)
+
+	// BenchmarkQF is the quorum function for the Benchmark
+	// quorum call method. The in parameter is the request object
+	// supplied to the Benchmark method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *empty.Empty'.
+	BenchmarkQF(in *empty.Empty, replies map[uint32]*Result) (*Result, bool)
+}
+
+// Benchmark is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Benchmark(ctx context.Context, in *empty.Empty) (resp *Result, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protos.PBFTNode.Benchmark",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*Result, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*Result)
+		}
+		return c.qspec.BenchmarkQF(req.(*empty.Empty), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*Result), err
 }
 
 // PBFTNode is the server-side API for the PBFTNode Service
@@ -378,6 +429,7 @@ type PBFTNode interface {
 	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
 	Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcast *Broadcast)
 	Ping(ctx gorums.ServerCtx, request *Heartbeat)
+	Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (response *Result, err error)
 }
 
 func (srv *Server) Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast) {
@@ -395,6 +447,9 @@ func (srv *Server) Commit(ctx gorums.ServerCtx, request *CommitRequest, broadcas
 func (srv *Server) Ping(ctx gorums.ServerCtx, request *Heartbeat) {
 	panic(status.Errorf(codes.Unimplemented, "method Ping not implemented"))
 }
+func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (response *Result, err error) {
+	panic(status.Errorf(codes.Unimplemented, "method Benchmark not implemented"))
+}
 
 func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 	srv.RegisterHandler("protos.PBFTNode.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
@@ -407,37 +462,52 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 		defer ctx.Release()
 		impl.Ping(ctx, req)
 	})
+	srv.RegisterHandler("protos.PBFTNode.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*empty.Empty)
+		defer ctx.Release()
+		resp, err := impl.Benchmark(ctx, req)
+		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
+	})
 }
 
-func (srv *Server) BroadcastPrePrepare(req *PrePrepareRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
-	if broadcastID == 0 {
-		panic("broadcastID cannot be empty.")
-	}
+func (srv *Server) BroadcastPrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.PrePrepare", req, broadcastID, options)
+	if options.RelatedToReq > 0 {
+		srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.PrePrepare", req, options.RelatedToReq, options)
+	} else {
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protos.PBFTNode.PrePrepare", req, options)
+	}
 }
 
-func (srv *Server) BroadcastPrepare(req *PrepareRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
-	if broadcastID == 0 {
-		panic("broadcastID cannot be empty.")
-	}
+func (srv *Server) BroadcastPrepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Prepare", req, broadcastID, options)
+	if options.RelatedToReq > 0 {
+		srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Prepare", req, options.RelatedToReq, options)
+	} else {
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protos.PBFTNode.Prepare", req, options)
+	}
 }
 
-func (srv *Server) BroadcastCommit(req *CommitRequest, broadcastID uint64, opts ...gorums.BroadcastOption) {
-	if broadcastID == 0 {
-		panic("broadcastID cannot be empty.")
-	}
+func (srv *Server) BroadcastCommit(req *CommitRequest, opts ...gorums.BroadcastOption) {
 	options := gorums.NewBroadcastOptions()
 	for _, opt := range opts {
 		opt(&options)
 	}
-	go srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Commit", req, broadcastID, options)
+	if options.RelatedToReq > 0 {
+		srv.broadcast.orchestrator.BroadcastHandler("protos.PBFTNode.Commit", req, options.RelatedToReq, options)
+	} else {
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protos.PBFTNode.Commit", req, options)
+	}
+}
+
+type internalResult struct {
+	nid   uint32
+	reply *Result
+	err   error
 }

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package protos;
+package protosSimple;
 
 import "gorums.proto";
 import "google/protobuf/empty.proto";

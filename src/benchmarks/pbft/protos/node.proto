@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package protos;
+package protosPBFT;
 
 import "gorums.proto";
 import "google/protobuf/empty.proto";
-option go_package = ".";
+option go_package = "pbft/protos";
 
 service PBFTNode {
   rpc Write(WriteRequest) returns (ClientResponse) {

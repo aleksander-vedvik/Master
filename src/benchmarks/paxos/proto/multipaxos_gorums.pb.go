@@ -109,6 +109,17 @@ func (mgr *Manager) Close() {
 	}
 }
 
+func (mgr *Manager) AddClientServer2(lis net.Listener, opts ...grpc.ServerOption) error {
+	srv := gorums.NewClientServer2(lis)
+	srvImpl := &clientServerImpl{
+		ClientServer: srv,
+	}
+	registerClientServerHandlers(srvImpl)
+	go srvImpl.Serve(lis)
+	mgr.srv = srvImpl
+	return nil
+}
+
 func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
 	srvImpl := &clientServerImpl{
 		grpcServer: grpc.NewServer(opts...),
@@ -235,7 +246,9 @@ type clientServerImpl struct {
 
 func (c *clientServerImpl) stop() {
 	c.ClientServer.Stop()
-	c.grpcServer.Stop()
+	if c.grpcServer != nil {
+		c.grpcServer.Stop()
+	}
 }
 
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
@@ -287,8 +300,8 @@ func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) er
 	return srv.(clientServer).clientWrite(ctx, in)
 }
 
-func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse) (*PaxosResponse, error) {
-	err := srv.AddResponse(ctx, resp)
+func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse, broadcastID uint64) (*PaxosResponse, error) {
+	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
 }
 
@@ -311,7 +324,11 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*PaxosResponse), err
+	resp, ok = response.(*PaxosResponse)
+	if !ok {
+		return nil, fmt.Errorf("wrong proto format")
+	}
+	return resp, nil
 }
 
 // clientServer is the client server API for the MultiPaxos Service
@@ -331,6 +348,11 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "",
+}
+
+func registerClientServerHandlers(srv *clientServerImpl) {
+
+	srv.RegisterHandler("proto.MultiPaxos.Write", gorums.ClientHandler(srv.clientWrite))
 }
 
 // Ping is a quorum call invoked on all nodes in configuration c,
@@ -473,9 +495,9 @@ func (srv *Server) BroadcastAccept(req *AcceptMsg, opts ...gorums.BroadcastOptio
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		go srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, options.RelatedToReq, options)
 	} else {
-		go srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Accept", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Accept", req, options)
 	}
 }
 
@@ -485,9 +507,9 @@ func (srv *Server) BroadcastLearn(req *LearnMsg, opts ...gorums.BroadcastOption)
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		go srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, options.RelatedToReq, options)
 	} else {
-		go srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Learn", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Learn", req, options)
 	}
 }
 

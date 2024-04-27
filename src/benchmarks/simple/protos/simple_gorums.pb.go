@@ -110,6 +110,17 @@ func (mgr *Manager) Close() {
 	}
 }
 
+func (mgr *Manager) AddClientServer2(lis net.Listener, opts ...grpc.ServerOption) error {
+	srv := gorums.NewClientServer2(lis)
+	srvImpl := &clientServerImpl{
+		ClientServer: srv,
+	}
+	registerClientServerHandlers(srvImpl)
+	go srvImpl.Serve(lis)
+	mgr.srv = srvImpl
+	return nil
+}
+
 func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
 	srvImpl := &clientServerImpl{
 		grpcServer: grpc.NewServer(opts...),
@@ -236,7 +247,9 @@ type clientServerImpl struct {
 
 func (c *clientServerImpl) stop() {
 	c.ClientServer.Stop()
-	c.grpcServer.Stop()
+	if c.grpcServer != nil {
+		c.grpcServer.Stop()
+	}
 }
 
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
@@ -266,7 +279,7 @@ func (b *Broadcast) BroadcastIntermediate(req *BroadcastRequest, opts ...gorums.
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.orchestrator.BroadcastHandler("protos.Simple.BroadcastIntermediate", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Broadcast(req *BroadcastRequest, opts ...gorums.BroadcastOption) {
@@ -277,7 +290,7 @@ func (b *Broadcast) Broadcast(req *BroadcastRequest, opts ...gorums.BroadcastOpt
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.orchestrator.BroadcastHandler("protos.Simple.Broadcast", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, b.metadata.BroadcastID, options)
 }
 
 func _clientBroadcastCall1(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -288,8 +301,8 @@ func _clientBroadcastCall1(srv interface{}, ctx context.Context, dec func(interf
 	return srv.(clientServer).clientBroadcastCall1(ctx, in)
 }
 
-func (srv *clientServerImpl) clientBroadcastCall1(ctx context.Context, resp *WriteResponse1) (*WriteResponse1, error) {
-	err := srv.AddResponse(ctx, resp)
+func (srv *clientServerImpl) clientBroadcastCall1(ctx context.Context, resp *WriteResponse1, broadcastID uint64) (*WriteResponse1, error) {
+	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
 }
 
@@ -300,7 +313,7 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall1QF), "protos.Simple.BroadcastCall1")
+	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall1QF), "protosSimple.Simple.BroadcastCall1")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	var response protoreflect.ProtoMessage
 	var ok bool
@@ -312,7 +325,11 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*WriteResponse1), err
+	resp, ok = response.(*WriteResponse1)
+	if !ok {
+		return nil, fmt.Errorf("wrong proto format")
+	}
+	return resp, nil
 }
 
 func _clientBroadcastCall2(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -323,8 +340,8 @@ func _clientBroadcastCall2(srv interface{}, ctx context.Context, dec func(interf
 	return srv.(clientServer).clientBroadcastCall2(ctx, in)
 }
 
-func (srv *clientServerImpl) clientBroadcastCall2(ctx context.Context, resp *WriteResponse2) (*WriteResponse2, error) {
-	err := srv.AddResponse(ctx, resp)
+func (srv *clientServerImpl) clientBroadcastCall2(ctx context.Context, resp *WriteResponse2, broadcastID uint64) (*WriteResponse2, error) {
+	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
 }
 
@@ -335,7 +352,7 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall2QF), "protos.Simple.BroadcastCall2")
+	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall2QF), "protosSimple.Simple.BroadcastCall2")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	var response protoreflect.ProtoMessage
 	var ok bool
@@ -347,7 +364,11 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 	if !ok {
 		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
-	return response.(*WriteResponse2), err
+	resp, ok = response.(*WriteResponse2)
+	if !ok {
+		return nil, fmt.Errorf("wrong proto format")
+	}
+	return resp, nil
 }
 
 // clientServer is the client server API for the Simple Service
@@ -372,6 +393,12 @@ var clientServer_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "",
+}
+
+func registerClientServerHandlers(srv *clientServerImpl) {
+
+	srv.RegisterHandler("protosSimple.Simple.BroadcastCall1", gorums.ClientHandler(srv.clientBroadcastCall1))
+	srv.RegisterHandler("protosSimple.Simple.BroadcastCall2", gorums.ClientHandler(srv.clientBroadcastCall2))
 }
 
 // QuorumSpec is the interface of quorum functions for Simple.
@@ -405,7 +432,7 @@ type QuorumSpec interface {
 func (c *Configuration) Benchmark(ctx context.Context, in *empty.Empty) (resp *Result, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protos.Simple.Benchmark",
+		Method:  "protosSimple.Simple.Benchmark",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Result, len(replies))
@@ -448,13 +475,13 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (respon
 }
 
 func RegisterSimpleServer(srv *Server, impl Simple) {
-	srv.RegisterHandler("protos.Simple.BroadcastCall1", gorums.BroadcastHandler(impl.BroadcastCall1, srv.Server))
-	srv.RegisterClientHandler("protos.Simple.BroadcastCall1", gorums.ServerClientRPC("protos.Simple.BroadcastCall1"))
-	srv.RegisterHandler("protos.Simple.BroadcastCall2", gorums.BroadcastHandler(impl.BroadcastCall2, srv.Server))
-	srv.RegisterClientHandler("protos.Simple.BroadcastCall2", gorums.ServerClientRPC("protos.Simple.BroadcastCall2"))
-	srv.RegisterHandler("protos.Simple.BroadcastIntermediate", gorums.BroadcastHandler(impl.BroadcastIntermediate, srv.Server))
-	srv.RegisterHandler("protos.Simple.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
-	srv.RegisterHandler("protos.Simple.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+	srv.RegisterHandler("protosSimple.Simple.BroadcastCall1", gorums.BroadcastHandler(impl.BroadcastCall1, srv.Server))
+	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall1", gorums.ServerClientRPC("protosSimple.Simple.BroadcastCall1"))
+	srv.RegisterHandler("protosSimple.Simple.BroadcastCall2", gorums.BroadcastHandler(impl.BroadcastCall2, srv.Server))
+	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall2", gorums.ServerClientRPC("protosSimple.Simple.BroadcastCall2"))
+	srv.RegisterHandler("protosSimple.Simple.BroadcastIntermediate", gorums.BroadcastHandler(impl.BroadcastIntermediate, srv.Server))
+	srv.RegisterHandler("protosSimple.Simple.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
+	srv.RegisterHandler("protosSimple.Simple.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*empty.Empty)
 		defer ctx.Release()
 		resp, err := impl.Benchmark(ctx, req)
@@ -468,9 +495,9 @@ func (srv *Server) BroadcastBroadcastIntermediate(req *BroadcastRequest, opts ..
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		go srv.broadcast.orchestrator.BroadcastHandler("protos.Simple.BroadcastIntermediate", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, options.RelatedToReq, options)
 	} else {
-		go srv.broadcast.orchestrator.ServerBroadcastHandler("protos.Simple.BroadcastIntermediate", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, options)
 	}
 }
 
@@ -480,9 +507,9 @@ func (srv *Server) BroadcastBroadcast(req *BroadcastRequest, opts ...gorums.Broa
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		go srv.broadcast.orchestrator.BroadcastHandler("protos.Simple.Broadcast", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, options.RelatedToReq, options)
 	} else {
-		go srv.broadcast.orchestrator.ServerBroadcastHandler("protos.Simple.Broadcast", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protosSimple.Simple.Broadcast", req, options)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"net"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -54,15 +55,15 @@ func (qs *QSpec) WriteQF(in *pb.WriteRequest, replies []*pb.ClientResponse) (*pb
 	return val, true
 }
 
-//func (qs *QSpec) BenchmarkQF(in *empty.Empty, replies map[uint32]*pb.Result) (*pb.Result, bool) {
-//if len(replies) < qs.quorumSize {
-//return nil, false
-//}
-//result := &pb.Result{
-//Metrics: make([]*pb.Metric, 0, len(replies)),
-//}
-//for _, reply := range replies {
-//result.Metrics = append(result.Metrics, reply.Metrics...)
-//}
-//return result, true
-//}
+func (qs *QSpec) BenchmarkQF(in *empty.Empty, replies map[uint32]*pb.Result) (*pb.Result, bool) {
+	if len(replies) < qs.quorumSize {
+		return nil, false
+	}
+	result := &pb.Result{
+		Metrics: make([]*pb.Metric, 0, len(replies)),
+	}
+	for _, reply := range replies {
+		result.Metrics = append(result.Metrics, reply.Metrics...)
+	}
+	return result, true
+}
