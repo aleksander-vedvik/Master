@@ -31,8 +31,7 @@ func (c *Client) Stop() {
 	c.mgr.Close()
 }
 
-func (c *Client) Write1(value string) (*pb.WriteResponse1, error) {
-	ctx := context.Background()
+func (c *Client) Write1(ctx context.Context, value string) (*pb.WriteResponse1, error) {
 	req := &pb.WriteRequest1{
 		Id:      strconv.Itoa(c.id),
 		Message: value,

@@ -109,28 +109,13 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer2(lis net.Listener, opts ...grpc.ServerOption) error {
-	srv := gorums.NewClientServer2(lis)
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
+	srv := gorums.NewClientServer(lis)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
 	registerClientServerHandlers(srvImpl)
 	go srvImpl.Serve(lis)
-	mgr.srv = srvImpl
-	return nil
-}
-
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srvImpl := &clientServerImpl{
-		grpcServer: grpc.NewServer(opts...),
-	}
-	srv, err := gorums.NewClientServer(lis)
-	if err != nil {
-		return err
-	}
-	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
-	go srvImpl.grpcServer.Serve(lis)
-	srvImpl.ClientServer = srv
 	mgr.srv = srvImpl
 	return nil
 }
@@ -292,14 +277,6 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
 }
 
-func _clientWrite(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PaxosResponse)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	return srv.(clientServer).clientWrite(ctx, in)
-}
-
 func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse, broadcastID uint64) (*PaxosResponse, error) {
 	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
@@ -329,25 +306,6 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 		return nil, fmt.Errorf("wrong proto format")
 	}
 	return resp, nil
-}
-
-// clientServer is the client server API for the MultiPaxos Service
-type clientServer interface {
-	clientWrite(ctx context.Context, request *PaxosResponse) (*PaxosResponse, error)
-}
-
-var clientServer_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "protos.ClientServer",
-	HandlerType: (*clientServer)(nil),
-	Methods: []grpc.MethodDesc{
-
-		{
-			MethodName: "ClientWrite",
-			Handler:    _clientWrite,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "",
 }
 
 func registerClientServerHandlers(srv *clientServerImpl) {
@@ -467,7 +425,7 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *Empty) (response *Re
 
 func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
 	srv.RegisterHandler("proto.MultiPaxos.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
-	srv.RegisterClientHandler("proto.MultiPaxos.Write", gorums.ServerClientRPC("proto.MultiPaxos.Write"))
+	srv.RegisterClientHandler("proto.MultiPaxos.Write")
 	srv.RegisterHandler("proto.MultiPaxos.Prepare", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*PrepareMsg)
 		defer ctx.Release()

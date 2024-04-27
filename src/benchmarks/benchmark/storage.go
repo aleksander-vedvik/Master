@@ -27,7 +27,7 @@ var csvHeader = []string{
 	"ReqLatencyMax",
 }
 
-func WriteToCsv(path string, records []Result) error {
+func WriteToCsv(path string, records []Result, clientRecord ClientResult) error {
 	fmt.Println("writing to csv...")
 	//records := []Employee{
 	//{"E01", 25},
@@ -74,5 +74,24 @@ func WriteToCsv(path string, records []Result) error {
 		}
 		data[i+1] = row
 	}
+	clientRow := []string{
+		clientRecord.Id,
+		"",
+		"",
+		"",
+		strconv.Itoa(int(clientRecord.Total)),
+		strconv.Itoa(int(clientRecord.Successes)),
+		strconv.Itoa(int(clientRecord.Errs)),
+		"",
+		"",
+		"",
+		strconv.Itoa(int(clientRecord.LatencyAvg)),
+		strconv.Itoa(int(clientRecord.LatencyMin)),
+		strconv.Itoa(int(clientRecord.LatencyMax)),
+		"",
+		"",
+		"",
+	}
+	data = append(data, clientRow)
 	return w.WriteAll(data)
 }

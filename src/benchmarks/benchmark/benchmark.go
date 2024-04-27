@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type ClientResult struct {
+	Id         string
+	Total      uint64
+	Successes  uint64
+	Errs       uint64
+	LatencyAvg time.Duration
+	LatencyMin time.Duration
+	LatencyMax time.Duration
+}
+
 type Result struct {
 	Id                    string
 	TotalNum              uint64
@@ -44,110 +54,9 @@ type benchmarkOption struct {
 	clientBasePort int
 	quorumSize     int
 	numRequests    int
+	timeout        time.Duration
 	async          bool
 	local          bool
-}
-
-var threeServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
-}
-
-var fiveServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
-	"127.0.0.1:5003",
-	"127.0.0.1:5004",
-}
-
-var sevenServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
-	"127.0.0.1:5003",
-	"127.0.0.1:5004",
-	"127.0.0.1:5005",
-	"127.0.0.1:5006",
-}
-
-var benchmarks = []benchmarkOption{
-	{
-		name:           "first",
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    100,
-		async:          false,
-		local:          true,
-	},
-	{
-		name:           "second",
-		srvAddrs:       threeServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          true,
-		local:          true,
-	},
-	{
-		name:           "third",
-		srvAddrs:       threeServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    100,
-		async:          true,
-		local:          true,
-	},
-	{
-		srvAddrs:       fiveServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          false,
-		local:          true,
-	},
-	{
-		srvAddrs:       fiveServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          true,
-		local:          true,
-	},
-	{
-		srvAddrs:       fiveServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          true,
-		local:          true,
-	},
-	{
-		srvAddrs:       sevenServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          false,
-		local:          true,
-	},
-	{
-		srvAddrs:       sevenServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          true,
-		local:          true,
-	},
-	{
-		srvAddrs:       sevenServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		async:          true,
-		local:          true,
-	},
 }
 
 func RunAll() {
@@ -168,12 +77,14 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 		if i >= 3 {
 			return nil, nil
 		}
-		fmt.Println("running:", bench.name)
 		//results[i], errs[i] = benchmark.run(bench)
 		start := time.Now()
-		ress, _ := benchmark.run(bench)
+		clientResult, ress, err := benchmark.run(bench)
+		if err != nil {
+			panic(err)
+		}
 		fmt.Println("took:", time.Since(start))
-		err := WriteToCsv(fmt.Sprintf("./csv/%s.%s.csv", name, bench.name), ress)
+		err = WriteToCsv(fmt.Sprintf("./csv/%s.%s.csv", name, bench.name), ress, clientResult)
 		if err != nil {
 			panic(err)
 		}
@@ -181,18 +92,25 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	return results, errs
 }
 
-func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]Result, error) {
+func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (ClientResult, []Result, error) {
+	fmt.Printf("\nRunning benchmark: %s\n\n", opts.name)
 	runtime.GC()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	var config *C
 	var start runtime.MemStats
 	var end runtime.MemStats
+	totalNumReqs := opts.numClients * opts.numRequests
+	clientResult := ClientResult{
+		Id:    "clients",
+		Total: uint64(totalNumReqs),
+	}
 	errs := make([]error, opts.numRequests*opts.numClients)
 	durations := make([]time.Duration, opts.numRequests*opts.numClients)
 
 	if opts.quorumSize <= 0 {
 		opts.quorumSize = len(opts.srvAddrs)
+	}
+	if opts.timeout <= 0 {
+		opts.timeout = 5 * time.Second
 	}
 
 	fmt.Println("creating clients...")
@@ -205,7 +123,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]
 		clients[i], cleanup, err = benchmark.CreateClient(fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i), opts.srvAddrs, opts.quorumSize)
 		defer cleanup()
 		if err != nil {
-			return nil, err
+			return clientResult, nil, err
 		}
 		if i == 0 {
 			config = clients[0]
@@ -224,7 +142,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]
 			servers[i], cleanup, err = benchmark.CreateServer(addr, opts.srvAddrs)
 			defer cleanup()
 			if err != nil {
-				return nil, err
+				return clientResult, nil, err
 			}
 		}
 	}
@@ -244,7 +162,9 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]
 	runtime.ReadMemStats(&start)
 	for i := 0; i < opts.numRequests; i++ {
 		for _, client := range clients {
-			func(i int) {
+			go func(client *C, i int) {
+				ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
+				defer cancel()
 				start := time.Now()
 				err := benchmark.Run(client, ctx, i)
 				end := time.Since(start)
@@ -252,16 +172,35 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]
 					dur time.Duration
 					err error
 				}{end, err}
-			}(i)
+			}(client, i)
 			//durations[i], errs[i] = timer(benchmark.Run, client, ctx, i)
 		}
 	}
-	for i := 0; i < opts.numClients*opts.numRequests; i++ {
+	maxDur := time.Duration(0)
+	minDur := 100 * time.Hour
+	avgDur := time.Duration(0)
+	for i := 0; i < totalNumReqs; i++ {
+		if i%(totalNumReqs/10) == 0 {
+			fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
+		}
 		res := <-resChan
 		durations[i], errs[i] = res.dur, res.err
+		if res.err != nil {
+			clientResult.Errs++
+		} else {
+			clientResult.Successes++
+		}
+		if res.dur > maxDur {
+			maxDur = res.dur
+		}
+		if res.dur < minDur {
+			minDur = res.dur
+		}
+		avgDur += res.dur
 	}
-	// stop the recording and return the metrics
+	fmt.Printf("100%s done\n", "%")
 	runtime.ReadMemStats(&end)
+	// stop the recording and return the metrics
 	result := benchmark.StopBenchmark(config)
 	fmt.Println("stopped benchmark...")
 
@@ -271,7 +210,12 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) ([]
 	//resp.AllocsPerOp = clientAllocs
 	//resp.MemPerOp = clientMem
 	//return resp, nil
-	return result, nil
+
+	avgDur /= time.Duration(len(durations))
+	clientResult.LatencyAvg = avgDur
+	clientResult.LatencyMax = maxDur
+	clientResult.LatencyMin = minDur
+	return clientResult, result, nil
 }
 
 //func timer[C any](f func(client *C, ctx context.Context, payload int) error, client *C, ctx context.Context, payload int) (time.Duration, error) {

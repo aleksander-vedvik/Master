@@ -28,7 +28,7 @@ func (SimpleBenchmark) CreateClient(addr string, srvAddrs []string, qSize int) (
 }
 
 func (SimpleBenchmark) Warmup(client *simpleClient.Client) {
-	client.Write1("warmup")
+	client.Write1(context.Background(), "warmup")
 }
 
 func (SimpleBenchmark) StartBenchmark(config *simpleClient.Client) {
@@ -67,7 +67,7 @@ func (SimpleBenchmark) StopBenchmark(config *simpleClient.Client) []Result {
 }
 
 func (SimpleBenchmark) Run(client *simpleClient.Client, ctx context.Context, val int) error {
-	resp, err := client.Write1(strconv.Itoa(val))
+	resp, err := client.Write1(ctx, strconv.Itoa(val))
 	if err != nil {
 		return err
 	}

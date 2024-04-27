@@ -110,28 +110,13 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer2(lis net.Listener, opts ...grpc.ServerOption) error {
-	srv := gorums.NewClientServer2(lis)
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
+	srv := gorums.NewClientServer(lis)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
 	registerClientServerHandlers(srvImpl)
 	go srvImpl.Serve(lis)
-	mgr.srv = srvImpl
-	return nil
-}
-
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srvImpl := &clientServerImpl{
-		grpcServer: grpc.NewServer(opts...),
-	}
-	srv, err := gorums.NewClientServer(lis)
-	if err != nil {
-		return err
-	}
-	srvImpl.grpcServer.RegisterService(&clientServer_ServiceDesc, srvImpl)
-	go srvImpl.grpcServer.Serve(lis)
-	srvImpl.ClientServer = srv
 	mgr.srv = srvImpl
 	return nil
 }
@@ -293,14 +278,6 @@ func (b *Broadcast) Broadcast(req *BroadcastRequest, opts ...gorums.BroadcastOpt
 	b.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, b.metadata.BroadcastID, options)
 }
 
-func _clientBroadcastCall1(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteResponse1)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	return srv.(clientServer).clientBroadcastCall1(ctx, in)
-}
-
 func (srv *clientServerImpl) clientBroadcastCall1(ctx context.Context, resp *WriteResponse1, broadcastID uint64) (*WriteResponse1, error) {
 	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
@@ -332,14 +309,6 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 	return resp, nil
 }
 
-func _clientBroadcastCall2(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WriteResponse2)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	return srv.(clientServer).clientBroadcastCall2(ctx, in)
-}
-
 func (srv *clientServerImpl) clientBroadcastCall2(ctx context.Context, resp *WriteResponse2, broadcastID uint64) (*WriteResponse2, error) {
 	err := srv.AddResponse(ctx, resp, broadcastID)
 	return resp, err
@@ -369,30 +338,6 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 		return nil, fmt.Errorf("wrong proto format")
 	}
 	return resp, nil
-}
-
-// clientServer is the client server API for the Simple Service
-type clientServer interface {
-	clientBroadcastCall1(ctx context.Context, request *WriteResponse1) (*WriteResponse1, error)
-	clientBroadcastCall2(ctx context.Context, request *WriteResponse2) (*WriteResponse2, error)
-}
-
-var clientServer_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "protos.ClientServer",
-	HandlerType: (*clientServer)(nil),
-	Methods: []grpc.MethodDesc{
-
-		{
-			MethodName: "ClientBroadcastCall1",
-			Handler:    _clientBroadcastCall1,
-		},
-		{
-			MethodName: "ClientBroadcastCall2",
-			Handler:    _clientBroadcastCall2,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "",
 }
 
 func registerClientServerHandlers(srv *clientServerImpl) {
@@ -476,9 +421,9 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (respon
 
 func RegisterSimpleServer(srv *Server, impl Simple) {
 	srv.RegisterHandler("protosSimple.Simple.BroadcastCall1", gorums.BroadcastHandler(impl.BroadcastCall1, srv.Server))
-	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall1", gorums.ServerClientRPC("protosSimple.Simple.BroadcastCall1"))
+	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall1")
 	srv.RegisterHandler("protosSimple.Simple.BroadcastCall2", gorums.BroadcastHandler(impl.BroadcastCall2, srv.Server))
-	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall2", gorums.ServerClientRPC("protosSimple.Simple.BroadcastCall2"))
+	srv.RegisterClientHandler("protosSimple.Simple.BroadcastCall2")
 	srv.RegisterHandler("protosSimple.Simple.BroadcastIntermediate", gorums.BroadcastHandler(impl.BroadcastIntermediate, srv.Server))
 	srv.RegisterHandler("protosSimple.Simple.Broadcast", gorums.BroadcastHandler(impl.Broadcast, srv.Server))
 	srv.RegisterHandler("protosSimple.Simple.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
