@@ -130,7 +130,7 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	go broadcast.PrePrepare(req)
+	broadcast.PrePrepare(req)
 	s.sequenceNumber++
 }
 

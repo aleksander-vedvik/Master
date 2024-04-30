@@ -1,0 +1,5 @@
+Who,TotalNum,GoroutinesStarted,GoroutinesStopped,FinishedReqsTotal,FinishedReqsSuccesful,FinishedReqsFailed,Processed,Dropped,Invalid,AlreadyProcessed,RoundTripLatencyAvg,RoundTripLatencyMin,RoundTripLatencyMax,ReqLatencyAvg,ReqLatencyMin,ReqLatencyMax
+127.0.0.1:5001,141327,0,0,10098,10198,-100,0,0,0,0,650573,7448,12879505,650573,7448,12879505
+127.0.0.1:5000,141331,0,0,10098,10198,-100,0,0,0,0,736734,7776,14985793,736734,7776,14985793
+127.0.0.1:5002,141326,0,0,10098,10198,-100,0,0,0,0,691368,7644,13585111,691368,7644,13585111
+clients,,,,10000,9997,3,,,,987977,251225,5000677,,,

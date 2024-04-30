@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 	"strconv"
-	"time"
 
 	pb "github.com/aleksander-vedvik/benchmark/simple/protos"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -50,7 +49,5 @@ func (c *Client) Write2(value string) (*pb.WriteResponse2, error) {
 
 func (c *Client) Benchmark() (*pb.Result, error) {
 	//slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	return c.config.Benchmark(ctx, &empty.Empty{})
+	return c.config.Benchmark(context.Background(), &empty.Empty{})
 }
