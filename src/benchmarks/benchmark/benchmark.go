@@ -74,7 +74,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	for i, bench := range benchmarks {
-		if i >= 3 {
+		if i >= 1 {
 			return nil, nil
 		}
 		//results[i], errs[i] = benchmark.run(bench)

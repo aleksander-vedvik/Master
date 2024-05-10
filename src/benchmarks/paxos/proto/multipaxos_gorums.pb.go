@@ -6,7 +6,6 @@
 
 package proto
 
-
 import (
 	context "context"
 	fmt "fmt"
@@ -204,6 +203,7 @@ func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator)
 	return &Broadcast{
 		orchestrator: o,
 		metadata:     m,
+		srvAddrs:     make([]string, 0),
 	}
 }
 
@@ -215,6 +215,7 @@ func (srv *Server) SetView(config *Configuration) {
 type Broadcast struct {
 	orchestrator *gorums.BroadcastOrchestrator
 	metadata     gorums.BroadcastMetadata
+	srvAddrs     []string
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -237,6 +238,14 @@ func (c *clientServerImpl) stop() {
 	}
 }
 
+func (b *Broadcast) To(addrs ...string) *Broadcast {
+	if len(addrs) <= 0 {
+		return b
+	}
+	b.srvAddrs = append(b.srvAddrs, addrs...)
+	return b
+}
+
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	if addr == "" {
 		return fmt.Errorf("cannot forward to empty addr, got: %s", addr)
@@ -248,10 +257,35 @@ func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	return nil
 }
 
+// Done signals the end of a broadcast request. It is necessary to call
+// either Done() or SendToClient() to properly terminate a broadcast request
+// and free up resources. Otherwise, it could cause poor performance.
+func (b *Broadcast) Done() {
+	b.orchestrator.DoneHandler(b.metadata.BroadcastID)
+}
+
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
 }
 
+// Cancel is a non-destructive method call that will transmit a cancellation
+// to all servers in the view. It will not stop the execution but will cause
+// the given ServerCtx to be cancelled, making it possible to listen for
+// cancellations.
+//
+// Could be used together with either SendToClient() or Done().
+func (b *Broadcast) Cancel() {
+	b.orchestrator.CancelHandler(b.metadata.BroadcastID, b.srvAddrs)
+}
+
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
 	srv.SendToClientHandler(resp, err, broadcastID)
 }
@@ -264,6 +298,7 @@ func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
 	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
 }
 
@@ -275,6 +310,7 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
 	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
 }
 
@@ -290,13 +326,19 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
+	broadcastID := c.snowflake.NewBroadcastID()
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	var response protoreflect.ProtoMessage
 	var ok bool
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
+		bd := gorums.BroadcastCallData{
+			Method:      gorums.Cancellation,
+			BroadcastID: broadcastID,
+		}
+		c.RawConfiguration.BroadcastCall(context.Background(), bd)
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -446,6 +488,7 @@ func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
 		resp, err := impl.Benchmark(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+	srv.RegisterHandler(gorums.Cancellation, gorums.BroadcastHandler(gorums.CancelFunc, srv.Server))
 }
 
 func (srv *Server) BroadcastAccept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
