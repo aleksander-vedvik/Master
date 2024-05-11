@@ -88,10 +88,10 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
-	for i, bench := range benchmarks {
-		if i < 3 || i >= 6 {
-			continue
-		}
+	for _, bench := range benchmarks {
+		//if i < 3 || i >= 6 {
+		//continue
+		//}
 		start := time.Now()
 		clientResult, ress, err := benchmark.run(bench)
 		if err != nil {
