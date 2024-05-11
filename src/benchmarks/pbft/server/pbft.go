@@ -17,7 +17,7 @@ func (s *Server) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest,
 		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
-	go broadcast.Prepare(&pb.PrepareRequest{
+	broadcast.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
 		View:           request.View,
 		SequenceNumber: request.SequenceNumber,
@@ -36,10 +36,11 @@ func (s *Server) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broad
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
-		go broadcast.Commit(&pb.CommitRequest{
+		broadcast.Commit(&pb.CommitRequest{
 			Id:             request.Id,
 			Timestamp:      request.Timestamp,
 			View:           request.View,
+			Digest:         request.Digest,
 			SequenceNumber: request.SequenceNumber,
 			Message:        request.Message,
 		})
@@ -61,7 +62,7 @@ func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadca
 			Timestamp: request.Timestamp,
 			View:      request.View,
 		}
-		go broadcast.SendToClient(s.state, nil)
+		broadcast.SendToClient(s.state, nil)
 	}
 }
 

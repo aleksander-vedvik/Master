@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aleksander-vedvik/benchmark/paxos/server"
+	"github.com/aleksander-vedvik/benchmark/paxos.q/server"
 )
 
 func main() {

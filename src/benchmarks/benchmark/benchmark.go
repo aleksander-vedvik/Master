@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"runtime"
 	"time"
@@ -88,10 +89,10 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
-	for _, bench := range benchmarks {
-		//if i < 3 || i >= 6 {
-		//continue
-		//}
+	for i, bench := range benchmarks {
+		if i < 3 || i >= 6 {
+			continue
+		}
 		start := time.Now()
 		clientResult, ress, err := benchmark.run(bench)
 		if err != nil {
@@ -210,6 +211,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		select {
 		case res = <-resChan:
 		case <-time.After(30 * time.Second):
+			slog.Info("benchmark:", "replies", i, "total", totalNumReqs)
 			return clientResult, nil, errors.New("could not collect all responses")
 		}
 

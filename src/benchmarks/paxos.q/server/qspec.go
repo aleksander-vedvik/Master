@@ -1,6 +1,6 @@
 package server
 
-import pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+import pb "github.com/aleksander-vedvik/benchmark/paxos.q/proto"
 
 type QSpec struct {
 	qsize int
@@ -30,7 +30,6 @@ func addSlots(promiseMsg *pb.PromiseMsg, allSlots [][]*pb.PromiseSlot) {
 	if len(allSlots) <= 0 {
 		return
 	}
-	//added := make(map[uint32]*pb.PromiseSlot)
 	added := make([]*pb.PromiseSlot, 0, len(allSlots[0]))
 	allAdded := false
 	for i := 0; !allAdded; i++ {
@@ -50,13 +49,6 @@ func addSlots(promiseMsg *pb.PromiseMsg, allSlots [][]*pb.PromiseSlot) {
 					added[i] = p
 				}
 			}
-			//if elem, ok := added[p.Slot]; ok {
-			//if p.Rnd > elem.Rnd {
-			//added[p.Slot] = p
-			//}
-			//} else {
-			//added[p.Slot] = p
-			//}
 			allAdded = false
 		}
 	}
@@ -64,7 +56,7 @@ func addSlots(promiseMsg *pb.PromiseMsg, allSlots [][]*pb.PromiseSlot) {
 }
 
 // not used by the server
-func (q *QSpec) WriteQF(in *pb.PaxosValue, replies []*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
+func (q *QSpec) WriteQF(in *pb.PaxosValue, replies map[uint32]*pb.PaxosResponse) (*pb.PaxosResponse, bool) {
 	return nil, true
 }
 

@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
-	pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -30,8 +30,6 @@ type Server struct {
 	cancelProposer        context.CancelFunc
 	proposer              *Proposer
 	disableLeaderElection bool
-	senders               map[uint64]int
-	//metrics               *metrics.Metrics
 }
 
 func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server {
@@ -55,7 +53,6 @@ func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server 
 		peers:                 srvAddrs,
 		leader:                "",
 		disableLeaderElection: disable,
-		senders:               make(map[uint64]int),
 	}
 	srv.configureView()
 	pb.RegisterMultiPaxosServer(srv.Server, &srv)
@@ -99,7 +96,6 @@ func (srv *Server) Start() {
 			break
 		}
 	}
-	//slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", srv.addr, srv.peers))
 	if !srv.disableLeaderElection {
 		// start leader election and failure detector
 		srv.leaderElection = ld.New(srv.View, id, func(id uint32) *pb.Heartbeat {
@@ -141,24 +137,6 @@ func (srv *Server) listenForLeaderChanges() {
 	}
 }
 
-/*func (srv *PaxosServer) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
-	if !srv.isLeader() {
-		// alternatives:
-		// 1. simply ignore request 			<- ok
-		// 2. send it to the leader 			<- ok
-		// 3. reply with last committed value	<- ok
-		// 4. reply with error					<- not ok
-		return
-	}
-	md := broadcast.GetMetadata()
-	srv.mu.Lock()
-	srv.clientReqs = append(srv.clientReqs, &clientReq{
-		broadcastID: md.BroadcastID,
-		message:     request,
-	})
-	srv.mu.Unlock()
-}*/
-
 func (srv *Server) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast *pb.Broadcast) {
 	if !srv.isLeader() {
 		// alternatives:
@@ -170,13 +148,16 @@ func (srv *Server) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast
 		return
 	}
 	srv.proposer.mut.Lock()
-	broadcast.Accept(&pb.AcceptMsg{
-		Rnd:  srv.proposer.rnd,
-		Slot: srv.proposer.adu,
-		Val:  request,
-	})
+	rnd := srv.proposer.rnd
+	adu := srv.proposer.adu
 	srv.proposer.adu++
 	srv.proposer.mut.Unlock()
+
+	broadcast.Accept(&pb.AcceptMsg{
+		Rnd:  rnd,
+		Slot: adu,
+		Val:  request,
+	})
 }
 
 func (srv *Server) isLeader() bool {
@@ -190,7 +171,6 @@ func (srv *Server) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Result, error) {
-	//srv.PrintStats()
 	metrics := srv.GetStats()
 	m := []*pb.Metric{
 		{
@@ -198,21 +178,12 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Resul
 			FinishedReqsTotal:     metrics.FinishedReqs.Total,
 			FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
 			FinishedReqsFailed:    metrics.FinishedReqs.Failed,
-			Processed:             metrics.Processed,
 			Dropped:               metrics.Dropped,
-			Invalid:               metrics.Invalid,
-			AlreadyProcessed:      metrics.AlreadyProcessed,
 			RoundTripLatency: &pb.TimingMetric{
 				Avg: uint64(metrics.RoundTripLatency.Avg),
 				Min: uint64(metrics.RoundTripLatency.Min),
 				Max: uint64(metrics.RoundTripLatency.Max),
 			},
-			ReqLatency: &pb.TimingMetric{
-				Avg: uint64(metrics.RoundTripLatency.Avg),
-				Min: uint64(metrics.RoundTripLatency.Min),
-				Max: uint64(metrics.RoundTripLatency.Max),
-			},
-			ShardDistribution: metrics.ShardDistribution,
 		},
 	}
 	return &pb.Result{

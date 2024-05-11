@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
 	"github.com/relab/gorums"
 )
@@ -14,15 +14,22 @@ type Acceptor struct {
 	rnd         uint32 // current round
 	maxSeenSlot uint32
 	slots       map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
+	learntVals  map[uint32]*pb.LearnMsg    // slots: is the internal data structure maintained by the acceptor to remember the slots
 	numPeers    int
 	senders     map[uint64]int
+	adu         uint32
+	cache       []struct {
+		slot         uint32
+		sendResponse func()
+	}
 }
 
 func NewAcceptor(numPeers int) *Acceptor {
 	return &Acceptor{
-		numPeers: numPeers,
-		slots:    make(map[uint32]*pb.PromiseSlot),
-		senders:  make(map[uint64]int),
+		numPeers:   numPeers,
+		slots:      make(map[uint32]*pb.PromiseSlot),
+		learntVals: make(map[uint32]*pb.LearnMsg),
+		senders:    make(map[uint64]int),
 	}
 }
 
@@ -90,22 +97,59 @@ func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast
 }
 
 func (a *Acceptor) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *pb.Broadcast) {
-	//slog.Info("received learn", "srv", srv.addr)
 	a.mut.Lock()
 	defer a.mut.Unlock()
 	md := broadcast.GetMetadata()
 	if a.quorum(md.BroadcastID) {
-		if _, ok := a.slots[request.Slot]; ok {
-			return
+		if prev, ok := a.learntVals[request.Slot]; !ok {
+			a.learntVals[request.Slot] = request
 		} else {
-			a.slots[request.Slot] = &pb.PromiseSlot{
-				Slot:  request.Slot,
-				Rnd:   request.Rnd,
-				Value: request.Val,
+			if prev.Rnd < request.Rnd {
+				a.learntVals[request.Slot] = request
 			}
 		}
-		broadcast.SendToClient(&pb.PaxosResponse{}, nil)
-		//slog.Info(fmt.Sprintf("server(%v): commited", srv.id), "val", request.Val.Val)
+		a.execute(request.Slot, broadcast, &pb.PaxosResponse{})
+	}
+}
+
+func (a *Acceptor) execute(slot uint32, broadcast *pb.Broadcast, resp *pb.PaxosResponse) {
+	if a.adu > slot {
+		// old message
+		return
+	}
+	if a.adu < slot {
+		for i, c := range a.cache {
+			if c.slot < slot {
+				continue
+			}
+			tmp := append(a.cache[:i], struct {
+				slot         uint32
+				sendResponse func()
+			}{slot, func() {
+				broadcast.SendToClient(resp, nil)
+			}})
+			if i+1 >= len(a.cache) {
+				a.cache = tmp
+				return
+			}
+			a.cache = append(tmp, a.cache[i+1:]...)
+		}
+		return
+	}
+	if a.adu == slot {
+		broadcast.SendToClient(resp, nil)
+		a.adu++
+	}
+	for i, c := range a.cache {
+		if c.slot <= a.adu {
+			c.sendResponse()
+			a.adu++
+		} else {
+			if i < len(a.cache) {
+				a.cache = a.cache[i:]
+			}
+			return
+		}
 	}
 }
 

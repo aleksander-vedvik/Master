@@ -12,7 +12,7 @@ import (
 type PbftBenchmark struct{}
 
 func (PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
-	srv := pbftServer.New(addr, srvAddrs)
+	srv := pbftServer.New(addr, srvAddrs, true)
 	srv.Start()
 	return srv, func() {
 		srv.Stop()
@@ -28,7 +28,10 @@ func (PbftBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbftC
 }
 
 func (PbftBenchmark) Warmup(client *pbftClient.Client) {
-	client.Write("warmup")
+	_, err := client.Write("warmup")
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (PbftBenchmark) StartBenchmark(config *pbftClient.Client) {

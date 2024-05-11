@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	paxosClient "github.com/aleksander-vedvik/benchmark/paxos/client"
-	paxosServer "github.com/aleksander-vedvik/benchmark/paxos/server"
+	paxosClient "github.com/aleksander-vedvik/benchmark/paxos.b/client"
+	paxosServer "github.com/aleksander-vedvik/benchmark/paxos.b/server"
 )
 
 type PaxosBenchmark struct{}

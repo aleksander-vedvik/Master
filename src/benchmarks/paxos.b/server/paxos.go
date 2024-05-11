@@ -1,7 +1,7 @@
 package server
 
 import (
-	pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
 	"github.com/relab/gorums"
 )

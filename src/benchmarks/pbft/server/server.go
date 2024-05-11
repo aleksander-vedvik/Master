@@ -5,7 +5,6 @@ import (
 	"log"
 	"log/slog"
 	"net"
-	"time"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
@@ -24,30 +23,33 @@ type Server struct {
 	data           []string
 	addr           string
 	peers          []string
-	messages       int
 	addedMsgs      map[string]bool
 	messageLog     *MessageLog
 	viewNumber     int32
 	state          *pb.ClientResponse
-	//requestQueue   []*pb.PrePrepareRequest
-	//maxLimitOfReqs int
 	sequenceNumber int32
 	mgr            *pb.Manager
+	withoutLeader  bool
 }
 
 // Creates a new StorageServer.
-func New(addr string, srvAddresses []string) *Server {
+func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
+	wL := false
+	if len(withoutLeader) > 0 {
+		wL = withoutLeader[0]
+	}
 	srv := Server{
-		Server:         pb.NewServer(gorums.WithMetrics()),
+		Server:         pb.NewServer(),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
 		addedMsgs:      make(map[string]bool),
-		leader:         "",
+		leader:         "127.0.0.1:5000",
 		messageLog:     newMessageLog(),
 		state:          nil,
 		sequenceNumber: 1,
 		viewNumber:     1,
+		withoutLeader:  wL,
 	}
 	srv.configureView()
 	pb.RegisterPBFTNodeServer(srv.Server, &srv)
@@ -75,6 +77,10 @@ func (s *Server) Start() {
 	//go s.status()
 	go s.Serve(lis)
 	s.addr = lis.Addr().String()
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
+	if s.withoutLeader {
+		return
+	}
 	var id uint32
 	for _, node := range s.View.Nodes() {
 		if node.Address() == s.addr {
@@ -82,7 +88,6 @@ func (s *Server) Start() {
 			break
 		}
 	}
-	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
 	s.leaderElection = ld.New(s.View, id, func(id uint32) *pb.Heartbeat {
 		return &pb.Heartbeat{
 			Id: id,
@@ -99,29 +104,16 @@ func (s *Server) listenForLeaderChanges() {
 	}
 }
 
-func (s *Server) status() {
-	for {
-		time.Sleep(5 * time.Second)
-		state := ""
-		if s.state != nil {
-			state = s.state.Result
-		}
-		str := fmt.Sprintf("Server %s running with:\n\t- number of messages: %v\n\t- commited value: %v\n\t- peers: %v\n", s.addr[len(s.addr)-4:], s.messages, state, s.peers)
-		log.Println(str)
-	}
-}
-
 func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
 	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
 			broadcast.SendToClient(val, nil)
 		} else {
-			slog.Info("not the leader")
 			broadcast.Forward(request, s.leader)
 		}
 		return
 	}
-	slog.Info("got client request. initiating a pBFT round")
+	//slog.Info("got client request. initiating a pBFT round", "addr", s.addr, "leader", s.leader, "msg", request.Message)
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,

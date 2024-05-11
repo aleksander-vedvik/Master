@@ -1,7 +1,7 @@
 package client
 
 import (
-	pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 )
 
 type QSpec struct {

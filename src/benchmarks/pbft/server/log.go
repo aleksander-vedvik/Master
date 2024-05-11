@@ -2,11 +2,13 @@ package server
 
 import (
 	"strconv"
+	"sync"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
 )
 
 type MessageLog struct {
+	mut         sync.Mutex
 	data        []any
 	preprepares map[string]*pb.PrePrepareRequest
 	prepares    map[string][]*pb.PrepareRequest
@@ -23,6 +25,8 @@ func newMessageLog() *MessageLog {
 }
 
 func (m *MessageLog) add(elem any, view, n int32) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
 	m.data = append(m.data, elem)
 	id := "view:" + strconv.Itoa(int(view)) + ",n:" + strconv.Itoa(int(n))
 	switch req := elem.(type) {
@@ -36,6 +40,8 @@ func (m *MessageLog) add(elem any, view, n int32) {
 }
 
 func (m *MessageLog) getPrePrepareReq(n, view int32) (*pb.PrePrepareRequest, bool) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
 	id := "view:" + strconv.Itoa(int(view)) + ",n:" + strconv.Itoa(int(n))
 	req, ok := m.preprepares[id]
 	if ok && req.View == view && req.SequenceNumber == n {
@@ -45,6 +51,8 @@ func (m *MessageLog) getPrePrepareReq(n, view int32) (*pb.PrePrepareRequest, boo
 }
 
 func (m *MessageLog) getPrepareReqs(digest string, n, view int32) ([]*pb.PrepareRequest, bool) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
 	id := "view:" + strconv.Itoa(int(view)) + ",n:" + strconv.Itoa(int(n))
 	res := make([]*pb.PrepareRequest, 0)
 	for _, req := range m.prepares[id] {
@@ -56,6 +64,8 @@ func (m *MessageLog) getPrepareReqs(digest string, n, view int32) ([]*pb.Prepare
 }
 
 func (m *MessageLog) getCommitReqs(digest string, n, view int32) ([]*pb.CommitRequest, bool) {
+	m.mut.Lock()
+	defer m.mut.Unlock()
 	id := "view:" + strconv.Itoa(int(view)) + ",n:" + strconv.Itoa(int(n))
 	res := make([]*pb.CommitRequest, 0)
 	for _, req := range m.commits[id] {

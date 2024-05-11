@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	pb "github.com/aleksander-vedvik/benchmark/paxos/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
