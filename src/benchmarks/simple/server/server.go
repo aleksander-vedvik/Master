@@ -97,8 +97,6 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Re
 		{
 			Addr:                  srv.addr,
 			TotalNum:              metrics.TotalNum,
-			GoroutinesStarted:     metrics.GoroutinesStarted,
-			GoroutinesStopped:     metrics.GoroutinesStopped,
 			FinishedReqsTotal:     metrics.FinishedReqs.Total,
 			FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
 			FinishedReqsFailed:    metrics.FinishedReqs.Failed,

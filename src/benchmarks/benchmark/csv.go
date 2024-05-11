@@ -9,68 +9,39 @@ import (
 
 var csvHeader = []string{
 	"Who",
-	"TotalNum",
-	"GoroutinesStarted",
-	"GoroutinesStopped",
-	"FinishedReqsTotal",
-	"FinishedReqsSuccesful",
-	"FinishedReqsFailed",
-	"Processed",
-	"Dropped",
-	"Invalid",
-	"AlreadyProcessed",
-	"RoundTripLatencyAvg",
-	"RoundTripLatencyMin",
-	"RoundTripLatencyMax",
-	"ReqLatencyAvg",
-	"ReqLatencyMin",
-	"ReqLatencyMax",
+	"NumMsgs",
+	"DroppedMsgs",
+	"Reqs",
+	"ReqsSuccesful",
+	"ReqsFailed",
+	"LatencyAvg",
+	"LatencyMin",
+	"LatencyMax",
+	"TotalDuration",
 }
 
 func WriteToCsv(path string, records []Result, clientRecord ClientResult) error {
 	fmt.Println("writing to csv...")
-	//records := []Employee{
-	//{"E01", 25},
-	//{"E02", 26},
-	//{"E03", 24},
-	//{"E04", 26},
-	//}
 	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 	w := csv.NewWriter(file)
-	//defer w.Flush() // Using Write
-	//for _, record := range records {
-	//row := []string{record.ID, strconv.Itoa(record.Age)}
-	//if err := w.Write(row); err != nil {
-	//log.Fatalln("error writing record to file", err)
-	//}
-	//}
-
-	// Using WriteAll
 	data := make([][]string, len(records)+1)
 	data[0] = csvHeader
 	for i, record := range records {
 		row := []string{
 			record.Id,
 			strconv.Itoa(int(record.TotalNum)),
-			strconv.Itoa(int(record.GoroutinesStarted)),
-			strconv.Itoa(int(record.GoroutinesStopped)),
+			strconv.Itoa(int(record.Dropped)),
 			strconv.Itoa(int(record.FinishedReqsTotal)),
 			strconv.Itoa(int(record.FinishedReqsSuccesful)),
 			strconv.Itoa(int(record.FinishedReqsFailed)),
-			strconv.Itoa(int(record.Processed)),
-			strconv.Itoa(int(record.Dropped)),
-			strconv.Itoa(int(record.Invalid)),
-			strconv.Itoa(int(record.AlreadyProcessed)),
 			strconv.Itoa(int(record.RoundTripLatencyAvg.Microseconds())),
 			strconv.Itoa(int(record.RoundTripLatencyMin.Microseconds())),
 			strconv.Itoa(int(record.RoundTripLatencyMax.Microseconds())),
-			strconv.Itoa(int(record.ReqLatencyAvg.Microseconds())),
-			strconv.Itoa(int(record.ReqLatencyMin.Microseconds())),
-			strconv.Itoa(int(record.ReqLatencyMax.Microseconds())),
+			"",
 		}
 		data[i+1] = row
 	}
@@ -78,19 +49,13 @@ func WriteToCsv(path string, records []Result, clientRecord ClientResult) error 
 		clientRecord.Id,
 		"",
 		"",
-		"",
 		strconv.Itoa(int(clientRecord.Total)),
 		strconv.Itoa(int(clientRecord.Successes)),
 		strconv.Itoa(int(clientRecord.Errs)),
-		"",
-		"",
-		"",
 		strconv.Itoa(int(clientRecord.LatencyAvg.Microseconds())),
 		strconv.Itoa(int(clientRecord.LatencyMin.Microseconds())),
 		strconv.Itoa(int(clientRecord.LatencyMax.Microseconds())),
-		"",
-		"",
-		"",
+		strconv.Itoa(int(clientRecord.TotalDur.Microseconds())),
 	}
 	data = append(data, clientRow)
 	return w.WriteAll(data)

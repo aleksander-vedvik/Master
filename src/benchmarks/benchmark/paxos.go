@@ -45,8 +45,6 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	for i, r := range res.Metrics {
 		result[i] = Result{
 			TotalNum:              r.TotalNum,
-			GoroutinesStarted:     r.GoroutinesStarted,
-			GoroutinesStopped:     r.GoroutinesStopped,
 			FinishedReqsTotal:     r.FinishedReqsTotal,
 			FinishedReqsSuccesful: r.FinishedReqsSuccesful,
 			FinishedReqsFailed:    r.FinishedReqsFailed,

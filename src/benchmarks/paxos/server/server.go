@@ -195,8 +195,6 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Resul
 	m := []*pb.Metric{
 		{
 			TotalNum:              metrics.TotalNum,
-			GoroutinesStarted:     metrics.GoroutinesStarted,
-			GoroutinesStopped:     metrics.GoroutinesStopped,
 			FinishedReqsTotal:     metrics.FinishedReqs.Total,
 			FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
 			FinishedReqsFailed:    metrics.FinishedReqs.Failed,

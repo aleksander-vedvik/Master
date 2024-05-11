@@ -22,77 +22,97 @@ var benchTypes = map[string]struct {
 
 var benchmarks = []benchmarkOption{
 	{
-		name:           "S3.C1.R1000",
+		name:           "S3.C1.R1000.Async",
 		srvAddrs:       threeServers,
 		numClients:     1,
 		clientBasePort: 8080,
 		numRequests:    1000,
 		local:          true,
+		runType:        Async,
 	},
 	{
-		name:           "S3.C10.R100",
+		name:           "S3.C1.R1000.Sync",
+		srvAddrs:       threeServers,
+		numClients:     1,
+		clientBasePort: 8080,
+		numRequests:    1000,
+		local:          true,
+		runType:        Sync,
+	},
+	{
+		name:           "S3.C1.R1000.Random",
+		srvAddrs:       threeServers,
+		numClients:     1,
+		clientBasePort: 8080,
+		numRequests:    1000,
+		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
+	},
+	{
+		name:           "S3.C10.R100.Async",
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
 		numRequests:    100,
 		local:          true,
+		runType:        Async,
 	},
 	{
-		name:           "S3.C100.R100",
+		name:           "S3.C10.R100.Sync",
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    100,
+		local:          true,
+		runType:        Sync,
+	},
+	{
+		name:           "S3.C10.R100.Random",
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    100,
+		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
+	},
+	{
+		name:           "S3.C100.R100.Async",
 		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
 		numRequests:    100,
 		local:          true,
+		runType:        Async,
 	},
 	{
-		name:           "S5.C1.R1000",
-		srvAddrs:       fiveServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-	},
-	{
-		name:           "S5.C10.R100",
-		srvAddrs:       fiveServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    100,
-		async:          true,
-		local:          true,
-	},
-	{
-		name:           "S5.C100.R100",
-		srvAddrs:       fiveServers,
+		name:           "S3.C100.R100.Sync",
+		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
 		numRequests:    100,
 		local:          true,
+		runType:        Sync,
 	},
 	{
-		name:           "S7.C1.R1000",
-		srvAddrs:       sevenServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-	},
-	{
-		name:           "S7.C10.R100",
-		srvAddrs:       sevenServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    100,
-		local:          true,
-	},
-	{
-		name:           "S7.C100.R100",
-		srvAddrs:       sevenServers,
+		name:           "S3.C100.R100.Random",
+		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
 		numRequests:    100,
 		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
 	},
 }
 
@@ -100,22 +120,4 @@ var threeServers = []string{
 	"127.0.0.1:5000",
 	"127.0.0.1:5001",
 	"127.0.0.1:5002",
-}
-
-var fiveServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
-	"127.0.0.1:5003",
-	"127.0.0.1:5004",
-}
-
-var sevenServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
-	"127.0.0.1:5003",
-	"127.0.0.1:5004",
-	"127.0.0.1:5005",
-	"127.0.0.1:5006",
 }
