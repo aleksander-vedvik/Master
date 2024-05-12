@@ -1,0 +1,32 @@
+proto:
+	protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
+	--go_out=paths=source_relative:. \
+	--gorums_out=paths=source_relative:. \
+	node.proto
+
+protos:
+	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
+	--proto_path=paths=source_relative/protos/ \
+	--go_out=paths=source_relative:. \
+	--gorums_out=paths=source_relative:. \
+	protos/storage.proto
+	@echo "Proto files generated successfully"
+
+docker:
+	docker compose up
+
+docker-rebuild:
+	docker compose up --build
+
+server:
+	cd cmd/server; go run main.go --port 5000
+	cd cmd/server; go run main.go --port 5001
+
+client:
+	cd cmd/client; go run main.go
+
+run: server client
+	@echo "Done!" 
+
+tidy:
+	go mod tidy

@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package protosPBFT;
+
+import "google/protobuf/empty.proto";
+option go_package = "pbft/protos";
+
+service PBFTNode {
+  rpc Write(WriteRequest) returns (ClientResponse) {}
+  rpc PrePrepare(PrePrepareRequest) returns (google.protobuf.Empty) {}
+  rpc Prepare(PrepareRequest) returns (google.protobuf.Empty) {}
+  rpc Commit(CommitRequest) returns (google.protobuf.Empty) {}
+	rpc Benchmark(google.protobuf.Empty) returns (Result) {}
+}
+
+message WriteRequest {
+  string Id = 1;
+  string From = 2;
+  string Message = 3;
+  int64 Timestamp = 4;
+}
+
+message PrePrepareRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message PrepareRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message CommitRequest {
+  string Id = 1;
+  int32 View = 2;
+  int32 SequenceNumber = 3;
+  string Digest = 4;
+  int64 Timestamp = 5;
+  string Message = 6;
+}
+
+message ClientResponse {
+  string Id = 1;
+  int32 View = 2;
+  int64 Timestamp = 3;
+  string Client = 4;
+  string From = 5;
+  string Result = 6;
+}
+
+message Heartbeat {
+  uint32 Id = 1;
+}
+
+message Result {
+	repeated Metric metrics = 1;
+}
+
+message Metric {
+	uint64 TotalNum          = 1;
+	uint64 GoroutinesStarted = 2;
+	uint64 GoroutinesStopped = 3;
+	map<string, GoroutineMetric> Goroutines        = 4;
+	uint64 FinishedReqsTotal =      5;
+	uint64 FinishedReqsSuccesful =      6;
+	uint64 FinishedReqsFailed =      7;
+	uint64 Processed         =8;
+	uint64 Dropped           =9;
+	uint64 Invalid           =10;
+	uint64 AlreadyProcessed  =11;
+	TimingMetric RoundTripLatency  =12;
+	TimingMetric ReqLatency        = 13;
+	map<uint32, uint64> ShardDistribution = 14;
+}
+
+message GoroutineMetric {
+	uint64 start = 1;
+	uint64 end = 2;
+}
+
+message TimingMetric {
+	uint64 avg = 1;
+	uint64 min = 2;
+	uint64 max = 3;
+}
