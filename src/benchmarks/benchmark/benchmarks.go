@@ -8,6 +8,11 @@ var benchTypes = map[string]struct {
 			return runBenchmark(bench, PaxosBenchmark{})
 		},
 	},
+	"PaxosQC": {
+		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
+			return runBenchmark(bench, PaxosQCBenchmark{})
+		},
+	},
 	"PBFT": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftBenchmark{})

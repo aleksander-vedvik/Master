@@ -81,7 +81,7 @@ func (s *Server) isInView(view int32) bool {
 
 func (s *Server) sequenceNumberIsValid(n int32) bool {
 	// the sequence number is between h and H
-	return true
+	return n >= 0
 }
 
 func (s *Server) hasAlreadyAcceptedSequenceNumber(n int32) bool {
