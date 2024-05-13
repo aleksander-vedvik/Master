@@ -20,7 +20,13 @@ var csvHeader = []string{
 	"TotalDuration",
 }
 
-func WriteToCsv(path string, records []Result, clientRecord ClientResult) error {
+var csvHeader2 = []string{
+	"Bucket",
+	"Number",
+}
+
+func WriteToCsv(name, benchname string, records []Result, clientRecord ClientResult) error {
+	path := fmt.Sprintf("./csv/%s.%s.csv", name, benchname)
 	fmt.Println("writing to csv...")
 	file, err := os.Create(path)
 	if err != nil {
@@ -58,5 +64,23 @@ func WriteToCsv(path string, records []Result, clientRecord ClientResult) error 
 		strconv.Itoa(int(clientRecord.TotalDur.Microseconds())),
 	}
 	data = append(data, clientRow)
-	return w.WriteAll(data)
+	err = w.WriteAll(data)
+	if err != nil {
+		panic(err)
+	}
+
+	path2 := fmt.Sprintf("./csv/Dist.%s.%s.csv", name, benchname)
+	f, err := os.Create(path2)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	cw := csv.NewWriter(f)
+	d := make([][]string, len(clientRecord.ReqDistribution)+1)
+	d[0] = csvHeader2
+	for i, r := range clientRecord.ReqDistribution {
+		x := int(clientRecord.LatencyMin.Microseconds()) + i*clientRecord.BucketSize
+		d[i+1] = []string{strconv.Itoa(x), strconv.Itoa(int(r))}
+	}
+	return cw.WriteAll(d)
 }

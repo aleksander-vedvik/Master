@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/aleksander-vedvik/benchmark/pbft.s/config"
@@ -14,34 +16,47 @@ import (
 
 type Client struct {
 	pb.PBFTNodeServer
-	id     int
-	addr   string
-	config *config.Config
-	srv    *grpc.Server
+	mut       sync.Mutex
+	id        int
+	addr      string
+	config    *config.Config
+	srv       *grpc.Server
+	responses map[string][]*pb.ClientResponse
+	respChans map[string]chan *pb.ClientResponse
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
 func New(addr string, srvAddresses []string, qSize int) *Client {
 	client := &Client{
-		id:     0,
-		addr:   addr,
-		config: config.NewConfig(srvAddresses),
+		id:        0,
+		addr:      addr,
+		config:    config.NewConfig(srvAddresses),
+		responses: make(map[string][]*pb.ClientResponse),
+		respChans: make(map[string]chan *pb.ClientResponse),
 	}
 	pb.RegisterPBFTNodeServer(client.srv, client)
 	return client
 }
 
-func (c *Client) WriteVal(value string) (*pb.ClientResponse, error) {
-	c.id++
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse, error) {
+	id := uuid.NewString()
+	respChan := make(chan *pb.ClientResponse, c.config.NumNodes())
+	c.mut.Lock()
+	c.respChans[id] = respChan
+	c.mut.Unlock()
 	req := &pb.WriteRequest{
-		Id:        uuid.NewString(),
+		Id:        id,
 		From:      c.addr,
 		Message:   value,
 		Timestamp: time.Now().Unix(),
 	}
-	return c.config.Write(ctx, req)
+	_, _ = c.config.Write(ctx, req)
+	select {
+	case res := <-respChan:
+		return res, nil
+	case <-ctx.Done():
+		return nil, errors.New("failed req")
+	}
 }
 
 func (c *Client) Start() {
@@ -73,6 +88,18 @@ func (c *Client) Commit(ctx context.Context, req *pb.CommitRequest) (*empty.Empt
 }
 
 func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*empty.Empty, error) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	var resps []*pb.ClientResponse
+	if r, ok := c.responses[req.Id]; ok {
+		resps = append(r, req)
+	} else {
+		resps = []*pb.ClientResponse{req}
+	}
+	c.responses[req.Id] = resps
+	if len(resps) > 2*c.config.NumNodes()/3 {
+		c.respChans[req.Id] <- req
+	}
 	return nil, nil
 }
 

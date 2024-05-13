@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand"
 	"runtime"
 	"time"
@@ -20,6 +21,7 @@ type ClientResult struct {
 	LatencyMax      time.Duration
 	TotalDur        time.Duration
 	ReqDistribution []uint64 // shows how many request in transit per unit of time
+	BucketSize      int      // number of microseconds
 }
 
 type Result struct {
@@ -90,7 +92,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	for i, bench := range benchmarks {
-		if i < 3 || i >= 4 {
+		if i < 3 || i >= 6 {
 			continue
 		}
 		start := time.Now()
@@ -99,7 +101,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 			panic(err)
 		}
 		fmt.Println("took:", time.Since(start))
-		err = WriteToCsv(fmt.Sprintf("./csv/%s.%s.csv", name, bench.name), ress, clientResult)
+		err = WriteToCsv(name, bench.name, ress, clientResult)
 		if err != nil {
 			panic(err)
 		}
@@ -118,8 +120,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		Id:    "clients",
 		Total: uint64(totalNumReqs),
 	}
-	errs := make([]error, opts.numRequests*opts.numClients)
-	durations := make([]time.Duration, opts.numRequests*opts.numClients)
+	//errs := make([]error, opts.numRequests*opts.numClients)
+	//durations := make([]time.Duration, opts.numRequests*opts.numClients)
 
 	if opts.quorumSize <= 0 {
 		opts.quorumSize = len(opts.srvAddrs)
@@ -199,6 +201,9 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		runRandom(opts, benchmark, resChan, clients)
 	}
 
+	numBuckets := 100
+	durDistribution := make([]uint64, numBuckets)
+	durations := make([]time.Duration, 0, opts.numRequests*opts.numClients)
 	maxDur := time.Duration(0)
 	minDur := 100 * time.Hour
 	avgDur := time.Duration(0)
@@ -215,13 +220,15 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			return clientResult, nil, errors.New("could not collect all responses")
 		}
 
-		dur := res.end.Sub(res.start)
-		durations[i], errs[i] = dur, res.err
+		//durations[i], errs[i] = dur, res.err
 		if res.err != nil {
 			clientResult.Errs++
+			continue
 		} else {
 			clientResult.Successes++
 		}
+		dur := res.end.Sub(res.start)
+		durations = append(durations, dur)
 		if dur > maxDur {
 			maxDur = dur
 		}
@@ -231,11 +238,22 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		avgDur += dur
 	}
 	clientResult.TotalDur = time.Since(runStart)
+	clientResult.ReqDistribution = durDistribution
 	fmt.Printf("100%s done\n", "%")
 	//runtime.ReadMemStats(&end)
 	// stop the recording and return the metrics
 	result := benchmark.StopBenchmark(config)
 	fmt.Println("stopped benchmark...")
+
+	bucketSize := (maxDur.Microseconds() - minDur.Microseconds()) / int64(numBuckets)
+	clientResult.BucketSize = int(bucketSize)
+	for _, dur := range durations {
+		bucket := int(math.Floor(float64(dur.Microseconds()-minDur.Microseconds()) / float64(bucketSize)))
+		if bucket >= numBuckets {
+			bucket = numBuckets - 1
+		}
+		durDistribution[bucket]++
+	}
 
 	//clientAllocs := (end.Mallocs - start.Mallocs) / resp.TotalOps
 	//clientMem := (end.TotalAlloc - start.TotalAlloc) / resp.TotalOps
@@ -244,7 +262,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	//resp.MemPerOp = clientMem
 	//return resp, nil
 
-	avgDur /= time.Duration(len(durations))
+	avgDur /= time.Duration(opts.numRequests * opts.numClients)
 	clientResult.LatencyAvg = avgDur
 	clientResult.LatencyMax = maxDur
 	clientResult.LatencyMin = minDur

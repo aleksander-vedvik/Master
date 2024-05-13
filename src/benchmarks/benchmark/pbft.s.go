@@ -28,7 +28,7 @@ func (PbftSBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbft
 }
 
 func (PbftSBenchmark) Warmup(client *pbftClient.Client) {
-	_, err := client.WriteVal("warmup")
+	_, err := client.WriteVal(context.Background(), "warmup")
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +43,7 @@ func (PbftSBenchmark) StopBenchmark(config *pbftClient.Client) []Result {
 
 func (PbftSBenchmark) Run(client *pbftClient.Client, ctx context.Context, val int) error {
 	value := strconv.Itoa(val)
-	resp, err := client.WriteVal(value)
+	resp, err := client.WriteVal(ctx, value)
 	if err != nil {
 		return err
 	}

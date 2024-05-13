@@ -2,12 +2,14 @@ package config
 
 import (
 	"context"
+	"sync"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
 	"google.golang.org/grpc"
 )
 
 type Config struct {
+	mut     sync.Mutex
 	nodes   []pb.PBFTNodeClient
 	methods map[string][]string
 }
@@ -27,7 +29,13 @@ func NewConfig(srvAddrs []string) *Config {
 	return config
 }
 
+func (c *Config) NumNodes() int {
+	return len(c.nodes)
+}
+
 func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientResponse, error) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	methodName := "Write"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
@@ -55,6 +63,8 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 }
 
 func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	methodName := "PrePrepare"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
@@ -81,6 +91,8 @@ func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 }
 
 func (c *Config) Prepare(req *pb.PrepareRequest) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	methodName := "Prepare"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
@@ -107,6 +119,8 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 }
 
 func (c *Config) Commit(req *pb.CommitRequest) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	methodName := "Commit"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
@@ -133,6 +147,8 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 }
 
 func (c *Config) ClientHandler(req *pb.ClientResponse) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	methodName := "ClientHandler"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
