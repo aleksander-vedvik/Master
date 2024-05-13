@@ -2,13 +2,13 @@ syntax = "proto3";
 
 import "gorums.proto";
 
-package protob;
+package protom;
 
-option go_package = "paxos/proto";
+option go_package = "paxosm/protom";
 
-service MultiPaxos {
+service PaxosM {
 	rpc Write(PaxosValue) returns (PaxosResponse) {
-		option (gorums.broadcastcall) = true;
+		option (gorums.quorumcall) = true;
 	}
 
 	rpc Prepare(PrepareMsg) returns (PromiseMsg) {
@@ -16,11 +16,11 @@ service MultiPaxos {
 	}
 
 	rpc Accept(AcceptMsg) returns (Empty) {
-		option (gorums.broadcast) = true;
+		option (gorums.multicast) = true;
 	}
 
 	rpc Learn(LearnMsg) returns (Empty) {
-		option (gorums.broadcast) = true;
+		option (gorums.multicast) = true;
 	}
 
 	rpc Ping(Heartbeat) returns (Empty) {
@@ -38,6 +38,7 @@ message Heartbeat {
 
 message PaxosValue {
 	string val = 1;
+	uint64 msgID = 2;
 }
 
 message PaxosResponse {
@@ -70,6 +71,7 @@ message AcceptMsg {
 	uint32 rnd = 1;
 	uint32 slot = 2;
 	PaxosValue val = 3;
+	uint64 msgID = 4;
 }
 
 // LearnMsg is sent by an Acceptor to the Proposer, if the Acceptor agreed to lock-in the value, val.
@@ -79,6 +81,7 @@ message LearnMsg {
 	PaxosValue val = 2;
 	uint32 slot = 3;
 	uint32 fromNode = 4;
+	uint64 msgID = 5;
 }
 
 // DecidedValue is sent by an Acceptor to the Learner

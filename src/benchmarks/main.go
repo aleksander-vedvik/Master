@@ -22,7 +22,7 @@ import (
 
 func main() {
 	//bench.RunSingleBenchmark("Simple")
-	bench.RunSingleBenchmark("PaxosQC")
+	bench.RunSingleBenchmark("PBFT.S")
 }
 
 //func main() {

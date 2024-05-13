@@ -8,12 +8,14 @@ import (
 )
 
 type Config struct {
-	nodes []pb.PBFTNodeClient
+	nodes   []pb.PBFTNodeClient
+	methods map[string][]string
 }
 
 func NewConfig(srvAddrs []string) *Config {
 	config := &Config{
-		nodes: make([]pb.PBFTNodeClient, len(srvAddrs)),
+		nodes:   make([]pb.PBFTNodeClient, len(srvAddrs)),
+		methods: make(map[string][]string),
 	}
 	for i, addr := range srvAddrs {
 		cc, err := grpc.DialContext(context.Background(), addr)
@@ -26,6 +28,19 @@ func NewConfig(srvAddrs []string) *Config {
 }
 
 func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientResponse, error) {
+	methodName := "Write"
+	var methods []string
+	if m, ok := c.methods[req.Id]; ok {
+		for _, method := range m {
+			if method == methodName {
+				return nil, nil
+			}
+		}
+		methods = append(m, methodName)
+	} else {
+		methods = []string{methodName}
+	}
+	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
 	for _, node := range c.nodes {
 		go func(node pb.PBFTNodeClient) {
@@ -40,6 +55,19 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 }
 
 func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
+	methodName := "PrePrepare"
+	var methods []string
+	if m, ok := c.methods[req.Id]; ok {
+		for _, method := range m {
+			if method == methodName {
+				return
+			}
+		}
+		methods = append(m, methodName)
+	} else {
+		methods = []string{methodName}
+	}
+	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
 	for _, node := range c.nodes {
 		go func(node pb.PBFTNodeClient) {
@@ -53,6 +81,19 @@ func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 }
 
 func (c *Config) Prepare(req *pb.PrepareRequest) {
+	methodName := "Prepare"
+	var methods []string
+	if m, ok := c.methods[req.Id]; ok {
+		for _, method := range m {
+			if method == methodName {
+				return
+			}
+		}
+		methods = append(m, methodName)
+	} else {
+		methods = []string{methodName}
+	}
+	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
 	for _, node := range c.nodes {
 		go func(node pb.PBFTNodeClient) {
@@ -66,6 +107,19 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 }
 
 func (c *Config) Commit(req *pb.CommitRequest) {
+	methodName := "Commit"
+	var methods []string
+	if m, ok := c.methods[req.Id]; ok {
+		for _, method := range m {
+			if method == methodName {
+				return
+			}
+		}
+		methods = append(m, methodName)
+	} else {
+		methods = []string{methodName}
+	}
+	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
 	for _, node := range c.nodes {
 		go func(node pb.PBFTNodeClient) {
@@ -76,4 +130,26 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 	for sentMsgs := len(c.nodes); sentMsgs > 0; sentMsgs-- {
 		<-respChan
 	}
+}
+
+func (c *Config) ClientHandler(req *pb.ClientResponse) {
+	methodName := "ClientHandler"
+	var methods []string
+	if m, ok := c.methods[req.Id]; ok {
+		for _, method := range m {
+			if method == methodName {
+				return
+			}
+		}
+		methods = append(m, methodName)
+	} else {
+		methods = []string{methodName}
+	}
+	c.methods[req.Id] = methods
+	cc, err := grpc.DialContext(context.Background(), req.From)
+	if err != nil {
+		panic(err)
+	}
+	client := pb.NewPBFTNodeClient(cc)
+	client.ClientHandler(context.Background(), req)
 }

@@ -1,58 +1,63 @@
 package server
 
 import (
-	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	"context"
 
-	"github.com/relab/gorums"
+	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
+	"github.com/golang/protobuf/ptypes/empty"
 )
 
-func (s *Server) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) {
+func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) (*empty.Empty, error) {
 	if !s.isInView(request.View) {
-		return
+		return nil, nil
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return
+		return nil, nil
 	}
 	if s.hasAlreadyAcceptedSequenceNumber(request.SequenceNumber) {
-		return
+		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
-	broadcast.Prepare(&pb.PrepareRequest{
+	s.view.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
 		View:           request.View,
 		SequenceNumber: request.SequenceNumber,
 		Digest:         request.Digest,
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
+		From:           request.From,
 	})
+	return nil, nil
 }
 
-func (s *Server) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) {
+func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empty.Empty, error) {
 	if !s.isInView(request.View) {
-		return
+		return nil, nil
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return
+		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
-		broadcast.Commit(&pb.CommitRequest{
+		s.view.Commit(&pb.CommitRequest{
 			Id:             request.Id,
 			Timestamp:      request.Timestamp,
 			View:           request.View,
 			Digest:         request.Digest,
 			SequenceNumber: request.SequenceNumber,
 			Message:        request.Message,
+			From:           request.From,
 		})
 	}
+	return nil, nil
 }
 
-func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) {
+func (s *Server) Commit(ctx context.Context, request *pb.CommitRequest) (*empty.Empty, error) {
 	if !s.isInView(request.View) {
-		return
+		return nil, nil
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
-		return
+		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.committed(request.SequenceNumber) {
@@ -61,9 +66,11 @@ func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadca
 			Result:    request.Message,
 			Timestamp: request.Timestamp,
 			View:      request.View,
+			From:      request.From,
 		}
-		broadcast.SendToClient(s.state, nil)
+		s.view.ClientHandler(s.state)
 	}
+	return nil, nil
 }
 
 func (s *Server) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.ClientResponse, bool) {

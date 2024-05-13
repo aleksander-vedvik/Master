@@ -1,24 +1,19 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"log/slog"
+	"context"
 	"net"
 
-	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
-	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	"github.com/aleksander-vedvik/benchmark/pbft.s/config"
+	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/relab/gorums"
 )
 
 // The storage server should implement the server interface defined in the pbbuf files
 type Server struct {
-	*pb.Server
-	leaderElection *ld.MonLeader[*pb.Node, *pb.Configuration, *pb.Heartbeat]
+	pb.PBFTNodeServer
 	leader         string
 	data           []string
 	addr           string
@@ -28,8 +23,9 @@ type Server struct {
 	viewNumber     int32
 	state          *pb.ClientResponse
 	sequenceNumber int32
-	mgr            *pb.Manager
 	withoutLeader  bool
+	view           *config.Config
+	srv            *grpc.Server
 }
 
 // Creates a new StorageServer.
@@ -39,7 +35,6 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		wL = withoutLeader[0]
 	}
 	srv := Server{
-		Server:         pb.NewServer(),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
@@ -50,70 +45,34 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		sequenceNumber: 1,
 		viewNumber:     1,
 		withoutLeader:  wL,
+		view:           config.NewConfig(srvAddresses),
+		srv:            grpc.NewServer(),
 	}
-	srv.configureView()
-	pb.RegisterPBFTNodeServer(srv.Server, &srv)
+	pb.RegisterPBFTNodeServer(srv.srv, &srv)
 	return &srv
 }
 
-func (srv *Server) configureView() {
-	srv.mgr = pb.NewManager(
-		gorums.WithGrpcDialOptions(
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		),
-	)
-	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers))
+func (s *Server) Start() {
+	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		panic(err)
 	}
-	srv.SetView(view)
+	go s.srv.Serve(lis)
 }
 
-func (s *Server) Start() {
-	lis, err := net.Listen("tcp4", s.addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	//go s.status()
-	go s.Serve(lis)
-	s.addr = lis.Addr().String()
-	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
-	if s.withoutLeader {
-		return
-	}
-	var id uint32
-	for _, node := range s.View.Nodes() {
-		if node.Address() == s.addr {
-			id = node.ID()
-			break
-		}
-	}
-	s.leaderElection = ld.New(s.View, id, func(id uint32) *pb.Heartbeat {
-		return &pb.Heartbeat{
-			Id: id,
-		}
-	})
-	s.leaderElection.StartLeaderElection()
-	go s.listenForLeaderChanges()
+func (s *Server) Stop() {
+	s.srv.Stop()
 }
 
-func (s *Server) listenForLeaderChanges() {
-	for leader := range s.leaderElection.Leaders() {
-		slog.Warn("leader changed", "leader", leader)
-		s.leader = leader
-	}
-}
-
-func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
+func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Empty, error) {
 	if !s.isLeader() {
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
-			broadcast.SendToClient(val, nil)
-		} else {
-			broadcast.Forward(request, s.leader)
+			s.view.ClientHandler(val)
+			//} else {
+			//broadcast.Forward(request, s.leader)
 		}
-		return
+		return nil, nil
 	}
-	//slog.Info("got client request. initiating a pBFT round", "addr", s.addr, "leader", s.leader, "msg", request.Message)
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,
@@ -122,8 +81,14 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	broadcast.PrePrepare(req)
+	s.view.PrePrepare(req)
 	s.sequenceNumber++
+	return nil, nil
+}
+
+// only used by the client
+func (s *Server) ClientHandler(ctx context.Context, request *pb.ClientResponse) (*empty.Empty, error) {
+	return nil, nil
 }
 
 //func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {

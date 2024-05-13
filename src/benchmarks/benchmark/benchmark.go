@@ -90,7 +90,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	for i, bench := range benchmarks {
-		if i < 3 || i >= 6 {
+		if i < 3 || i >= 4 {
 			continue
 		}
 		start := time.Now()
