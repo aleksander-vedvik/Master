@@ -1,5 +1,0 @@
-Who,NumMsgs,DroppedMsgs,Reqs,ReqsSuccesful,ReqsFailed,LatencyAvg,LatencyMin,LatencyMax,TotalDuration
-127.0.0.1:5002,12104,0,1001,1002,-1,180,1362,13816,
-127.0.0.1:5001,12201,0,1001,1002,-1,176,1409,13369,
-127.0.0.1:5000,12093,0,1001,1002,-1,186,1521,15619,
-clients,,,1000,1000,0,336,195,2627,338401
