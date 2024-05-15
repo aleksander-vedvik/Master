@@ -18,6 +18,7 @@ var csvHeader = []string{
 	"LatencyMin",
 	"LatencyMax",
 	"TotalDuration",
+	"Throughput",
 }
 
 var csvHeader2 = []string{
@@ -26,7 +27,7 @@ var csvHeader2 = []string{
 }
 
 func WriteToCsv(name, benchname string, records []Result, clientRecord ClientResult) error {
-	path := fmt.Sprintf("./csv/%s.%s.csv", name, benchname)
+	path := fmt.Sprintf("./csv/stats/%s.%s.csv", name, benchname)
 	fmt.Println("writing to csv...")
 	file, err := os.Create(path)
 	if err != nil {
@@ -48,9 +49,15 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 			strconv.Itoa(int(record.RoundTripLatencyMin.Microseconds())),
 			strconv.Itoa(int(record.RoundTripLatencyMax.Microseconds())),
 			"",
+			"",
 		}
 		data[i+1] = row
 	}
+	totalDur := clientRecord.TotalDur.Seconds()
+	if totalDur <= 0 {
+		totalDur = 1
+	}
+	throughput := float64(clientRecord.Total) / totalDur
 	clientRow := []string{
 		clientRecord.Id,
 		"",
@@ -62,6 +69,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		strconv.Itoa(int(clientRecord.LatencyMin.Microseconds())),
 		strconv.Itoa(int(clientRecord.LatencyMax.Microseconds())),
 		strconv.Itoa(int(clientRecord.TotalDur.Microseconds())),
+		fmt.Sprintf("%.2f", throughput),
 	}
 	data = append(data, clientRow)
 	err = w.WriteAll(data)
@@ -69,7 +77,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		panic(err)
 	}
 
-	path2 := fmt.Sprintf("./csv/Dist.%s.%s.csv", name, benchname)
+	path2 := fmt.Sprintf("./csv/histogram/hist.%s.%s.csv", name, benchname)
 	f, err := os.Create(path2)
 	if err != nil {
 		return err

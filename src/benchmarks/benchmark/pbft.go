@@ -34,7 +34,8 @@ func (PbftBenchmark) Warmup(client *pbftClient.Client) {
 	}
 }
 
-func (PbftBenchmark) StartBenchmark(config *pbftClient.Client) {
+func (PbftBenchmark) StartBenchmark(config *pbftClient.Client) []Result {
+	return nil
 }
 
 func (PbftBenchmark) StopBenchmark(config *pbftClient.Client) []Result {

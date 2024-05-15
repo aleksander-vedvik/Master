@@ -30,8 +30,9 @@ func (PaxosQCBenchmark) Warmup(client *paxosClient.Client) {
 	client.Write("warmup")
 }
 
-func (PaxosQCBenchmark) StartBenchmark(config *paxosClient.Client) {
+func (PaxosQCBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
 	//config.Benchmark()
+	return nil
 }
 
 func (PaxosQCBenchmark) StopBenchmark(config *paxosClient.Client) []Result {

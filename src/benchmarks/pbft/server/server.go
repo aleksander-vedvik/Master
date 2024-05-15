@@ -8,6 +8,7 @@ import (
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -126,35 +127,15 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 	s.sequenceNumber++
 }
 
-//func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
-////srv.PrintStats()
-//metrics := srv.GetStats()
-//m := []*pb.Metric{
-//{
-//TotalNum:              metrics.TotalNum,
-//GoroutinesStarted:     metrics.GoroutinesStarted,
-//GoroutinesStopped:     metrics.GoroutinesStopped,
-//FinishedReqsTotal:     metrics.FinishedReqs.Total,
-//FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
-//FinishedReqsFailed:    metrics.FinishedReqs.Failed,
-//Processed:             metrics.Processed,
-//Dropped:               metrics.Dropped,
-//Invalid:               metrics.Invalid,
-//AlreadyProcessed:      metrics.AlreadyProcessed,
-//RoundTripLatency: &pb.TimingMetric{
-//Avg: uint64(metrics.RoundTripLatency.Avg),
-//Min: uint64(metrics.RoundTripLatency.Min),
-//Max: uint64(metrics.RoundTripLatency.Max),
-//},
-//ReqLatency: &pb.TimingMetric{
-//Avg: uint64(metrics.RoundTripLatency.Avg),
-//Min: uint64(metrics.RoundTripLatency.Min),
-//Max: uint64(metrics.RoundTripLatency.Max),
-//},
-//ShardDistribution: metrics.ShardDistribution,
-//},
-//}
-//return &pb.Result{
-//Metrics: m,
-//}, nil
-//}
+func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
+	metrics := srv.GetStats()
+	m := []*pb.Metric{
+		{
+			TotalNum: metrics.TotalNum,
+			Dropped:  metrics.Dropped,
+		},
+	}
+	return &pb.Result{
+		Metrics: m,
+	}, nil
+}

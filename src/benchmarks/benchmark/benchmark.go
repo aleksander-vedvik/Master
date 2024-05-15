@@ -53,16 +53,31 @@ type Benchmark[S, C any] interface {
 	CreateServer(addr string, peers []string) (*S, func(), error)
 	CreateClient(addr string, srvAddrs []string, qSize int) (*C, func(), error)
 	Warmup(client *C)
-	StartBenchmark(config *C)
+	StartBenchmark(config *C) []Result
 	Run(client *C, ctx context.Context, payload int) error
 	StopBenchmark(config *C) []Result
 }
 
+type runType int
+
 const (
-	Sync = iota
+	Sync runType = iota
 	Async
 	Random
 )
+
+func (r runType) String() string {
+	res := ""
+	switch r {
+	case Sync:
+		res = "Sync"
+	case Async:
+		res = "Async"
+	case Random:
+		res = "Random"
+	}
+	return res
+}
 
 type benchmarkOption struct {
 	name           string
@@ -74,7 +89,7 @@ type benchmarkOption struct {
 	timeout        time.Duration
 	reqInterval    struct{ start, end int } // reqs will be sent in the interval: [start, end] µs
 	local          bool
-	runType        int
+	runType        runType
 }
 
 func RunAll() {
@@ -91,10 +106,11 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
-	for i, bench := range benchmarks {
-		if i < 3 || i >= 6 {
+	for _, bench := range throughputBenchmarks {
+		if bench.numRequests > 1000 {
 			continue
 		}
+		bench.name = fmt.Sprintf("S%v.C%v.R%v.%s", len(bench.srvAddrs), bench.numClients, bench.numRequests, bench.runType)
 		start := time.Now()
 		clientResult, ress, err := benchmark.run(bench)
 		if err != nil {
@@ -173,25 +189,10 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	fmt.Println("starting benchmark...")
 
 	// start the recording of metrics
-	benchmark.StartBenchmark(config)
+	resultBefore := benchmark.StartBenchmark(config)
 	//runtime.ReadMemStats(&start)
-	//for i := 0; i < opts.numRequests; i++ {
-	//for _, client := range clients {
-	//go func(client *C, i int) {
-	//ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
-	//defer cancel()
-	//start := time.Now()
-	//err := benchmark.Run(client, ctx, i)
-	//end := time.Now()
-	//resChan <- RequestResult{
-	//err:   err,
-	//start: start,
-	//end:   end,
-	//}
-	//}(client, i)
-	//}
-	//}
-	runStart := time.Now()
+
+	//runStart := time.Now()
 	switch opts.runType {
 	case Sync:
 		runSync(opts, benchmark, resChan, clients)
@@ -207,6 +208,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	maxDur := time.Duration(0)
 	minDur := 100 * time.Hour
 	avgDur := time.Duration(0)
+	firstReqStart := time.Now().Add(24 * time.Hour)
+	lastReqDone := time.Now()
 	for i := 0; i < totalNumReqs; i++ {
 		if i%(totalNumReqs/10) == 0 {
 			fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
@@ -223,9 +226,16 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		//durations[i], errs[i] = dur, res.err
 		if res.err != nil {
 			clientResult.Errs++
+			//slog.Info("failed req", "err", res.err)
 			continue
 		} else {
 			clientResult.Successes++
+		}
+		if firstReqStart.Sub(res.start) > 0 {
+			firstReqStart = res.start
+		}
+		if res.end.Sub(lastReqDone) > 0 {
+			lastReqDone = res.end
 		}
 		dur := res.end.Sub(res.start)
 		durations = append(durations, dur)
@@ -237,7 +247,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		}
 		avgDur += dur
 	}
-	clientResult.TotalDur = time.Since(runStart)
+	clientResult.TotalDur = lastReqDone.Sub(firstReqStart)
 	clientResult.ReqDistribution = durDistribution
 	fmt.Printf("100%s done\n", "%")
 	//runtime.ReadMemStats(&end)
@@ -266,6 +276,11 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	clientResult.LatencyAvg = avgDur
 	clientResult.LatencyMax = maxDur
 	clientResult.LatencyMin = minDur
+	if result != nil && resultBefore != nil {
+		for i := range result {
+			result[i].TotalNum -= resultBefore[i].TotalNum
+		}
+	}
 	return clientResult, result, nil
 }
 

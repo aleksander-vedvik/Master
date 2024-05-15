@@ -46,7 +46,7 @@ func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server 
 	}
 	srv := Server{
 		id:                    uint32(id),
-		Server:                pb.NewServer(gorums.WithMetrics()),
+		Server:                pb.NewServer(),
 		acceptor:              NewAcceptor(len(srvAddrs)),
 		data:                  make([]string, 0),
 		addr:                  addr,
@@ -174,16 +174,8 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Resul
 	metrics := srv.GetStats()
 	m := []*pb.Metric{
 		{
-			TotalNum:              metrics.TotalNum,
-			FinishedReqsTotal:     metrics.FinishedReqs.Total,
-			FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
-			FinishedReqsFailed:    metrics.FinishedReqs.Failed,
-			Dropped:               metrics.Dropped,
-			RoundTripLatency: &pb.TimingMetric{
-				Avg: uint64(metrics.RoundTripLatency.Avg),
-				Min: uint64(metrics.RoundTripLatency.Min),
-				Max: uint64(metrics.RoundTripLatency.Max),
-			},
+			TotalNum: metrics.TotalNum,
+			Dropped:  metrics.Dropped,
 		},
 	}
 	return &pb.Result{

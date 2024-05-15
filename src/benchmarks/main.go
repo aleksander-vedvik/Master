@@ -22,7 +22,8 @@ import (
 
 func main() {
 	//bench.RunSingleBenchmark("Simple")
-	bench.RunSingleBenchmark("PBFT")
+	bench.RunSingleBenchmark("PBFT.S")
+	//bench.RunSingleBenchmark("PBFT")
 }
 
 //func main() {

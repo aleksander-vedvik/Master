@@ -31,8 +31,9 @@ func (SimpleBenchmark) Warmup(client *simpleClient.Client) {
 	client.Write1(context.Background(), "warmup")
 }
 
-func (SimpleBenchmark) StartBenchmark(config *simpleClient.Client) {
+func (SimpleBenchmark) StartBenchmark(config *simpleClient.Client) []Result {
 	config.Benchmark()
+	return nil
 }
 
 func (SimpleBenchmark) StopBenchmark(config *simpleClient.Client) []Result {

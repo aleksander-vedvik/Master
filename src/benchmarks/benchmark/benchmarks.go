@@ -30,6 +30,12 @@ var benchTypes = map[string]struct {
 	},
 }
 
+var threeServers = []string{
+	"127.0.0.1:5000",
+	"127.0.0.1:5001",
+	"127.0.0.1:5002",
+}
+
 var benchmarks = []benchmarkOption{
 	{
 		name:           "S3.C1.R10000.Async",
@@ -126,8 +132,77 @@ var benchmarks = []benchmarkOption{
 	},
 }
 
-var threeServers = []string{
-	"127.0.0.1:5000",
-	"127.0.0.1:5001",
-	"127.0.0.1:5002",
+var throughputBenchmarks = []benchmarkOption{
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    10,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    20,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    50,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    100,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    200,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    500,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    1000,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    5000,
+		local:          true,
+		runType:        Async,
+	},
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    10000,
+		local:          true,
+		runType:        Async,
+	},
 }
