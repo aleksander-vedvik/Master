@@ -51,7 +51,7 @@ func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server 
 		data:                  make([]string, 0),
 		addr:                  addr,
 		peers:                 srvAddrs,
-		leader:                "",
+		leader:                "127.0.0.1:5000",
 		disableLeaderElection: disable,
 	}
 	srv.configureView()
@@ -109,8 +109,8 @@ func (srv *Server) Start() {
 	} else {
 		srv.leader = srv.peers[0]
 		if srv.leader == srv.addr {
-			srv.proposer = NewProposer(srv.id, srv.peers, srv.acceptor.rnd, srv.View, srv.BroadcastAccept)
-			go srv.proposer.Start()
+			srv.proposer = NewProposer(srv.id, srv.peers, srv.acceptor.rnd+1, srv.View, srv.BroadcastAccept)
+			//go srv.proposer.Start()
 		}
 	}
 	// start gRPC server

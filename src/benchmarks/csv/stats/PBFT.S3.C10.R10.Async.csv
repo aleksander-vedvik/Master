@@ -1,2 +1,0 @@
-Who,NumMsgs,DroppedMsgs,Reqs,ReqsSuccesful,ReqsFailed,LatencyAvg,LatencyMin,LatencyMax,TotalDuration,Throughput
-clients,,,100,98,2,28025,17453,31677,33075,3023.36

@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
@@ -65,6 +66,7 @@ func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast
 	defer a.mut.Unlock()
 	// do not accept any messages with a rnd less than current
 	if request.Rnd < a.rnd {
+		slog.Info("accept: failed", "reason", "rnd", "a.rnd", a.rnd, "request.Rnd", request.Rnd)
 		return
 	}
 	// set the current rnd to the highest it has seen
@@ -76,6 +78,7 @@ func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast
 	if slot, ok := a.slots[request.Slot]; ok {
 		// return if a slot with the same rnd already exists.
 		if slot.Rnd == request.Rnd {
+			slog.Info("accept: failed", "reason", "slot rnd")
 			return
 		}
 		// if all servers have commited this value it is considered final.
@@ -114,6 +117,7 @@ func (a *Acceptor) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *
 
 func (a *Acceptor) execute(slot uint32, broadcast *pb.Broadcast, resp *pb.PaxosResponse) {
 	if a.adu > slot {
+		slog.Info("commit: failed", "reason", "adu")
 		// old message
 		return
 	}
