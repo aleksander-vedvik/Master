@@ -16,6 +16,7 @@ import (
 type Client struct {
 	config *pb.Configuration
 	mgr    *pb.Manager
+	addr   string
 }
 
 func New(addr string, srvAddresses []string, qSize int) *Client {
@@ -39,6 +40,7 @@ func New(addr string, srvAddresses []string, qSize int) *Client {
 	return &Client{
 		config: config,
 		mgr:    mgr,
+		addr:   addr,
 	}
 }
 
@@ -46,10 +48,8 @@ func (sc *Client) Stop() {
 	sc.mgr.Close()
 }
 
-func (sc *Client) Write(value string) (*pb.PaxosResponse, error) {
-	//slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
+func (sc *Client) Write(ctx context.Context, value string) (*pb.PaxosResponse, error) {
+	//slog.Info(fmt.Sprintf("client(%v): writing", sc.addr), "val", value)
 	return sc.config.Write(ctx, &pb.PaxosValue{
 		Val: value,
 	})

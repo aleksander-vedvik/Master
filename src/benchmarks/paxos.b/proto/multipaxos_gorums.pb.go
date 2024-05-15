@@ -16,6 +16,7 @@ import (
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	net "net"
+	time "time"
 )
 
 const (
@@ -299,7 +300,7 @@ func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
 }
 
 func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
@@ -311,7 +312,7 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
 }
 
 func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse, broadcastID uint64) (*PaxosResponse, error) {
@@ -326,11 +327,22 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
+	var (
+		timeout  time.Duration
+		ok       bool
+		response protoreflect.ProtoMessage
+	)
+	// use the same timeout as defined in the given context.
+	// this is used for cancellation.
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = deadline.Sub(time.Now())
+	} else {
+		timeout = 5 * time.Second
+	}
 	broadcastID := c.snowflake.NewBroadcastID()
-	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "proto.MultiPaxos.Write")
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protob.MultiPaxos.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	var response protoreflect.ProtoMessage
-	var ok bool
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
@@ -338,7 +350,9 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 			Method:      gorums.Cancellation,
 			BroadcastID: broadcastID,
 		}
-		c.RawConfiguration.BroadcastCall(context.Background(), bd)
+		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
+		defer cancelCancel()
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -353,7 +367,7 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 
 func registerClientServerHandlers(srv *clientServerImpl) {
 
-	srv.RegisterHandler("proto.MultiPaxos.Write", gorums.ClientHandler(srv.clientWrite))
+	srv.RegisterHandler("protob.MultiPaxos.Write", gorums.ClientHandler(srv.clientWrite))
 }
 
 // Ping is a quorum call invoked on all nodes in configuration c,
@@ -361,7 +375,7 @@ func registerClientServerHandlers(srv *clientServerImpl) {
 func (c *Configuration) Ping(ctx context.Context, in *Heartbeat, opts ...gorums.CallOption) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "proto.MultiPaxos.Ping",
+		Method:  "protob.MultiPaxos.Ping",
 	}
 
 	c.RawConfiguration.Multicast(ctx, cd, opts...)
@@ -398,7 +412,7 @@ type QuorumSpec interface {
 func (c *Configuration) Prepare(ctx context.Context, in *PrepareMsg) (resp *PromiseMsg, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "proto.MultiPaxos.Prepare",
+		Method:  "protob.MultiPaxos.Prepare",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*PromiseMsg, len(replies))
@@ -420,7 +434,7 @@ func (c *Configuration) Prepare(ctx context.Context, in *PrepareMsg) (resp *Prom
 func (c *Configuration) Benchmark(ctx context.Context, in *Empty) (resp *Result, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "proto.MultiPaxos.Benchmark",
+		Method:  "protob.MultiPaxos.Benchmark",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Result, len(replies))
@@ -467,22 +481,22 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *Empty) (response *Re
 }
 
 func RegisterMultiPaxosServer(srv *Server, impl MultiPaxos) {
-	srv.RegisterHandler("proto.MultiPaxos.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
-	srv.RegisterClientHandler("proto.MultiPaxos.Write")
-	srv.RegisterHandler("proto.MultiPaxos.Prepare", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+	srv.RegisterHandler("protob.MultiPaxos.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+	srv.RegisterClientHandler("protob.MultiPaxos.Write")
+	srv.RegisterHandler("protob.MultiPaxos.Prepare", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*PrepareMsg)
 		defer ctx.Release()
 		resp, err := impl.Prepare(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
-	srv.RegisterHandler("proto.MultiPaxos.Accept", gorums.BroadcastHandler(impl.Accept, srv.Server))
-	srv.RegisterHandler("proto.MultiPaxos.Learn", gorums.BroadcastHandler(impl.Learn, srv.Server))
-	srv.RegisterHandler("proto.MultiPaxos.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
+	srv.RegisterHandler("protob.MultiPaxos.Accept", gorums.BroadcastHandler(impl.Accept, srv.Server))
+	srv.RegisterHandler("protob.MultiPaxos.Learn", gorums.BroadcastHandler(impl.Learn, srv.Server))
+	srv.RegisterHandler("protob.MultiPaxos.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
 		req := in.Message.(*Heartbeat)
 		defer ctx.Release()
 		impl.Ping(ctx, req)
 	})
-	srv.RegisterHandler("proto.MultiPaxos.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+	srv.RegisterHandler("protob.MultiPaxos.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*Empty)
 		defer ctx.Release()
 		resp, err := impl.Benchmark(ctx, req)
@@ -497,9 +511,9 @@ func (srv *Server) BroadcastAccept(req *AcceptMsg, opts ...gorums.BroadcastOptio
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Accept", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, options.RelatedToReq, options)
 	} else {
-		srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Accept", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protob.MultiPaxos.Accept", req, options)
 	}
 }
 
@@ -509,11 +523,17 @@ func (srv *Server) BroadcastLearn(req *LearnMsg, opts ...gorums.BroadcastOption)
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("proto.MultiPaxos.Learn", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, options.RelatedToReq, options)
 	} else {
-		srv.broadcast.orchestrator.ServerBroadcastHandler("proto.MultiPaxos.Learn", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protob.MultiPaxos.Learn", req, options)
 	}
 }
+
+const (
+	MultiPaxosWrite  string = "protob.MultiPaxos.Write"
+	MultiPaxosAccept string = "protob.MultiPaxos.Accept"
+	MultiPaxosLearn  string = "protob.MultiPaxos.Learn"
+)
 
 type internalPromiseMsg struct {
 	nid   uint32

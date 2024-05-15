@@ -47,7 +47,7 @@ func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server 
 	srv := Server{
 		id:                    uint32(id),
 		Server:                pb.NewServer(),
-		acceptor:              NewAcceptor(len(srvAddrs)),
+		acceptor:              NewAcceptor(addr, len(srvAddrs)),
 		data:                  make([]string, 0),
 		addr:                  addr,
 		peers:                 srvAddrs,
@@ -144,7 +144,7 @@ func (srv *Server) Write(ctx gorums.ServerCtx, request *pb.PaxosValue, broadcast
 		// 2. send it to the leader 			<- ok
 		// 3. reply with last committed value	<- ok
 		// 4. reply with error					<- not ok
-		broadcast.Forward(request, srv.leader)
+		//broadcast.Forward(request, srv.leader)
 		return
 	}
 	srv.proposer.mut.Lock()

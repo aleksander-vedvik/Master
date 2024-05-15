@@ -17,6 +17,7 @@ import (
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	net "net"
+	time "time"
 )
 
 const (
@@ -204,6 +205,7 @@ func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator)
 	return &Broadcast{
 		orchestrator: o,
 		metadata:     m,
+		srvAddrs:     make([]string, 0),
 	}
 }
 
@@ -215,6 +217,7 @@ func (srv *Server) SetView(config *Configuration) {
 type Broadcast struct {
 	orchestrator *gorums.BroadcastOrchestrator
 	metadata     gorums.BroadcastMetadata
+	srvAddrs     []string
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -237,6 +240,14 @@ func (c *clientServerImpl) stop() {
 	}
 }
 
+func (b *Broadcast) To(addrs ...string) *Broadcast {
+	if len(addrs) <= 0 {
+		return b
+	}
+	b.srvAddrs = append(b.srvAddrs, addrs...)
+	return b
+}
+
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	if addr == "" {
 		return fmt.Errorf("cannot forward to empty addr, got: %s", addr)
@@ -248,10 +259,35 @@ func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	return nil
 }
 
+// Done signals the end of a broadcast request. It is necessary to call
+// either Done() or SendToClient() to properly terminate a broadcast request
+// and free up resources. Otherwise, it could cause poor performance.
+func (b *Broadcast) Done() {
+	b.orchestrator.DoneHandler(b.metadata.BroadcastID)
+}
+
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
 }
 
+// Cancel is a non-destructive method call that will transmit a cancellation
+// to all servers in the view. It will not stop the execution but will cause
+// the given ServerCtx to be cancelled, making it possible to listen for
+// cancellations.
+//
+// Could be used together with either SendToClient() or Done().
+func (b *Broadcast) Cancel() {
+	b.orchestrator.CancelHandler(b.metadata.BroadcastID, b.srvAddrs)
+}
+
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
 	srv.SendToClientHandler(resp, err, broadcastID)
 }
@@ -264,6 +300,7 @@ func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastO
 	for _, opt := range opts {
 		opt(&options)
 	}
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
 	b.orchestrator.BroadcastHandler("protosPBFT.PBFTNode.PrePrepare", req, b.metadata.BroadcastID, options)
 }
 
@@ -275,6 +312,7 @@ func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption)
 	for _, opt := range opts {
 		opt(&options)
 	}
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
 	b.orchestrator.BroadcastHandler("protosPBFT.PBFTNode.Prepare", req, b.metadata.BroadcastID, options)
 }
 
@@ -286,6 +324,7 @@ func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
 	for _, opt := range opts {
 		opt(&options)
 	}
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
 	b.orchestrator.BroadcastHandler("protosPBFT.PBFTNode.Commit", req, b.metadata.BroadcastID, options)
 }
 
@@ -301,13 +340,32 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protosPBFT.PBFTNode.Write")
+	var (
+		timeout  time.Duration
+		ok       bool
+		response protoreflect.ProtoMessage
+	)
+	// use the same timeout as defined in the given context.
+	// this is used for cancellation.
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = deadline.Sub(time.Now())
+	} else {
+		timeout = 5 * time.Second
+	}
+	broadcastID := c.snowflake.NewBroadcastID()
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protosPBFT.PBFTNode.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	var response protoreflect.ProtoMessage
-	var ok bool
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
+		bd := gorums.BroadcastCallData{
+			Method:      gorums.Cancellation,
+			BroadcastID: broadcastID,
+		}
+		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
+		defer cancelCancel()
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -426,6 +484,7 @@ func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
 		resp, err := impl.Benchmark(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+	srv.RegisterHandler(gorums.Cancellation, gorums.BroadcastHandler(gorums.CancelFunc, srv.Server))
 }
 
 func (srv *Server) BroadcastPrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastOption) {
@@ -463,6 +522,13 @@ func (srv *Server) BroadcastCommit(req *CommitRequest, opts ...gorums.BroadcastO
 		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFT.PBFTNode.Commit", req, options)
 	}
 }
+
+const (
+	PBFTNodeWrite      string = "protosPBFT.PBFTNode.Write"
+	PBFTNodePrePrepare string = "protosPBFT.PBFTNode.PrePrepare"
+	PBFTNodePrepare    string = "protosPBFT.PBFTNode.Prepare"
+	PBFTNodeCommit     string = "protosPBFT.PBFTNode.Commit"
+)
 
 type internalResult struct {
 	nid   uint32

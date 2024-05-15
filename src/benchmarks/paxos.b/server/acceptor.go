@@ -2,7 +2,7 @@ package server
 
 import (
 	"errors"
-	"log/slog"
+	"sort"
 	"sync"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
@@ -12,6 +12,7 @@ import (
 
 type Acceptor struct {
 	mut         sync.Mutex
+	addr        string
 	rnd         uint32 // current round
 	maxSeenSlot uint32
 	slots       map[uint32]*pb.PromiseSlot // slots: is the internal data structure maintained by the acceptor to remember the slots
@@ -19,18 +20,23 @@ type Acceptor struct {
 	numPeers    int
 	senders     map[uint64]int
 	adu         uint32
-	cache       []struct {
+	cache       map[uint32]struct {
 		slot         uint32
 		sendResponse func()
 	}
 }
 
-func NewAcceptor(numPeers int) *Acceptor {
+func NewAcceptor(addr string, numPeers int) *Acceptor {
 	return &Acceptor{
+		addr:       addr,
 		numPeers:   numPeers,
 		slots:      make(map[uint32]*pb.PromiseSlot),
 		learntVals: make(map[uint32]*pb.LearnMsg),
 		senders:    make(map[uint64]int),
+		cache: make(map[uint32]struct {
+			slot         uint32
+			sendResponse func()
+		}),
 	}
 }
 
@@ -61,12 +67,10 @@ func (a *Acceptor) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.Promis
 }
 
 func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast *pb.Broadcast) {
-	//slog.Info("received accept", "srv", srv.addr)
 	a.mut.Lock()
 	defer a.mut.Unlock()
 	// do not accept any messages with a rnd less than current
 	if request.Rnd < a.rnd {
-		slog.Info("accept: failed", "reason", "rnd", "a.rnd", a.rnd, "request.Rnd", request.Rnd)
 		return
 	}
 	// set the current rnd to the highest it has seen
@@ -78,7 +82,6 @@ func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast
 	if slot, ok := a.slots[request.Slot]; ok {
 		// return if a slot with the same rnd already exists.
 		if slot.Rnd == request.Rnd {
-			slog.Info("accept: failed", "reason", "slot rnd")
 			return
 		}
 		// if all servers have commited this value it is considered final.
@@ -112,47 +115,43 @@ func (a *Acceptor) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *
 			}
 		}
 		a.execute(request.Slot, broadcast, &pb.PaxosResponse{})
+		//broadcast.SendToClient(&pb.PaxosResponse{}, nil)
 	}
 }
 
 func (a *Acceptor) execute(slot uint32, broadcast *pb.Broadcast, resp *pb.PaxosResponse) {
 	if a.adu > slot {
-		slog.Info("commit: failed", "reason", "adu")
 		// old message
 		return
 	}
 	if a.adu < slot {
-		for i, c := range a.cache {
-			if c.slot < slot {
-				continue
-			}
-			tmp := append(a.cache[:i], struct {
-				slot         uint32
-				sendResponse func()
-			}{slot, func() {
-				broadcast.SendToClient(resp, nil)
-			}})
-			if i+1 >= len(a.cache) {
-				a.cache = tmp
-				return
-			}
-			a.cache = append(tmp, a.cache[i+1:]...)
-		}
+		a.cache[slot] = struct {
+			slot         uint32
+			sendResponse func()
+		}{slot, func() {
+			broadcast.SendToClient(resp, nil)
+		}}
 		return
 	}
 	if a.adu == slot {
 		broadcast.SendToClient(resp, nil)
 		a.adu++
 	}
-	for i, c := range a.cache {
-		if c.slot <= a.adu {
-			c.sendResponse()
+	send := make([]struct {
+		slot         uint32
+		sendResponse func()
+	}, 0, len(a.cache))
+	for _, c := range a.cache {
+		send = append(send, c)
+	}
+	sort.Slice(send, func(i, j int) bool {
+		return send[i].slot < send[j].slot
+	})
+	for _, cachedSlot := range send {
+		if cachedSlot.slot <= a.adu {
+			cachedSlot.sendResponse()
 			a.adu++
-		} else {
-			if i < len(a.cache) {
-				a.cache = a.cache[i:]
-			}
-			return
+			delete(a.cache, cachedSlot.slot)
 		}
 	}
 }

@@ -28,7 +28,7 @@ func (PaxosBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*paxo
 }
 
 func (PaxosBenchmark) Warmup(client *paxosClient.Client) {
-	client.Write("warmup")
+	_, _ = client.Write(context.Background(), "warmup")
 }
 
 func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
@@ -62,7 +62,7 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 }
 
 func (PaxosBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {
-	resp, err := client.Write(strconv.Itoa(val))
+	resp, err := client.Write(ctx, strconv.Itoa(val))
 	if err != nil {
 		return err
 	}
