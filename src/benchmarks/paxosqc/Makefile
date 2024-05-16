@@ -5,12 +5,7 @@ proto:
 	*.proto
 
 protos:
-	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
-	--proto_path=paths=source_relative/protos/ \
-	--go_out=paths=source_relative:. \
-	--gorums_out=paths=source_relative:. \
-	protos/storage.proto
-	@echo "Proto files generated successfully"
+	protoc --go_out=paths=source_relative:. proto/*.proto
 
 docker:
 	docker compose up

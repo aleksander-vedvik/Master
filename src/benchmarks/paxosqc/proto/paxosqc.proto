@@ -27,6 +27,7 @@ message Value {
     uint32 ClientSeq     = 2;
     bool isNoop          = 3;
     string ClientCommand = 4;
+    string ID = 5;
 }
 
 message Response {

@@ -24,8 +24,9 @@ func main() {
 	//bench.RunSingleBenchmark("Simple")
 	//bench.RunSingleBenchmark("PaxosQC")
 	//bench.RunSingleBenchmark("Paxos")
-	bench.RunThroughputVsLatencyBenchmark("PBFT")
-	bench.RunThroughputVsLatencyBenchmark("PBFT.S")
+	//bench.RunThroughputVsLatencyBenchmark("PBFT")
+	//bench.RunThroughputVsLatencyBenchmark("PBFT.S")
+	bench.RunThroughputVsLatencyBenchmark("PaxosQC")
 	//bench.RunSingleBenchmark("PBFT")
 	//bench.RunSingleBenchmark("PBFT.S")
 }

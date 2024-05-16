@@ -151,11 +151,11 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	//10000,
 	//}
 	maxTarget := 15000
-	targetIncrement := 2000
+	targetIncrement := 5000
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)
-	for target := targetIncrement; target < maxTarget; target += targetIncrement {
+	for target := targetIncrement; target <= maxTarget; target += targetIncrement {
 		//for _, target := range throughputs {
 		bench := benchmarkOption{
 			name:           fmt.Sprintf("S3.C10.R%v.Throughput", target),
@@ -252,13 +252,13 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	//runStart := time.Now()
 	switch opts.runType {
 	case Sync:
-		runSync(opts, benchmark, resChan, clients)
+		go runSync(opts, benchmark, resChan, clients)
 	case Async:
-		runAsync(opts, benchmark, resChan, clients)
+		go runAsync(opts, benchmark, resChan, clients)
 	case Random:
-		runRandom(opts, benchmark, resChan, clients)
+		go runRandom(opts, benchmark, resChan, clients)
 	case Throughput:
-		runThroughput(opts, benchmark, resChan, clients)
+		go runThroughput(opts, benchmark, resChan, clients)
 	}
 
 	switch opts.runType {

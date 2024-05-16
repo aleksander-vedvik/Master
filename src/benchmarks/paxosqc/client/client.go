@@ -3,9 +3,9 @@ package client
 import (
 	"context"
 	"log"
-	"time"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxosqc/proto"
+	"github.com/google/uuid"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -41,13 +41,12 @@ func (sc *Client) Stop() {
 	sc.mgr.Close()
 }
 
-func (sc *Client) Write(value string) (*pb.Response, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
+func (sc *Client) Write(ctx context.Context, value string) (*pb.Response, error) {
 	sc.seq++
 	return sc.config.ClientHandle(ctx, &pb.Value{
 		ClientCommand: value,
 		ClientSeq:     sc.seq,
+		ID:            uuid.NewString(),
 	})
 }
 

@@ -45,6 +45,7 @@ type PaxosReplica struct {
 	learntVal        map[Slot]*pb.LearnMsg // Stores all received learn messages
 	responseChannels map[uint64]chan *pb.Response
 	stopped          bool
+	cachedReplies    map[string]*pb.Response
 }
 
 // NewPaxosReplica returns a new Paxos replica with a nodeMap configuration.
@@ -74,6 +75,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		stop:             make(chan struct{}),
 		learntVal:        make(map[Slot]*pb.LearnMsg),
 		responseChannels: make(map[uint64]chan *pb.Response),
+		cachedReplies:    make(map[string]*pb.Response),
 	}
 	pb.RegisterPaxosQCServer(r.Server, r)
 	r.run()
@@ -201,8 +203,16 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 			break
 		}
 		r.advanceAllDecidedUpTo()
-		respCh := r.respChannel(learn)
+		//respCh := r.respChannel(learn)
+		r.mu.Lock()
+		respCh := r.respChannelWithoutRetries(learn)
 		if respCh == nil {
+			r.cachedReplies[lrn.Val.ID] = &pb.Response{
+				ClientID:      learn.Val.ClientID,
+				ClientSeq:     learn.Val.ClientSeq,
+				ClientCommand: learn.Val.ClientCommand,
+			}
+			r.mu.Unlock()
 			// give up if the response channel is not found
 			continue
 		}
@@ -215,6 +225,7 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 		}:
 		default:
 		}
+		r.mu.Unlock()
 	}
 }
 
@@ -223,6 +234,11 @@ const (
 	maxRetries = 5
 )
 
+func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) chan *pb.Response {
+	valHash := learn.Val.Hash()
+	respCh := r.responseChannels[valHash]
+	return respCh
+}
 func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
 	valHash := learn.Val.Hash()
 	r.mu.Lock()
@@ -259,9 +275,17 @@ func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
 // Thus, M2 should not be returned to the client that sent M1.
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *pb.Response, err error) {
 	//ctx.Release()
+	r.mu.Lock()
+	resp, ok := r.cachedReplies[req.ID]
+	if ok {
+		delete(r.cachedReplies, req.ID)
+		r.mu.Unlock()
+		return resp, nil
+	}
 	r.AddRequestToQ(req)
 	respChannel, cleanup := r.makeResponseChan(req)
 	defer cleanup()
+	r.mu.Unlock()
 
 	select {
 	case resp := <-respChannel:
@@ -274,9 +298,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 func (r *PaxosReplica) makeResponseChan(request *pb.Value) (chan *pb.Response, func()) {
 	msgID := request.Hash()
 	respChannel := make(chan *pb.Response, 1)
-	r.mu.Lock()
 	r.responseChannels[msgID] = respChannel
-	r.mu.Unlock()
 	return respChannel, func() {
 		r.mu.Lock()
 		delete(r.responseChannels, msgID)

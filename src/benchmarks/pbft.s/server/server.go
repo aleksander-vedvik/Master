@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net"
+	"sync"
 
 	"github.com/aleksander-vedvik/benchmark/pbft.s/config"
 	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
@@ -14,6 +15,7 @@ import (
 // The storage server should implement the server interface defined in the pbbuf files
 type Server struct {
 	pb.PBFTNodeServer
+	mut            sync.Mutex
 	leader         string
 	data           []string
 	addr           string
@@ -73,6 +75,7 @@ func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Em
 		}
 		return nil, nil
 	}
+	s.mut.Lock()
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,
@@ -81,8 +84,9 @@ func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Em
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	s.view.PrePrepare(req)
 	s.sequenceNumber++
+	s.mut.Unlock()
+	s.view.PrePrepare(req)
 	return nil, nil
 }
 

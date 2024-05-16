@@ -3,6 +3,7 @@ package bench
 import (
 	"context"
 	"strconv"
+	"time"
 
 	paxosClient "github.com/aleksander-vedvik/benchmark/paxosqc/client"
 	paxosServer "github.com/aleksander-vedvik/benchmark/paxosqc/server"
@@ -27,7 +28,9 @@ func (PaxosQCBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pa
 }
 
 func (PaxosQCBenchmark) Warmup(client *paxosClient.Client) {
-	client.Write("warmup")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client.Write(ctx, "warmup")
 }
 
 func (PaxosQCBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
@@ -65,7 +68,7 @@ func (PaxosQCBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 }
 
 func (PaxosQCBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {
-	_, err := client.Write(strconv.Itoa(val))
+	_, err := client.Write(ctx, strconv.Itoa(val))
 	if err != nil {
 		return err
 	}

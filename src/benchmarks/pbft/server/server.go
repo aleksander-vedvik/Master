@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"net"
+	"sync"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
@@ -19,6 +20,7 @@ import (
 // The storage server should implement the server interface defined in the pbbuf files
 type Server struct {
 	*pb.Server
+	mut            sync.Mutex
 	leaderElection *ld.MonLeader[*pb.Node, *pb.Configuration, *pb.Heartbeat]
 	leader         string
 	data           []string
@@ -114,7 +116,7 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 		}
 		return
 	}
-	//slog.Info("got client request. initiating a pBFT round", "addr", s.addr, "leader", s.leader, "msg", request.Message)
+	s.mut.Lock()
 	req := &pb.PrePrepareRequest{
 		Id:             request.Id,
 		View:           s.viewNumber,
@@ -123,8 +125,9 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
 	}
-	broadcast.PrePrepare(req)
 	s.sequenceNumber++
+	s.mut.Unlock()
+	broadcast.PrePrepare(req)
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
