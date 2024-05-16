@@ -50,13 +50,18 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 	}
 	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
-	for _, node := range c.nodes {
+	sentMsgs := 0
+	for i, node := range c.nodes {
+		if i > 0 {
+			break
+		}
 		go func(node pb.PBFTNodeClient) {
 			node.Write(ctx, req)
 			respChan <- struct{}{}
 		}(node)
+		sentMsgs++
 	}
-	for sentMsgs := len(c.nodes); sentMsgs > 0; sentMsgs-- {
+	for ; sentMsgs > 0; sentMsgs-- {
 		<-respChan
 	}
 	return nil, nil

@@ -30,10 +30,8 @@ func (c *Client) Stop() {
 	c.mgr.Close()
 }
 
-func (c *Client) Write(value string) (*pb.ClientResponse, error) {
+func (c *Client) Write(ctx context.Context, value string) (*pb.ClientResponse, error) {
 	c.id++
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	req := &pb.WriteRequest{
 		Id:        strconv.Itoa(c.id),
 		From:      "client",
