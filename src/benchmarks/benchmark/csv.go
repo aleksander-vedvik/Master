@@ -53,11 +53,6 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		}
 		data[i+1] = row
 	}
-	totalDur := clientRecord.TotalDur.Seconds()
-	if totalDur <= 0 {
-		totalDur = 1
-	}
-	throughput := float64(clientRecord.Total) / totalDur
 	clientRow := []string{
 		clientRecord.Id,
 		"",
@@ -69,7 +64,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		strconv.Itoa(int(clientRecord.LatencyMin.Microseconds())),
 		strconv.Itoa(int(clientRecord.LatencyMax.Microseconds())),
 		strconv.Itoa(int(clientRecord.TotalDur.Microseconds())),
-		fmt.Sprintf("%.2f", throughput),
+		fmt.Sprintf("%.2f", clientRecord.Throughput),
 	}
 	data = append(data, clientRow)
 	err = w.WriteAll(data)
@@ -91,4 +86,19 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		d[i+1] = []string{strconv.Itoa(x), strconv.Itoa(int(r))}
 	}
 	return cw.WriteAll(d)
+}
+
+func WriteThroughputVsLatency(name string, throughputVsLatency [][]string) error {
+	path := fmt.Sprintf("./csv/tvsl/%s.csv", name)
+	fmt.Println("writing throughput vs latency file...")
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	w := csv.NewWriter(file)
+	data := make([][]string, 1, len(throughputVsLatency)+1)
+	data[0] = []string{"Throughput", "Latency"}
+	data = append(data, throughputVsLatency...)
+	return w.WriteAll(data)
 }

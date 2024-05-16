@@ -17,6 +17,7 @@ import (
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	net "net"
+	time "time"
 )
 
 const (
@@ -200,10 +201,12 @@ func NewServer(opts ...gorums.ServerOption) *Server {
 	return srv
 }
 
-func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Broadcaster {
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator, e gorums.EnqueueBroadcast) gorums.Broadcaster {
 	return &Broadcast{
-		orchestrator: o,
-		metadata:     m,
+		orchestrator:     o,
+		metadata:         m,
+		srvAddrs:         make([]string, 0),
+		enqueueBroadcast: e,
 	}
 }
 
@@ -213,8 +216,10 @@ func (srv *Server) SetView(config *Configuration) {
 }
 
 type Broadcast struct {
-	orchestrator *gorums.BroadcastOrchestrator
-	metadata     gorums.BroadcastMetadata
+	orchestrator     *gorums.BroadcastOrchestrator
+	metadata         gorums.BroadcastMetadata
+	srvAddrs         []string
+	enqueueBroadcast gorums.EnqueueBroadcast
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -237,6 +242,14 @@ func (c *clientServerImpl) stop() {
 	}
 }
 
+func (b *Broadcast) To(addrs ...string) *Broadcast {
+	if len(addrs) <= 0 {
+		return b
+	}
+	b.srvAddrs = append(b.srvAddrs, addrs...)
+	return b
+}
+
 func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	if addr == "" {
 		return fmt.Errorf("cannot forward to empty addr, got: %s", addr)
@@ -248,12 +261,37 @@ func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 	return nil
 }
 
-func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
-	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
+// Done signals the end of a broadcast request. It is necessary to call
+// either Done() or SendToClient() to properly terminate a broadcast request
+// and free up resources. Otherwise, it could cause poor performance.
+func (b *Broadcast) Done() {
+	b.orchestrator.DoneHandler(b.metadata.BroadcastID)
 }
 
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
+func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
+	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err, b.enqueueBroadcast)
+}
+
+// Cancel is a non-destructive method call that will transmit a cancellation
+// to all servers in the view. It will not stop the execution but will cause
+// the given ServerCtx to be cancelled, making it possible to listen for
+// cancellations.
+//
+// Could be used together with either SendToClient() or Done().
+func (b *Broadcast) Cancel() {
+	b.orchestrator.CancelHandler(b.metadata.BroadcastID, b.srvAddrs)
+}
+
+// SendToClient sends a message back to the calling client. It also terminates
+// the broadcast request, meaning subsequent messages related to the broadcast
+// request will be dropped. Either SendToClient() or Done() should be used at
+// the end of a broadcast request in order to free up resources.
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
-	srv.SendToClientHandler(resp, err, broadcastID)
+	srv.SendToClientHandler(resp, err, broadcastID, nil)
 }
 
 func (b *Broadcast) BroadcastIntermediate(req *BroadcastRequest, opts ...gorums.BroadcastOption) {
@@ -264,7 +302,8 @@ func (b *Broadcast) BroadcastIntermediate(req *BroadcastRequest, opts ...gorums.
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, b.metadata.BroadcastID, options)
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
+	b.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (b *Broadcast) Broadcast(req *BroadcastRequest, opts ...gorums.BroadcastOption) {
@@ -275,7 +314,8 @@ func (b *Broadcast) Broadcast(req *BroadcastRequest, opts ...gorums.BroadcastOpt
 	for _, opt := range opts {
 		opt(&options)
 	}
-	b.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, b.metadata.BroadcastID, options)
+	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
+	b.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (srv *clientServerImpl) clientBroadcastCall1(ctx context.Context, resp *WriteResponse1, broadcastID uint64) (*WriteResponse1, error) {
@@ -290,13 +330,32 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall1QF), "protosSimple.Simple.BroadcastCall1")
+	var (
+		timeout  time.Duration
+		ok       bool
+		response protoreflect.ProtoMessage
+	)
+	// use the same timeout as defined in the given context.
+	// this is used for cancellation.
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = deadline.Sub(time.Now())
+	} else {
+		timeout = 5 * time.Second
+	}
+	broadcastID := c.snowflake.NewBroadcastID()
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall1QF), "protosSimple.Simple.BroadcastCall1")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	var response protoreflect.ProtoMessage
-	var ok bool
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
+		bd := gorums.BroadcastCallData{
+			Method:      gorums.Cancellation,
+			BroadcastID: broadcastID,
+		}
+		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
+		defer cancelCancel()
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -321,13 +380,32 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 	if c.qspec == nil {
 		return nil, fmt.Errorf("a qspec is not defined")
 	}
-	doneChan, cd := c.srv.AddRequest(c.snowflake.NewBroadcastID(), ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall2QF), "protosSimple.Simple.BroadcastCall2")
+	var (
+		timeout  time.Duration
+		ok       bool
+		response protoreflect.ProtoMessage
+	)
+	// use the same timeout as defined in the given context.
+	// this is used for cancellation.
+	deadline, ok := ctx.Deadline()
+	if ok {
+		timeout = deadline.Sub(time.Now())
+	} else {
+		timeout = 5 * time.Second
+	}
+	broadcastID := c.snowflake.NewBroadcastID()
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall2QF), "protosSimple.Simple.BroadcastCall2")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
-	var response protoreflect.ProtoMessage
-	var ok bool
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
+		bd := gorums.BroadcastCallData{
+			Method:      gorums.Cancellation,
+			BroadcastID: broadcastID,
+		}
+		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
+		defer cancelCancel()
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -432,6 +510,7 @@ func RegisterSimpleServer(srv *Server, impl Simple) {
 		resp, err := impl.Benchmark(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+	srv.RegisterHandler(gorums.Cancellation, gorums.BroadcastHandler(gorums.CancelFunc, srv.Server))
 }
 
 func (srv *Server) BroadcastBroadcastIntermediate(req *BroadcastRequest, opts ...gorums.BroadcastOption) {
@@ -440,7 +519,7 @@ func (srv *Server) BroadcastBroadcastIntermediate(req *BroadcastRequest, opts ..
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, options.RelatedToReq, nil, options)
 	} else {
 		srv.broadcast.orchestrator.ServerBroadcastHandler("protosSimple.Simple.BroadcastIntermediate", req, options)
 	}
@@ -452,11 +531,18 @@ func (srv *Server) BroadcastBroadcast(req *BroadcastRequest, opts ...gorums.Broa
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosSimple.Simple.Broadcast", req, options.RelatedToReq, nil, options)
 	} else {
 		srv.broadcast.orchestrator.ServerBroadcastHandler("protosSimple.Simple.Broadcast", req, options)
 	}
 }
+
+const (
+	SimpleBroadcastCall1        string = "protosSimple.Simple.BroadcastCall1"
+	SimpleBroadcastCall2        string = "protosSimple.Simple.BroadcastCall2"
+	SimpleBroadcastIntermediate string = "protosSimple.Simple.BroadcastIntermediate"
+	SimpleBroadcast             string = "protosSimple.Simple.Broadcast"
+)
 
 type internalResult struct {
 	nid   uint32

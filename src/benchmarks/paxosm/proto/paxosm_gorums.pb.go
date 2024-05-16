@@ -199,11 +199,12 @@ func NewServer(opts ...gorums.ServerOption) *Server {
 	return srv
 }
 
-func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Broadcaster {
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator, e gorums.EnqueueBroadcast) gorums.Broadcaster {
 	return &Broadcast{
-		orchestrator: o,
-		metadata:     m,
-		srvAddrs:     make([]string, 0),
+		orchestrator:     o,
+		metadata:         m,
+		srvAddrs:         make([]string, 0),
+		enqueueBroadcast: e,
 	}
 }
 
@@ -213,9 +214,10 @@ func (srv *Server) SetView(config *Configuration) {
 }
 
 type Broadcast struct {
-	orchestrator *gorums.BroadcastOrchestrator
-	metadata     gorums.BroadcastMetadata
-	srvAddrs     []string
+	orchestrator     *gorums.BroadcastOrchestrator
+	metadata         gorums.BroadcastMetadata
+	srvAddrs         []string
+	enqueueBroadcast gorums.EnqueueBroadcast
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -269,7 +271,7 @@ func (b *Broadcast) Done() {
 // request will be dropped. Either SendToClient() or Done() should be used at
 // the end of a broadcast request in order to free up resources.
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
-	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
+	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err, b.enqueueBroadcast)
 }
 
 // Cancel is a non-destructive method call that will transmit a cancellation
@@ -287,7 +289,7 @@ func (b *Broadcast) Cancel() {
 // request will be dropped. Either SendToClient() or Done() should be used at
 // the end of a broadcast request in order to free up resources.
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
-	srv.SendToClientHandler(resp, err, broadcastID)
+	srv.SendToClientHandler(resp, err, broadcastID, nil)
 }
 
 func registerClientServerHandlers(srv *clientServerImpl) {
@@ -484,6 +486,8 @@ func RegisterPaxosMServer(srv *Server, impl PaxosM) {
 	})
 	srv.RegisterHandler(gorums.Cancellation, gorums.BroadcastHandler(gorums.CancelFunc, srv.Server))
 }
+
+const ()
 
 type internalPaxosResponse struct {
 	nid   uint32

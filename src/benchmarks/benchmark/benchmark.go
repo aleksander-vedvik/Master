@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type ClientResult struct {
 	LatencyMin      time.Duration
 	LatencyMax      time.Duration
 	TotalDur        time.Duration
+	Throughput      float64
 	ReqDistribution []uint64 // shows how many request in transit per unit of time
 	BucketSize      int      // number of microseconds
 }
@@ -64,6 +66,7 @@ const (
 	Sync runType = iota
 	Async
 	Random
+	Throughput
 )
 
 func (r runType) String() string {
@@ -106,21 +109,75 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
-	for _, bench := range throughputBenchmarks {
+	//throughputVsLatency := make([][]string, 0)
+	for _, bench := range benchmarks {
 		if bench.numRequests > 1000 {
 			continue
 		}
 		bench.name = fmt.Sprintf("S%v.C%v.R%v.%s", len(bench.srvAddrs), bench.numClients, bench.numRequests, bench.runType)
 		start := time.Now()
 		clientResult, ress, err := benchmark.run(bench)
+		fmt.Println("took:", time.Since(start))
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("took:", time.Since(start))
+		//throughputVsLatency = append(throughputVsLatency, []string{fmt.Sprintf("%.2f", clientResult.Throughput), strconv.Itoa(int(clientResult.LatencyAvg.Microseconds()))})
+		fmt.Println("writing to csv...")
 		err = WriteToCsv(name, bench.name, ress, clientResult)
 		if err != nil {
 			panic(err)
 		}
+		fmt.Println("done")
+	}
+	//err := WriteThroughputVsLatency(name, throughputVsLatency)
+	//if err != nil {
+	//panic(err)
+	//}
+	return results, errs
+}
+
+func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
+	benchmark, ok := benchTypes[name]
+	if !ok {
+		return nil, nil
+	}
+	fmt.Println("running benchmark:", name)
+	//throughputs := []int{
+	//1000,
+	//2000,
+	//3000,
+	//4000,
+	//5000,
+	//10000,
+	//}
+	maxTarget := 15000
+	targetIncrement := 2000
+	results := make([]Result, len(benchmarks))
+	errs := make([]error, len(benchmarks))
+	throughputVsLatency := make([][]string, 0)
+	for target := targetIncrement; target < maxTarget; target += targetIncrement {
+		//for _, target := range throughputs {
+		bench := benchmarkOption{
+			name:           fmt.Sprintf("S3.C10.R%v.Throughput", target),
+			srvAddrs:       threeServers,
+			numClients:     10,
+			clientBasePort: 8080,
+			numRequests:    target,
+			local:          true,
+			runType:        Throughput,
+		}
+		start := time.Now()
+		clientResult, _, err := benchmark.run(bench)
+		throughputVsLatency = append(throughputVsLatency, []string{strconv.Itoa(int(clientResult.Throughput)), strconv.Itoa(int(clientResult.LatencyAvg.Milliseconds()))})
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("took:", time.Since(start))
+		fmt.Println("done")
+	}
+	err := WriteThroughputVsLatency(name, throughputVsLatency)
+	if err != nil {
+		panic(err)
 	}
 	return results, errs
 }
@@ -143,7 +200,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.quorumSize = len(opts.srvAddrs)
 	}
 	if opts.timeout <= 0 {
-		opts.timeout = 5 * time.Second
+		opts.timeout = 15 * time.Second
 	}
 
 	fmt.Println("creating clients...")
@@ -200,8 +257,44 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		runAsync(opts, benchmark, resChan, clients)
 	case Random:
 		runRandom(opts, benchmark, resChan, clients)
+	case Throughput:
+		runThroughput(opts, benchmark, resChan, clients)
 	}
 
+	switch opts.runType {
+	case Throughput:
+		fmt.Println("collecting responses...")
+		avgDur := time.Duration(0)
+		numFailed := 0
+		for i := 0; i < 10*opts.numRequests; i++ {
+			if i%(opts.numRequests) == 0 {
+				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
+			}
+			var res RequestResult
+			// prevent deadlock
+			select {
+			case res = <-resChan:
+			case <-time.After(30 * time.Second):
+				slog.Info("benchmark:", "replies", i, "total", totalNumReqs)
+				return clientResult, nil, errors.New("could not collect all responses")
+			}
+			if res.err != nil {
+				numFailed++
+				continue
+			}
+			avgDur += res.end.Sub(res.start)
+		}
+		fmt.Printf("100%s done, numFailed: %v out of %v\n", "%", numFailed, 10*opts.numRequests)
+		benchmark.StopBenchmark(config)
+		fmt.Println("stopped benchmark...")
+
+		avgDur /= time.Duration(10 * opts.numRequests)
+		clientResult.LatencyAvg = avgDur
+		clientResult.Throughput = float64(opts.numRequests)
+		fmt.Println("done")
+		return clientResult, nil, nil
+	default:
+	}
 	numBuckets := 100
 	durDistribution := make([]uint64, numBuckets)
 	durations := make([]time.Duration, 0, opts.numRequests*opts.numClients)
@@ -255,12 +348,16 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	result := benchmark.StopBenchmark(config)
 	fmt.Println("stopped benchmark...")
 
+	fmt.Println("calculating histogram...")
 	bucketSize := (maxDur.Microseconds() - minDur.Microseconds()) / int64(numBuckets)
 	clientResult.BucketSize = int(bucketSize)
 	for _, dur := range durations {
 		bucket := int(math.Floor(float64(dur.Microseconds()-minDur.Microseconds()) / float64(bucketSize)))
 		if bucket >= numBuckets {
 			bucket = numBuckets - 1
+		}
+		if bucket <= 0 || bucket >= len(durDistribution) {
+			continue
 		}
 		durDistribution[bucket]++
 	}
@@ -281,6 +378,12 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			result[i].TotalNum -= resultBefore[i].TotalNum
 		}
 	}
+	totalDur := clientResult.TotalDur.Seconds()
+	if totalDur <= 0 {
+		totalDur = 1
+	}
+	clientResult.Throughput = float64(clientResult.Total) / totalDur
+	fmt.Println("done")
 	return clientResult, result, nil
 }
 
@@ -343,5 +446,34 @@ func runRandom[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resCha
 				time.Sleep(time.Duration(t) * time.Microsecond)
 			}
 		}(client)
+	}
+}
+
+// each client runs asynchronously. I.e. sends all requests at once.
+// runs for 10 seconds and sends reqs at target throughput.
+func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C) {
+	// opts.numRequests denotes the target throughput in reqs/s. We thus
+	// need to divide the number of reqs by the number of clients.
+	numReqsPerClient := opts.numRequests / len(clients)
+	// it will run for 10 seconds
+	for t := 0; t < 10; t++ {
+		fmt.Printf("\t%v: sending reqs...\n", t)
+		for _, client := range clients {
+			for i := 0; i < numReqsPerClient; i++ {
+				go func(client *C, i int) {
+					ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
+					defer cancel()
+					start := time.Now()
+					err := benchmark.Run(client, ctx, i)
+					end := time.Now()
+					resChan <- RequestResult{
+						err:   err,
+						start: start,
+						end:   end,
+					}
+				}(client, i)
+			}
+		}
+		time.Sleep(1 * time.Second)
 	}
 }

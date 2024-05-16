@@ -27,7 +27,7 @@ import (
 
 const (
 	// responseTimeout is the duration to wait for a response before cancelling
-	responseTimeout = 1 * time.Second
+	responseTimeout = 10 * time.Second
 	// managerDialTimeout is the default timeout for dialing a manager
 	managerDialTimeout = 5 * time.Second
 )
@@ -87,9 +87,9 @@ func (r *PaxosReplica) Stop() {
 	if r.stopped {
 		return
 	}
-	r.stop <- struct{}{} // stop the replica's run loop
+	close(r.stop) // stop the replica's run loop
 	r.paxosManager.Close()
-	r.Stop()
+	r.Server.Stop()
 	r.stopped = true
 }
 
@@ -98,7 +98,7 @@ func (r *PaxosReplica) Start() {
 	if err != nil {
 		panic(err)
 	}
-	r.Serve(lis)
+	go r.Serve(lis)
 }
 
 // run starts the replica's run loop.
@@ -117,10 +117,27 @@ func (r *PaxosReplica) run() {
 			select {
 			case <-r.stop:
 				return
-			default:
+			case accept := <-r.Proposer.msgQueue:
+				if !r.isLeader() {
+					continue
+				}
+				r.Proposer.nextSlot++
+				accept.Rnd = r.Proposer.crnd
+				accept.Slot = r.Proposer.nextSlot
+				lrn, err := r.Proposer.performAccept(accept)
+				if err != nil {
+					continue
+				}
+				select {
+				case <-r.stop:
+					return
+				default:
+				}
+				r.Proposer.performCommit(lrn)
+				/*default:
 				if r.isLeader() {
 					r.runMultiPaxos()
-				}
+				}*/
 			}
 		}
 	}()
@@ -130,7 +147,7 @@ func (r *PaxosReplica) run() {
 // It receives prepare massages and pass them to handlePrepare method of acceptor.
 // It returns promise messages back to the proposer by its acceptor.
 func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*pb.PromiseMsg, error) {
-	ctx.Release()
+	//ctx.Release()
 	return r.handlePrepare(prepMsg), nil
 }
 
@@ -138,7 +155,7 @@ func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*p
 // It receives Accept massages and pass them to handleAccept method of acceptor.
 // It returns learn massages back to the proposer by its acceptor
 func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.LearnMsg, error) {
-	ctx.Release()
+	//ctx.Release()
 	return r.handleAccept(accMsg), nil
 }
 
@@ -155,7 +172,7 @@ func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.L
 // This method is also responsible for communicating the decided value to the ClientHandle
 // method, which is responsible for returning the response to the client.
 func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg) {
-	ctx.Release()
+	//ctx.Release()
 	r.mu.Lock()
 	adu := r.adu + 1
 	if prevLearn, ok := r.learntVal[learn.Slot]; !ok {
@@ -190,12 +207,14 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 			continue
 		}
 		// deliver decided value to ClientHandle
-		respCh <- &pb.Response{
+		select {
+		case respCh <- &pb.Response{
 			ClientID:      learn.Val.ClientID,
 			ClientSeq:     learn.Val.ClientSeq,
 			ClientCommand: learn.Val.ClientCommand,
+		}:
+		default:
 		}
-		close(respCh)
 	}
 }
 
@@ -239,7 +258,7 @@ func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
 // to the client. However, while waiting for M1 to get committed, M2 may be proposed and committed by the replicas.
 // Thus, M2 should not be returned to the client that sent M1.
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *pb.Response, err error) {
-	ctx.Release()
+	//ctx.Release()
 	r.AddRequestToQ(req)
 	respChannel, cleanup := r.makeResponseChan(req)
 	defer cleanup()

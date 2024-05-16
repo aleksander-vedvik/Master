@@ -31,6 +31,7 @@ type Proposer struct {
 	nodeMap            map[string]uint32 // map of the address to the node id.
 	acceptMsgQueue     []*pb.AcceptMsg   // queue of pending accept messages as part of prepare operation.
 	clientRequestQueue []*pb.AcceptMsg   // queue of pending client requests.
+	msgQueue           chan *pb.AcceptMsg
 }
 
 // NewProposer returns a new Multi-Paxos proposer with the specified
@@ -46,6 +47,7 @@ func NewProposer(myID, leader int, nodeMap map[string]uint32) *Proposer {
 		adu:                0,
 		acceptMsgQueue:     make([]*pb.AcceptMsg, 0),
 		clientRequestQueue: make([]*pb.AcceptMsg, 0),
+		msgQueue:           make(chan *pb.AcceptMsg, 50),
 	}
 }
 
@@ -183,7 +185,9 @@ func (p *Proposer) performCommit(learn *pb.LearnMsg) error {
 	if learn == nil {
 		return errors.New("no learn message to send")
 	}
-	p.config.Commit(context.Background(), learn)
+	ctx, cancel := context.WithTimeout(context.Background(), responseTimeout)
+	defer cancel()
+	p.config.Commit(ctx, learn)
 	return nil
 }
 
@@ -208,8 +212,9 @@ func (p *Proposer) setConfiguration(config MultiPaxosConfig) {
 func (p *Proposer) AddRequestToQ(request *pb.Value) {
 	if p.isLeader() {
 		accept := &pb.AcceptMsg{Val: request}
-		p.mu.Lock()
-		p.clientRequestQueue = append(p.clientRequestQueue, accept)
-		p.mu.Unlock()
+		p.msgQueue <- accept
+		//p.mu.Lock()
+		//p.clientRequestQueue = append(p.clientRequestQueue, accept)
+		//p.mu.Unlock()
 	}
 }

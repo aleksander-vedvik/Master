@@ -38,7 +38,6 @@ var threeServers = []string{
 
 var benchmarks = []benchmarkOption{
 	{
-		name:           "S3.C1.R10000.Async",
 		srvAddrs:       threeServers,
 		numClients:     1,
 		clientBasePort: 8080,
@@ -47,7 +46,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Async,
 	},
 	{
-		name:           "S3.C1.R10000.Sync",
 		srvAddrs:       threeServers,
 		numClients:     1,
 		clientBasePort: 8080,
@@ -56,7 +54,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Sync,
 	},
 	{
-		name:           "S3.C1.R10000.Random",
 		srvAddrs:       threeServers,
 		numClients:     1,
 		clientBasePort: 8080,
@@ -69,7 +66,6 @@ var benchmarks = []benchmarkOption{
 		}{50, 400},
 	},
 	{
-		name:           "S3.C10.R1000.Async",
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
@@ -78,7 +74,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Async,
 	},
 	{
-		name:           "S3.C10.R1000.Sync",
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
@@ -87,7 +82,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Sync,
 	},
 	{
-		name:           "S3.C10.R1000.Random",
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
@@ -100,7 +94,6 @@ var benchmarks = []benchmarkOption{
 		}{50, 400},
 	},
 	{
-		name:           "S3.C100.R1000.Async",
 		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
@@ -109,7 +102,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Async,
 	},
 	{
-		name:           "S3.C100.R1000.Sync",
 		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,
@@ -118,7 +110,6 @@ var benchmarks = []benchmarkOption{
 		runType:        Sync,
 	},
 	{
-		name:           "S3.C100.R1000.Random",
 		srvAddrs:       threeServers,
 		numClients:     100,
 		clientBasePort: 8080,

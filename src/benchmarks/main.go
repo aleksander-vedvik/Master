@@ -22,8 +22,12 @@ import (
 
 func main() {
 	//bench.RunSingleBenchmark("Simple")
-	bench.RunSingleBenchmark("Paxos")
+	//bench.RunSingleBenchmark("PaxosQC")
+	//bench.RunSingleBenchmark("Paxos")
+	bench.RunThroughputVsLatencyBenchmark("PBFT")
+	bench.RunThroughputVsLatencyBenchmark("PBFT.S")
 	//bench.RunSingleBenchmark("PBFT")
+	//bench.RunSingleBenchmark("PBFT.S")
 }
 
 //func main() {

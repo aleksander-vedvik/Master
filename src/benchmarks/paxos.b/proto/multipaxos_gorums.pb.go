@@ -200,11 +200,12 @@ func NewServer(opts ...gorums.ServerOption) *Server {
 	return srv
 }
 
-func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator) gorums.Broadcaster {
+func newBroadcaster(m gorums.BroadcastMetadata, o *gorums.BroadcastOrchestrator, e gorums.EnqueueBroadcast) gorums.Broadcaster {
 	return &Broadcast{
-		orchestrator: o,
-		metadata:     m,
-		srvAddrs:     make([]string, 0),
+		orchestrator:     o,
+		metadata:         m,
+		srvAddrs:         make([]string, 0),
+		enqueueBroadcast: e,
 	}
 }
 
@@ -214,9 +215,10 @@ func (srv *Server) SetView(config *Configuration) {
 }
 
 type Broadcast struct {
-	orchestrator *gorums.BroadcastOrchestrator
-	metadata     gorums.BroadcastMetadata
-	srvAddrs     []string
+	orchestrator     *gorums.BroadcastOrchestrator
+	metadata         gorums.BroadcastMetadata
+	srvAddrs         []string
+	enqueueBroadcast gorums.EnqueueBroadcast
 }
 
 // Returns a readonly struct of the metadata used in the broadcast.
@@ -270,7 +272,7 @@ func (b *Broadcast) Done() {
 // request will be dropped. Either SendToClient() or Done() should be used at
 // the end of a broadcast request in order to free up resources.
 func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
-	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err)
+	b.orchestrator.SendToClientHandler(b.metadata.BroadcastID, resp, err, b.enqueueBroadcast)
 }
 
 // Cancel is a non-destructive method call that will transmit a cancellation
@@ -288,7 +290,7 @@ func (b *Broadcast) Cancel() {
 // request will be dropped. Either SendToClient() or Done() should be used at
 // the end of a broadcast request in order to free up resources.
 func (srv *Server) SendToClient(resp protoreflect.ProtoMessage, err error, broadcastID uint64) {
-	srv.SendToClientHandler(resp, err, broadcastID)
+	srv.SendToClientHandler(resp, err, broadcastID, nil)
 }
 
 func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
@@ -300,7 +302,7 @@ func (b *Broadcast) Accept(req *AcceptMsg, opts ...gorums.BroadcastOption) {
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
@@ -312,7 +314,7 @@ func (b *Broadcast) Learn(req *LearnMsg, opts ...gorums.BroadcastOption) {
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, b.metadata.BroadcastID, options)
+	b.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *PaxosResponse, broadcastID uint64) (*PaxosResponse, error) {
@@ -511,7 +513,7 @@ func (srv *Server) BroadcastAccept(req *AcceptMsg, opts ...gorums.BroadcastOptio
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Accept", req, options.RelatedToReq, nil, options)
 	} else {
 		srv.broadcast.orchestrator.ServerBroadcastHandler("protob.MultiPaxos.Accept", req, options)
 	}
@@ -523,7 +525,7 @@ func (srv *Server) BroadcastLearn(req *LearnMsg, opts ...gorums.BroadcastOption)
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, options.RelatedToReq, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protob.MultiPaxos.Learn", req, options.RelatedToReq, nil, options)
 	} else {
 		srv.broadcast.orchestrator.ServerBroadcastHandler("protob.MultiPaxos.Learn", req, options)
 	}
