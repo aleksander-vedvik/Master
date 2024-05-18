@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -214,6 +215,7 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 			}
 			r.mu.Unlock()
 			// give up if the response channel is not found
+			slog.Info("no resp channel", "id", lrn.Val.ID)
 			continue
 		}
 		// deliver decided value to ClientHandle
@@ -280,6 +282,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	if ok {
 		delete(r.cachedReplies, req.ID)
 		r.mu.Unlock()
+		slog.Info("cached result", "id", req.ID)
 		return resp, nil
 	}
 	r.AddRequestToQ(req)
@@ -291,6 +294,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	case resp := <-respChannel:
 		return resp, nil
 	case <-time.After(responseTimeout):
+		slog.Info("timed out", "id", req.ID)
 		return nil, errors.New("unable to get the response")
 	}
 }

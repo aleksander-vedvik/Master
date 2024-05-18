@@ -150,8 +150,8 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	//5000,
 	//10000,
 	//}
-	maxTarget := 15000
-	targetIncrement := 5000
+	maxTarget := 10000
+	targetIncrement := 3000
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)
@@ -200,7 +200,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.quorumSize = len(opts.srvAddrs)
 	}
 	if opts.timeout <= 0 {
-		opts.timeout = 15 * time.Second
+		opts.timeout = 5 * time.Second
 	}
 
 	fmt.Println("creating clients...")
