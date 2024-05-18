@@ -274,7 +274,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			// prevent deadlock
 			select {
 			case res = <-resChan:
-			case <-time.After(30 * time.Second):
+			case <-time.After(1 * time.Minute):
 				slog.Info("benchmark:", "replies", i, "total", totalNumReqs)
 				return clientResult, nil, errors.New("could not collect all responses")
 			}

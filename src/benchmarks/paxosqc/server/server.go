@@ -44,7 +44,7 @@ type PaxosReplica struct {
 	addr             string
 	stop             chan struct{}         // channel for stopping the replica's run loop.
 	learntVal        map[Slot]*pb.LearnMsg // Stores all received learn messages
-	responseChannels map[uint64]chan *pb.Response
+	responseChannels map[string]chan *pb.Response
 	stopped          bool
 	cachedReplies    map[string]*pb.Response
 }
@@ -75,7 +75,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		addr:             addr,
 		stop:             make(chan struct{}),
 		learntVal:        make(map[Slot]*pb.LearnMsg),
-		responseChannels: make(map[uint64]chan *pb.Response),
+		responseChannels: make(map[string]chan *pb.Response),
 		cachedReplies:    make(map[string]*pb.Response),
 	}
 	pb.RegisterPaxosQCServer(r.Server, r)
@@ -215,7 +215,7 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 			}
 			r.mu.Unlock()
 			// give up if the response channel is not found
-			slog.Info("no resp channel", "id", lrn.Val.ID)
+			//slog.Info("no resp channel", "id", lrn.Val.ID)
 			continue
 		}
 		// deliver decided value to ClientHandle
@@ -237,12 +237,12 @@ const (
 )
 
 func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) chan *pb.Response {
-	valHash := learn.Val.Hash()
+	valHash := learn.Val.ID
 	respCh := r.responseChannels[valHash]
 	return respCh
 }
 func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
-	valHash := learn.Val.Hash()
+	valHash := learn.Val.ID
 	r.mu.Lock()
 	respCh := r.responseChannels[valHash]
 	r.mu.Unlock()
@@ -282,7 +282,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	if ok {
 		delete(r.cachedReplies, req.ID)
 		r.mu.Unlock()
-		slog.Info("cached result", "id", req.ID)
+		//slog.Info("cached result", "id", req.ID)
 		return resp, nil
 	}
 	r.AddRequestToQ(req)
@@ -300,7 +300,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 }
 
 func (r *PaxosReplica) makeResponseChan(request *pb.Value) (chan *pb.Response, func()) {
-	msgID := request.Hash()
+	msgID := request.ID
 	respChannel := make(chan *pb.Response, 1)
 	r.responseChannels[msgID] = respChannel
 	return respChannel, func() {
@@ -318,10 +318,10 @@ func (r *PaxosReplica) remainingResponses() int {
 }
 
 // responseIDs returns the IDs of the responses that are still pending.
-func (r *PaxosReplica) responseIDs() []uint64 {
+func (r *PaxosReplica) responseIDs() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	ids := make([]uint64, 0, len(r.responseChannels))
+	ids := make([]string, 0, len(r.responseChannels))
 	for id := range r.responseChannels {
 		ids = append(ids, id)
 	}
