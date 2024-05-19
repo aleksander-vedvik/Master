@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/aleksander-vedvik/benchmark/pbft.s/config"
 	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
@@ -41,13 +43,13 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		addr:           addr,
 		peers:          srvAddresses,
 		addedMsgs:      make(map[string]bool),
-		leader:         "127.0.0.1:5000",
+		leader:         srvAddresses[0],
 		messageLog:     newMessageLog(),
 		state:          nil,
 		sequenceNumber: 1,
 		viewNumber:     1,
 		withoutLeader:  wL,
-		view:           config.NewConfig(srvAddresses),
+		view:           config.NewConfig(addr, srvAddresses),
 		srv:            grpc.NewServer(),
 	}
 	pb.RegisterPBFTNodeServer(srv.srv, &srv)
@@ -55,11 +57,13 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 }
 
 func (s *Server) Start() {
+	slog.Info("server: started", "addr", s.addr)
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		panic(err)
 	}
 	go s.srv.Serve(lis)
+	time.Sleep(1 * time.Second)
 }
 
 func (s *Server) Stop() {
@@ -67,12 +71,15 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Empty, error) {
+	//slog.Info("0 server: received msg")
 	if !s.isLeader() {
+		s.mut.Lock()
 		if val, ok := s.requestIsAlreadyProcessed(request); ok {
-			s.view.ClientHandler(val)
+			go s.view.ClientHandler(val)
 			//} else {
 			//broadcast.Forward(request, s.leader)
 		}
+		s.mut.Unlock()
 		return nil, nil
 	}
 	s.mut.Lock()
@@ -83,6 +90,7 @@ func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Em
 		Digest:         "digest",
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
+		From:           request.From,
 	}
 	s.sequenceNumber++
 	s.mut.Unlock()

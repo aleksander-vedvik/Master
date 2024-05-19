@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
+	pb "github.com/aleksander-vedvik/benchmark/pbft.o/protos"
 )
 
 type MessageLog struct {

@@ -1,7 +1,7 @@
 package server
 
 import (
-	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	pb "github.com/aleksander-vedvik/benchmark/pbft.o/protos"
 
 	"github.com/relab/gorums"
 )
@@ -56,14 +56,13 @@ func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadca
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.committed(request.SequenceNumber) {
-		state := &pb.ClientResponse{
+		s.state = &pb.ClientResponse{
 			Id:        request.Id,
 			Result:    request.Message,
 			Timestamp: request.Timestamp,
 			View:      request.View,
 		}
-		s.state = state
-		broadcast.SendToClient(state, nil)
+		broadcast.SendToClient(s.state, nil)
 	}
 }
 

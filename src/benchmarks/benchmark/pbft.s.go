@@ -20,8 +20,9 @@ func (PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.
 }
 
 func (PbftSBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*pbftClient.Client, func(), error) {
-	qSize := 1 + len(srvAddrs)/2
+	qSize := 2 * len(srvAddrs) / 3
 	c := pbftClient.New(addr, srvAddrs, qSize)
+	c.Start()
 	return c, func() {
 		c.Stop()
 	}, nil

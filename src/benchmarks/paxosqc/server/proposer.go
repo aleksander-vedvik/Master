@@ -185,7 +185,7 @@ func (p *Proposer) performCommit(learn *pb.LearnMsg) error {
 	if learn == nil {
 		return errors.New("no learn message to send")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), responseTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
 	defer cancel()
 	p.config.Commit(ctx, learn)
 	return nil

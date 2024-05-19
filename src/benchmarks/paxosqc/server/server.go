@@ -124,9 +124,11 @@ func (r *PaxosReplica) run() {
 				if !r.isLeader() {
 					continue
 				}
+				r.mu.Lock()
 				r.Proposer.nextSlot++
 				accept.Rnd = r.Proposer.crnd
 				accept.Slot = r.Proposer.nextSlot
+				r.mu.Unlock()
 				lrn, err := r.Proposer.performAccept(accept)
 				if err != nil {
 					continue
@@ -151,6 +153,8 @@ func (r *PaxosReplica) run() {
 // It returns promise messages back to the proposer by its acceptor.
 func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*pb.PromiseMsg, error) {
 	//ctx.Release()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.handlePrepare(prepMsg), nil
 }
 
@@ -159,6 +163,8 @@ func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*p
 // It returns learn massages back to the proposer by its acceptor
 func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.LearnMsg, error) {
 	//ctx.Release()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.handleAccept(accMsg), nil
 }
 

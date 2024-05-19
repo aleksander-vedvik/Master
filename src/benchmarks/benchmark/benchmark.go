@@ -150,8 +150,8 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	//5000,
 	//10000,
 	//}
-	maxTarget := 10000
-	targetIncrement := 3000
+	maxTarget := 15000
+	targetIncrement := 1000
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)
@@ -200,7 +200,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.quorumSize = len(opts.srvAddrs)
 	}
 	if opts.timeout <= 0 {
-		opts.timeout = 5 * time.Second
+		opts.timeout = 15 * time.Second
 	}
 
 	fmt.Println("creating clients...")
@@ -275,7 +275,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			select {
 			case res = <-resChan:
 			case <-time.After(1 * time.Minute):
-				slog.Info("benchmark:", "replies", i, "total", totalNumReqs)
+				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", 10*opts.numRequests-numFailed, "failures", numFailed)
 				return clientResult, nil, errors.New("could not collect all responses")
 			}
 			if res.err != nil {

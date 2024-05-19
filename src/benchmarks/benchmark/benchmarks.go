@@ -20,7 +20,12 @@ var benchTypes = map[string]struct {
 	},
 	"PBFT.S": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PbftBenchmark{})
+			return runBenchmark(bench, PbftSBenchmark{})
+		},
+	},
+	"PBFT.O": {
+		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
+			return runBenchmark(bench, PbftOBenchmark{})
 		},
 	},
 	"Simple": {

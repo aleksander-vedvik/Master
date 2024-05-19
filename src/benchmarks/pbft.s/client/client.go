@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"sync"
 	"time"
@@ -14,6 +15,11 @@ import (
 	"google.golang.org/grpc"
 )
 
+type resp struct {
+	ctx      context.Context
+	respChan chan *pb.ClientResponse
+}
+
 type Client struct {
 	pb.PBFTNodeServer
 	mut       sync.Mutex
@@ -22,7 +28,7 @@ type Client struct {
 	config    *config.Config
 	srv       *grpc.Server
 	responses map[string][]*pb.ClientResponse
-	respChans map[string]chan *pb.ClientResponse
+	resps     map[string]*resp
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
@@ -30,19 +36,26 @@ func New(addr string, srvAddresses []string, qSize int) *Client {
 	client := &Client{
 		id:        0,
 		addr:      addr,
-		config:    config.NewConfig(srvAddresses),
+		config:    config.NewConfig(addr, srvAddresses),
 		responses: make(map[string][]*pb.ClientResponse),
-		respChans: make(map[string]chan *pb.ClientResponse),
+		resps:     make(map[string]*resp),
+		srv:       grpc.NewServer(),
 	}
 	pb.RegisterPBFTNodeServer(client.srv, client)
 	return client
 }
 
 func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse, error) {
+	//slog.Info("writing value", "val", value)
 	id := uuid.NewString()
 	respChan := make(chan *pb.ClientResponse, c.config.NumNodes())
+	reqctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 	c.mut.Lock()
-	c.respChans[id] = respChan
+	c.resps[id] = &resp{
+		ctx:      reqctx,
+		respChan: respChan,
+	}
 	c.mut.Unlock()
 	req := &pb.WriteRequest{
 		Id:        id,
@@ -54,8 +67,10 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 	select {
 	case res := <-respChan:
 		return res, nil
-	case <-ctx.Done():
+	case <-reqctx.Done():
 		return nil, errors.New("failed req")
+		//case <-ctx.Done():
+		//return nil, errors.New("failed req")
 	}
 }
 
@@ -65,6 +80,7 @@ func (c *Client) Start() {
 		panic(err)
 	}
 	go c.srv.Serve(lis)
+	slog.Info("client started", "addr", c.addr)
 }
 
 func (c *Client) Stop() {
@@ -88,6 +104,7 @@ func (c *Client) Commit(ctx context.Context, req *pb.CommitRequest) (*empty.Empt
 }
 
 func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*empty.Empty, error) {
+	//slog.Info("received reply")
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	var resps []*pb.ClientResponse
@@ -97,8 +114,11 @@ func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*em
 		resps = []*pb.ClientResponse{req}
 	}
 	c.responses[req.Id] = resps
-	if len(resps) > 2*c.config.NumNodes()/3 {
-		c.respChans[req.Id] <- req
+	if len(resps) >= 2*c.config.NumNodes()/3 {
+		select {
+		case c.resps[req.Id].respChan <- req:
+		case <-c.resps[req.Id].ctx.Done():
+		}
 	}
 	return nil, nil
 }

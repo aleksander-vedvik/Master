@@ -8,6 +8,7 @@ import (
 )
 
 func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) (*empty.Empty, error) {
+	//slog.Info("1 server: received preprepare", "who", s.addr)
 	if !s.isInView(request.View) {
 		return nil, nil
 	}
@@ -18,6 +19,7 @@ func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) 
 		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
+	//slog.Info("server: added preprepare", "who", s.addr, "v", s.viewNumber, "s", request.SequenceNumber)
 	s.view.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
 		View:           request.View,
@@ -31,15 +33,19 @@ func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) 
 }
 
 func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empty.Empty, error) {
+	//slog.Info("2 server: received prepare", "who", s.addr)
 	if !s.isInView(request.View) {
+		//slog.Error("server: not in view")
 		return nil, nil
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
+		//slog.Error("server: not valid sequence number")
 		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
-		s.view.Commit(&pb.CommitRequest{
+		//slog.Error("prepared", "who", s.addr)
+		go s.view.Commit(&pb.CommitRequest{
 			Id:             request.Id,
 			Timestamp:      request.Timestamp,
 			View:           request.View,
@@ -53,6 +59,7 @@ func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empt
 }
 
 func (s *Server) Commit(ctx context.Context, request *pb.CommitRequest) (*empty.Empty, error) {
+	//slog.Info("3 server: received commit")
 	if !s.isInView(request.View) {
 		return nil, nil
 	}
@@ -61,14 +68,17 @@ func (s *Server) Commit(ctx context.Context, request *pb.CommitRequest) (*empty.
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.committed(request.SequenceNumber) {
-		s.state = &pb.ClientResponse{
+		s.mut.Lock()
+		state := &pb.ClientResponse{
 			Id:        request.Id,
 			Result:    request.Message,
 			Timestamp: request.Timestamp,
 			View:      request.View,
 			From:      request.From,
 		}
-		s.view.ClientHandler(s.state)
+		s.state = state
+		s.mut.Unlock()
+		go s.view.ClientHandler(state)
 	}
 	return nil, nil
 }
@@ -105,10 +115,13 @@ func (s *Server) prepared(n int32) bool {
 	// checking that they have the same view, sequence number, and digest.
 	req, found := s.messageLog.getPrePrepareReq(n, s.viewNumber)
 	if !found {
+		//slog.Error("server: not found", "who", s.addr, "v", s.viewNumber, "s", n)
 		return false
 	}
+	//slog.Error("server: before prepared", "who", s.addr)
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(reqs) > 2*len(s.peers)/3
+	//slog.Error("server: prepared", "num", len(reqs), "who", s.addr)
+	return found && len(reqs) >= 2*len(s.peers)/3
 }
 
 func (s *Server) committed(n int32) bool {
@@ -128,9 +141,9 @@ func (s *Server) committed(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	if !found || len(reqs) <= 2*len(s.peers)/3 {
+	if !found || len(reqs) < 2*len(s.peers)/3 {
 		return false
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(commits) > 2*len(s.peers)/3
+	return found && len(commits) >= 2*len(s.peers)/3
 }
