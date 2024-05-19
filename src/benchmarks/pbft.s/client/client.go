@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net"
 	"sync"
@@ -49,7 +48,7 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 	//slog.Info("writing value", "val", value)
 	id := uuid.NewString()
 	respChan := make(chan *pb.ClientResponse, c.config.NumNodes())
-	reqctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	reqctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	c.mut.Lock()
 	c.resps[id] = &resp{
@@ -64,14 +63,15 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 		Timestamp: time.Now().Unix(),
 	}
 	_, _ = c.config.Write(ctx, req)
-	select {
-	case res := <-respChan:
-		return res, nil
-	case <-reqctx.Done():
-		return nil, errors.New("failed req")
-		//case <-ctx.Done():
-		//return nil, errors.New("failed req")
-	}
+	return <-respChan, nil
+	//select {
+	//case res := <-respChan:
+	//return res, nil
+	//case <-reqctx.Done():
+	//return nil, errors.New("failed req")
+	////case <-ctx.Done():
+	////return nil, errors.New("failed req")
+	//}
 }
 
 func (c *Client) Start() {

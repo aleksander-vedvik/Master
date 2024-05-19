@@ -73,7 +73,7 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 			break
 		}
 		go func(node pb.PBFTNodeClient, j int) {
-			_, err := node.Write(ctx, req)
+			_, err := node.Write(context.Background(), req)
 			if err != nil {
 				//panic(fmt.Sprintf("%s: %s", c.who, err))
 			}
@@ -110,9 +110,9 @@ func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 	for _, node := range c.nodes {
 		//slog.Info("server: sending preprepare", "to", c.nodeAddrs[i], "from", c.who)
 		go func(node pb.PBFTNodeClient) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_, err := node.PrePrepare(ctx, req)
+			//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			//defer cancel()
+			_, err := node.PrePrepare(context.Background(), req)
 			if err != nil {
 				//panic(fmt.Sprintf("%s: %s", c.who, err))
 			}
@@ -150,9 +150,9 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 		go func(node pb.PBFTNodeClient, to string) {
 			//success := false
 			for r := 0; r < 10; r++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := node.Prepare(ctx, req)
+				//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				//defer cancel()
+				_, err := node.Prepare(context.Background(), req)
 				if err != nil {
 					//slog.Error("config:", "err", err, "who", c.who)
 				} else {
@@ -198,9 +198,9 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 		go func(node pb.PBFTNodeClient) {
 			//success := false
 			for r := 0; r < 10; r++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_, err := node.Commit(ctx, req)
+				//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				//defer cancel()
+				_, err := node.Commit(context.Background(), req)
 				if err != nil {
 					//slog.Error("config:", "err", err, "who", c.who)
 				} else {
@@ -246,5 +246,8 @@ func (c *Config) ClientHandler(req *pb.ClientResponse) {
 	client := pb.NewPBFTNodeClient(cc)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	client.ClientHandler(ctx, req)
+	_, _ = client.ClientHandler(ctx, req)
+	//if err != nil {
+	//panic(err)
+	//}
 }

@@ -267,15 +267,15 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		avgDur := time.Duration(0)
 		numFailed := 0
 		for i := 0; i < 10*opts.numRequests; i++ {
-			if i%(opts.numRequests) == 0 {
-				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
+			if i%(opts.numRequests/10) == 0 {
+				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(10*opts.numRequests)), "%")
 			}
 			var res RequestResult
 			// prevent deadlock
 			select {
 			case res = <-resChan:
 			case <-time.After(1 * time.Minute):
-				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", 10*opts.numRequests-numFailed, "failures", numFailed)
+				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", i-numFailed, "failures", numFailed)
 				return clientResult, nil, errors.New("could not collect all responses")
 			}
 			if res.err != nil {
