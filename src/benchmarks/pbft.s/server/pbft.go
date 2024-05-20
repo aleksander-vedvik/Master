@@ -20,7 +20,7 @@ func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) 
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	//slog.Info("server: added preprepare", "who", s.addr, "v", s.viewNumber, "s", request.SequenceNumber)
-	s.view.Prepare(&pb.PrepareRequest{
+	go s.view.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
 		View:           request.View,
 		SequenceNumber: request.SequenceNumber,
@@ -120,7 +120,6 @@ func (s *Server) prepared(n int32) bool {
 	}
 	//slog.Error("server: before prepared", "who", s.addr)
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	//slog.Error("server: prepared", "num", len(reqs), "who", s.addr)
 	return found && len(reqs) >= 2*len(s.peers)/3
 }
 

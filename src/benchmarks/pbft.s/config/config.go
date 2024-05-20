@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -73,9 +74,11 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 			break
 		}
 		go func(node pb.PBFTNodeClient, j int) {
-			_, err := node.Write(context.Background(), req)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			_, err := node.Write(ctx, req)
 			if err != nil {
-				//panic(fmt.Sprintf("%s: %s", c.who, err))
+				panic(fmt.Sprintf("%s: %s", c.who, err))
 			}
 			respChan <- struct{}{}
 			//slog.Info("sent msg", "to", c.nodeAddrs[i])
@@ -115,6 +118,7 @@ func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 			_, err := node.PrePrepare(context.Background(), req)
 			if err != nil {
 				//panic(fmt.Sprintf("%s: %s", c.who, err))
+				slog.Error(fmt.Sprintf("%s: %s", c.who, err))
 			}
 			//respChan <- fmt.Sprintf("server: sent preprepare to: %s from: %s", c.nodeAddrs[i], c.who)
 		}(node)
@@ -154,10 +158,10 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 				//defer cancel()
 				_, err := node.Prepare(context.Background(), req)
 				if err != nil {
-					//slog.Error("config:", "err", err, "who", c.who)
+					slog.Error("config:", "err", err, "who", c.who)
 				} else {
 					//success = true
-					break
+					return
 				}
 				time.Sleep(10 * time.Duration(r) * time.Millisecond)
 			}
@@ -202,10 +206,10 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 				//defer cancel()
 				_, err := node.Commit(context.Background(), req)
 				if err != nil {
-					//slog.Error("config:", "err", err, "who", c.who)
+					slog.Error("config:", "err", err, "who", c.who)
 				} else {
 					//success = true
-					break
+					return
 				}
 				time.Sleep(10 * time.Millisecond)
 			}

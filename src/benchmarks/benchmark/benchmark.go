@@ -150,7 +150,7 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	//5000,
 	//10000,
 	//}
-	maxTarget := 5000
+	maxTarget := 15000
 	targetIncrement := 1000
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
@@ -158,7 +158,7 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	for target := targetIncrement; target <= maxTarget; target += targetIncrement {
 		//for _, target := range throughputs {
 		bench := benchmarkOption{
-			name:           fmt.Sprintf("S3.C10.R%v.Throughput", target),
+			name:           fmt.Sprintf("%s.S3.C10.R%v.Throughput", name, target),
 			srvAddrs:       threeServers,
 			numClients:     10,
 			clientBasePort: 8080,
@@ -267,14 +267,14 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		avgDur := time.Duration(0)
 		numFailed := 0
 		for i := 0; i < 10*opts.numRequests; i++ {
-			if i%(opts.numRequests/10) == 0 {
+			if i%(opts.numRequests/2) == 0 {
 				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(10*opts.numRequests)), "%")
 			}
 			var res RequestResult
 			// prevent deadlock
 			select {
 			case res = <-resChan:
-			case <-time.After(1 * time.Minute):
+			case <-time.After(2 * time.Minute):
 				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", i-numFailed, "failures", numFailed)
 				return clientResult, nil, errors.New("could not collect all responses")
 			}

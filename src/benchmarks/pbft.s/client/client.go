@@ -49,7 +49,7 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 	//slog.Info("writing value", "val", value)
 	id := uuid.NewString()
 	respChan := make(chan *pb.ClientResponse, c.config.NumNodes())
-	reqctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	reqctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	c.mut.Lock()
 	c.resps[id] = &resp{
