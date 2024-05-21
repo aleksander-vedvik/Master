@@ -228,12 +228,12 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 
 func (c *Config) ClientHandler(req *pb.ClientResponse) {
 	c.mut.Lock()
-	defer c.mut.Unlock()
 	methodName := "ClientHandler"
 	var methods []string
 	if m, ok := c.methods[req.Id]; ok {
 		for _, method := range m {
 			if method == methodName {
+				c.mut.Unlock()
 				return
 			}
 		}
@@ -258,6 +258,7 @@ func (c *Config) ClientHandler(req *pb.ClientResponse) {
 		client = pb.NewPBFTNodeClient(cc)
 		c.clients[req.From] = client
 	}
+	c.mut.Unlock()
 	//slog.Info("from", "addr", req.From)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
