@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -19,6 +18,7 @@ type Config struct {
 	connections []*grpc.ClientConn
 	methods     map[string][]string
 	who         string
+	clients     map[string]pb.PBFTNodeClient
 }
 
 func NewConfig(addr string, srvAddrs []string) *Config {
@@ -28,6 +28,7 @@ func NewConfig(addr string, srvAddrs []string) *Config {
 		connections: make([]*grpc.ClientConn, 0, len(srvAddrs)),
 		nodeAddrs:   make(map[int]string, len(srvAddrs)),
 		methods:     make(map[string][]string),
+		clients:     make(map[string]pb.PBFTNodeClient),
 	}
 	for i, addr := range srvAddrs {
 		cc, err := grpc.DialContext(context.Background(), addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -118,7 +119,7 @@ func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 			_, err := node.PrePrepare(context.Background(), req)
 			if err != nil {
 				//panic(fmt.Sprintf("%s: %s", c.who, err))
-				slog.Error(fmt.Sprintf("%s: %s", c.who, err))
+				//slog.Error(fmt.Sprintf("%s: %s", c.who, err))
 			}
 			//respChan <- fmt.Sprintf("server: sent preprepare to: %s from: %s", c.nodeAddrs[i], c.who)
 		}(node)
@@ -158,7 +159,7 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 				//defer cancel()
 				_, err := node.Prepare(context.Background(), req)
 				if err != nil {
-					slog.Error("config:", "err", err, "who", c.who)
+					//slog.Error("config:", "err", err, "who", c.who)
 				} else {
 					//success = true
 					return
@@ -206,7 +207,7 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 				//defer cancel()
 				_, err := node.Commit(context.Background(), req)
 				if err != nil {
-					slog.Error("config:", "err", err, "who", c.who)
+					//slog.Error("config:", "err", err, "who", c.who)
 				} else {
 					//success = true
 					return
@@ -241,13 +242,23 @@ func (c *Config) ClientHandler(req *pb.ClientResponse) {
 		methods = []string{methodName}
 	}
 	c.methods[req.Id] = methods
-	//slog.Info("from", "addr", req.From)
-	cc, err := grpc.DialContext(context.Background(), req.From, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		panic(err)
+	var (
+		cc     *grpc.ClientConn
+		ok     bool
+		err    error
+		client pb.PBFTNodeClient
+	)
+
+	if client, ok = c.clients[req.From]; !ok {
+		cc, err = grpc.DialContext(context.Background(), req.From, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			panic(err)
+		}
+		c.connections = append(c.connections, cc)
+		client = pb.NewPBFTNodeClient(cc)
+		c.clients[req.From] = client
 	}
-	defer cc.Close()
-	client := pb.NewPBFTNodeClient(cc)
+	//slog.Info("from", "addr", req.From)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, _ = client.ClientHandler(ctx, req)

@@ -6,7 +6,7 @@ import "gorums.proto";
 import "google/protobuf/empty.proto";
 option go_package = "pbfto/protos";
 
-service PBFTNode {
+service PBFT {
   rpc Write(WriteRequest) returns (ClientResponse) {
     option (gorums.broadcastcall) = true;
    }

@@ -70,6 +70,7 @@ func (a *Acceptor) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg, broadcast
 	a.mut.Lock()
 	defer a.mut.Unlock()
 	// do not accept any messages with a rnd less than current
+
 	if request.Rnd < a.rnd {
 		return
 	}
