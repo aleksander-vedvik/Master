@@ -196,7 +196,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.quorumSize = len(opts.srvAddrs)
 	}
 	if opts.timeout <= 0 {
-		opts.timeout = 15 * time.Second
+		opts.timeout = 1 * time.Minute
 	}
 
 	fmt.Println("creating clients...")

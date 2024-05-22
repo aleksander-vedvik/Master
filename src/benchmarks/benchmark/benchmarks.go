@@ -13,6 +13,11 @@ var benchTypes = map[string]struct {
 			return runBenchmark(bench, PaxosQCBenchmark{})
 		},
 	},
+	"Paxos.QuorumCallBroadcastOption": {
+		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
+			return runBenchmark(bench, PaxosQCBBenchmark{})
+		},
+	},
 	"PBFT.With.Gorums": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftBenchmark{})
