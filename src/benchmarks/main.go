@@ -24,13 +24,14 @@ func main() {
 	//bench.RunSingleBenchmark("Simple")
 	//bench.RunSingleBenchmark("PaxosQC")
 	//bench.RunSingleBenchmark("Paxos")
-	bench.RunThroughputVsLatencyBenchmark("PBFT")
-	bench.RunThroughputVsLatencyBenchmark("PBFT.S")
-	bench.RunThroughputVsLatencyBenchmark("PBFT.O")
-	//bench.RunThroughputVsLatencyBenchmark("PaxosQC")
-	//bench.RunThroughputVsLatencyBenchmark("Paxos")
 	//bench.RunSingleBenchmark("PBFT")
 	//bench.RunSingleBenchmark("PBFT.S")
+	bench.RunThroughputVsLatencyBenchmark("Paxos.BroadcastCall")
+	bench.RunThroughputVsLatencyBenchmark("Paxos.QuorumCall")
+	bench.RunThroughputVsLatencyBenchmark("PBFT.With.Gorums", 5000, 500)
+	bench.RunThroughputVsLatencyBenchmark("PBFT.Without.Gorums", 5000, 500)
+	bench.RunThroughputVsLatencyBenchmark("PBFT.NoOrder")
+	bench.RunThroughputVsLatencyBenchmark("PBFT.Order")
 }
 
 //func main() {

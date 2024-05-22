@@ -136,22 +136,18 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	return results, errs
 }
 
-func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
+func RunThroughputVsLatencyBenchmark(name string, targets ...int) ([]Result, []error) {
 	benchmark, ok := benchTypes[name]
 	if !ok {
 		return nil, nil
 	}
 	fmt.Println("running benchmark:", name)
-	//throughputs := []int{
-	//1000,
-	//2000,
-	//3000,
-	//4000,
-	//5000,
-	//10000,
-	//}
-	maxTarget := 10000
+	maxTarget := 15000
 	targetIncrement := 1000
+	if len(targets) >= 2 {
+		maxTarget = targets[0]
+		targetIncrement = targets[1]
+	}
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)

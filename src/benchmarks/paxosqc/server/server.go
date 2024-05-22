@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net"
@@ -33,6 +34,11 @@ const (
 	managerDialTimeout = 5 * time.Second
 )
 
+type resp struct {
+	respChan chan *pb.Response
+	ctx      context.Context
+}
+
 // PaxosReplica is the structure composing the Proposer and Acceptor.
 type PaxosReplica struct {
 	*pb.Server
@@ -44,7 +50,7 @@ type PaxosReplica struct {
 	addr             string
 	stop             chan struct{}         // channel for stopping the replica's run loop.
 	learntVal        map[Slot]*pb.LearnMsg // Stores all received learn messages
-	responseChannels map[string]chan *pb.Response
+	responseChannels map[string]*resp
 	stopped          bool
 	cachedReplies    map[string]*pb.Response
 }
@@ -75,7 +81,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		addr:             addr,
 		stop:             make(chan struct{}),
 		learntVal:        make(map[Slot]*pb.LearnMsg),
-		responseChannels: make(map[string]chan *pb.Response),
+		responseChannels: make(map[string]*resp),
 		cachedReplies:    make(map[string]*pb.Response),
 	}
 	pb.RegisterPaxosQCServer(r.Server, r)
@@ -212,28 +218,25 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 		r.advanceAllDecidedUpTo()
 		//respCh := r.respChannel(learn)
 		r.mu.Lock()
-		respCh := r.respChannelWithoutRetries(learn)
-		if respCh == nil {
-			r.cachedReplies[lrn.Val.ID] = &pb.Response{
-				ClientID:      learn.Val.ClientID,
-				ClientSeq:     learn.Val.ClientSeq,
-				ClientCommand: learn.Val.ClientCommand,
-			}
+		resp := r.respChannelWithoutRetries(learn)
+		response := &pb.Response{
+			ClientID:      learn.Val.ClientID,
+			ClientSeq:     learn.Val.ClientSeq,
+			ClientCommand: learn.Val.ClientCommand,
+		}
+		if resp == nil {
+			r.cachedReplies[lrn.Val.ID] = response
 			r.mu.Unlock()
 			// give up if the response channel is not found
 			//slog.Info("no resp channel", "id", lrn.Val.ID)
 			continue
 		}
+		r.mu.Unlock()
 		// deliver decided value to ClientHandle
 		select {
-		case respCh <- &pb.Response{
-			ClientID:      learn.Val.ClientID,
-			ClientSeq:     learn.Val.ClientSeq,
-			ClientCommand: learn.Val.ClientCommand,
-		}:
-		default:
+		case resp.respChan <- response:
+		case <-resp.ctx.Done():
 		}
-		r.mu.Unlock()
 	}
 }
 
@@ -242,7 +245,7 @@ const (
 	maxRetries = 5
 )
 
-func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) chan *pb.Response {
+func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) *resp {
 	valHash := learn.Val.ID
 	respCh := r.responseChannels[valHash]
 	return respCh
@@ -269,7 +272,7 @@ func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
 			return nil
 		}
 	}
-	return respCh
+	return respCh.respChan
 }
 
 // ClientHandle is invoked by the client to send a request to the replicas via a quorum call and get a response.
@@ -297,7 +300,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	r.mu.Unlock()
 
 	select {
-	case resp := <-respChannel:
+	case resp := <-respChannel.respChan:
 		return resp, nil
 	case <-time.After(responseTimeout):
 		slog.Info("timed out", "id", req.ID)
@@ -305,12 +308,18 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	}
 }
 
-func (r *PaxosReplica) makeResponseChan(request *pb.Value) (chan *pb.Response, func()) {
+func (r *PaxosReplica) makeResponseChan(request *pb.Value) (*resp, func()) {
 	msgID := request.ID
 	respChannel := make(chan *pb.Response, 1)
-	r.responseChannels[msgID] = respChannel
-	return respChannel, func() {
+	ctx, cancel := context.WithCancel(context.Background())
+	resp := &resp{
+		respChan: respChannel,
+		ctx:      ctx,
+	}
+	r.responseChannels[msgID] = resp
+	return resp, func() {
 		r.mu.Lock()
+		cancel()
 		delete(r.responseChannels, msgID)
 		r.mu.Unlock()
 	}

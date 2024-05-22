@@ -3,27 +3,32 @@ package bench
 var benchTypes = map[string]struct {
 	run func(benchmarkOption) (ClientResult, []Result, error)
 }{
-	"Paxos": {
+	"Paxos.BroadcastCall": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PaxosBenchmark{})
 		},
 	},
-	"PaxosQC": {
+	"Paxos.QuorumCall": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PaxosQCBenchmark{})
 		},
 	},
-	"PBFT": {
+	"PBFT.With.Gorums": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftBenchmark{})
 		},
 	},
-	"PBFT.S": {
+	"PBFT.Without.Gorums": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftSBenchmark{})
 		},
 	},
-	"PBFT.O": {
+	"PBFT.NoOrder": {
+		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
+			return runBenchmark(bench, PbftBenchmark{})
+		},
+	},
+	"PBFT.Order": {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftOBenchmark{})
 		},

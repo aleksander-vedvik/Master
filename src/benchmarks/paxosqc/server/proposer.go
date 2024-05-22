@@ -173,8 +173,9 @@ func (p *Proposer) nextAcceptMsg() (accept *pb.AcceptMsg) {
 //     using crnd and nextSlot.
 //  4. Perform accept quorum call on the configuration and return the learnMsg.
 func (p *Proposer) performAccept(accept *pb.AcceptMsg) (*pb.LearnMsg, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
+	//defer cancel()
+	ctx := context.Background()
 	// all quorum calls should happen without holding locks, otherwise
 	// leader may not be able to process the its own RPC call.
 	return p.config.Accept(ctx, accept)
@@ -185,8 +186,9 @@ func (p *Proposer) performCommit(learn *pb.LearnMsg) error {
 	if learn == nil {
 		return errors.New("no learn message to send")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
-	defer cancel()
+	//ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
+	//defer cancel()
+	ctx := context.Background()
 	p.config.Commit(ctx, learn)
 	return nil
 }
