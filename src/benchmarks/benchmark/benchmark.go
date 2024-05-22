@@ -150,8 +150,8 @@ func RunThroughputVsLatencyBenchmark(name string) ([]Result, []error) {
 	//5000,
 	//10000,
 	//}
-	maxTarget := 3000
-	targetIncrement := 300
+	maxTarget := 10000
+	targetIncrement := 1000
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)

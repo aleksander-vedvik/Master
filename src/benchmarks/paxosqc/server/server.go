@@ -28,7 +28,7 @@ import (
 
 const (
 	// responseTimeout is the duration to wait for a response before cancelling
-	responseTimeout = 10 * time.Second
+	responseTimeout = 120 * time.Second
 	// managerDialTimeout is the default timeout for dialing a manager
 	managerDialTimeout = 5 * time.Second
 )
