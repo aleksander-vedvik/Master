@@ -276,6 +276,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			}
 			if res.err != nil {
 				numFailed++
+				panic(res.err)
 				continue
 			}
 			avgDur += res.end.Sub(res.start)
