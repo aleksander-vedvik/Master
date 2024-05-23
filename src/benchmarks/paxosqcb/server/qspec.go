@@ -14,7 +14,7 @@ type PaxosQSpec struct {
 
 // NewPaxosQSpec returns a quorum specification object for Paxos
 // for the given configuration size n.
-func NewPaxosQSpec(n int) PaxosQSpec {
+func NewPaxosQSpec(n int) pb.QuorumSpec {
 	return PaxosQSpec{quorum: (n-1)/2 + 1}
 }
 

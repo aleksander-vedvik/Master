@@ -4,8 +4,7 @@ import (
 	"context"
 	"log"
 
-	pb "github.com/aleksander-vedvik/benchmark/paxosqc/proto"
-	"github.com/google/uuid"
+	pb "github.com/aleksander-vedvik/benchmark/paxosqcb/proto"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -18,11 +17,12 @@ type Client struct {
 	seq    uint32
 }
 
-func New(addr string, srvAddresses []string, qSize int) *Client {
+func New(id int, addr string, srvAddresses []string, qSize int) *Client {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
+		gorums.WithMachineID(uint64(id)),
 	)
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
@@ -46,7 +46,6 @@ func (sc *Client) Write(ctx context.Context, value string) (*pb.Response, error)
 	return sc.config.ClientHandle(ctx, &pb.Value{
 		ClientCommand: value,
 		ClientSeq:     sc.seq,
-		ID:            uuid.NewString(),
 	})
 }
 

@@ -16,8 +16,8 @@ type Client struct {
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
-func New(addr string, srvAddresses []string, qSize int) *Client {
-	mgr, config := getConfig(addr, srvAddresses, qSize)
+func New(id int, addr string, srvAddresses []string, qSize int) *Client {
+	mgr, config := getConfig(id, addr, srvAddresses, qSize)
 	return &Client{
 		mgr:  mgr,
 		view: config,

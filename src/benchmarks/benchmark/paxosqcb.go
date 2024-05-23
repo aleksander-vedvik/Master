@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	paxosClient "github.com/aleksander-vedvik/benchmark/paxosqc/client"
-	paxosServer "github.com/aleksander-vedvik/benchmark/paxosqc/server"
+	paxosClient "github.com/aleksander-vedvik/benchmark/paxosqcb/client"
+	paxosServer "github.com/aleksander-vedvik/benchmark/paxosqcb/server"
 )
 
 type PaxosQCBBenchmark struct{}
@@ -19,9 +19,9 @@ func (PaxosQCBBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosSer
 	}, nil
 }
 
-func (PaxosQCBBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
+func (PaxosQCBBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
 	qSize := 1 + len(srvAddrs)/2
-	c := paxosClient.New(addr, srvAddrs, qSize)
+	c := paxosClient.New(id, addr, srvAddrs, qSize)
 	return c, func() {
 		c.Stop()
 	}, nil

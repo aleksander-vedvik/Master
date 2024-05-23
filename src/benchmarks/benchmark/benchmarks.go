@@ -52,141 +52,45 @@ var threeServers = []string{
 }
 
 var benchmarks = []benchmarkOption{
-	{
-		srvAddrs:       threeServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    10000,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    10000,
-		local:          true,
-		runType:        Sync,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     1,
-		clientBasePort: 8080,
-		numRequests:    10000,
-		local:          true,
-		runType:        Random,
-		reqInterval: struct {
-			start int
-			end   int
-		}{50, 400},
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Sync,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Random,
-		reqInterval: struct {
-			start int
-			end   int
-		}{50, 400},
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Sync,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     100,
-		clientBasePort: 8080,
-		numRequests:    1000,
-		local:          true,
-		runType:        Random,
-		reqInterval: struct {
-			start int
-			end   int
-		}{50, 400},
-	},
-}
-
-var throughputBenchmarks = []benchmarkOption{
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    10,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    20,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    50,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    100,
-		local:          true,
-		runType:        Async,
-	},
-	{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    200,
-		local:          true,
-		runType:        Async,
-	},
-	{
+	/*{
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
 		numRequests:    500,
 		local:          true,
 		runType:        Async,
+	},*/
+	{
+		srvAddrs:       threeServers,
+		numClients:     1,
+		clientBasePort: 8080,
+		numRequests:    10000,
+		local:          true,
+		runType:        Async,
 	},
+
+	{
+		srvAddrs:       threeServers,
+		numClients:     1,
+		clientBasePort: 8080,
+		numRequests:    10000,
+		local:          true,
+		runType:        Sync,
+	},
+
+	{
+		srvAddrs:       threeServers,
+		numClients:     1,
+		clientBasePort: 8080,
+		numRequests:    10000,
+		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
+	},
+
 	{
 		srvAddrs:       threeServers,
 		numClients:     10,
@@ -195,20 +99,57 @@ var throughputBenchmarks = []benchmarkOption{
 		local:          true,
 		runType:        Async,
 	},
+
 	{
 		srvAddrs:       threeServers,
 		numClients:     10,
 		clientBasePort: 8080,
-		numRequests:    5000,
+		numRequests:    1000,
+		local:          true,
+		runType:        Sync,
+	},
+
+	{
+		srvAddrs:       threeServers,
+		numClients:     10,
+		clientBasePort: 8080,
+		numRequests:    1000,
+		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
+	},
+
+	{
+		srvAddrs:       threeServers,
+		numClients:     100,
+		clientBasePort: 8080,
+		numRequests:    1000,
 		local:          true,
 		runType:        Async,
 	},
+
 	{
 		srvAddrs:       threeServers,
-		numClients:     10,
+		numClients:     100,
 		clientBasePort: 8080,
-		numRequests:    10000,
+		numRequests:    1000,
 		local:          true,
-		runType:        Async,
+		runType:        Sync,
+	},
+
+	{
+		srvAddrs:       threeServers,
+		numClients:     100,
+		clientBasePort: 8080,
+		numRequests:    1000,
+		local:          true,
+		runType:        Random,
+		reqInterval: struct {
+			start int
+			end   int
+		}{50, 400},
 	},
 }

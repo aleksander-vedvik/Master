@@ -53,7 +53,7 @@ type RequestResult struct {
 
 type Benchmark[S, C any] interface {
 	CreateServer(addr string, peers []string) (*S, func(), error)
-	CreateClient(addr string, srvAddrs []string, qSize int) (*C, func(), error)
+	CreateClient(id int, addr string, srvAddrs []string, qSize int) (*C, func(), error)
 	Warmup(client *C)
 	StartBenchmark(config *C) []Result
 	Run(client *C, ctx context.Context, payload int) error
@@ -111,10 +111,10 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	errs := make([]error, len(benchmarks))
 	//throughputVsLatency := make([][]string, 0)
 	for _, bench := range benchmarks {
-		if bench.numRequests > 1000 {
-			continue
-		}
-		bench.name = fmt.Sprintf("S%v.C%v.R%v.%s", len(bench.srvAddrs), bench.numClients, bench.numRequests, bench.runType)
+		//if bench.numRequests > 1000 {
+		//continue
+		//}
+		bench.name = fmt.Sprintf("%s.S%v.C%v.R%v.%s", name, len(bench.srvAddrs), bench.numClients, bench.numRequests, bench.runType)
 		start := time.Now()
 		clientResult, ress, err := benchmark.run(bench)
 		fmt.Println("took:", time.Since(start))
@@ -206,7 +206,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			err     error
 			cleanup func()
 		)
-		clients[i], cleanup, err = benchmark.CreateClient(fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i), opts.srvAddrs, opts.quorumSize)
+		clients[i], cleanup, err = benchmark.CreateClient(i, fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i), opts.srvAddrs, opts.quorumSize)
 		defer cleanup()
 		if err != nil {
 			return clientResult, nil, err
@@ -276,7 +276,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			}
 			if res.err != nil {
 				numFailed++
-				panic(res.err)
+				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", i-numFailed, "failures", numFailed)
+				//panic(res.err)
 				continue
 			}
 			avgDur += res.end.Sub(res.start)
@@ -292,7 +293,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		return clientResult, nil, nil
 	default:
 	}
-	numBuckets := 100
+	numBuckets := 30
 	durDistribution := make([]uint64, numBuckets)
 	durations := make([]time.Duration, 0, opts.numRequests*opts.numClients)
 	maxDur := time.Duration(0)
@@ -346,10 +347,10 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	fmt.Println("stopped benchmark...")
 
 	fmt.Println("calculating histogram...")
-	bucketSize := (maxDur.Microseconds() - minDur.Microseconds()) / int64(numBuckets)
+	bucketSize := (maxDur.Milliseconds() - minDur.Milliseconds()) / int64(numBuckets)
 	clientResult.BucketSize = int(bucketSize)
 	for _, dur := range durations {
-		bucket := int(math.Floor(float64(dur.Microseconds()-minDur.Microseconds()) / float64(bucketSize)))
+		bucket := int(math.Floor(float64(dur.Milliseconds()-minDur.Milliseconds()) / float64(bucketSize)))
 		if bucket >= numBuckets {
 			bucket = numBuckets - 1
 		}

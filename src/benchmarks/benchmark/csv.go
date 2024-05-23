@@ -27,7 +27,7 @@ var csvHeader2 = []string{
 }
 
 func WriteToCsv(name, benchname string, records []Result, clientRecord ClientResult) error {
-	path := fmt.Sprintf("./csv/stats/%s.%s.csv", name, benchname)
+	path := fmt.Sprintf("./csv/stats/%s.csv", benchname)
 	fmt.Println("writing to csv...")
 	file, err := os.Create(path)
 	if err != nil {
@@ -72,7 +72,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 		panic(err)
 	}
 
-	path2 := fmt.Sprintf("./csv/histogram/hist.%s.%s.csv", name, benchname)
+	path2 := fmt.Sprintf("./csv/histogram/hist.%s.csv", benchname)
 	f, err := os.Create(path2)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 	d := make([][]string, len(clientRecord.ReqDistribution)+1)
 	d[0] = csvHeader2
 	for i, r := range clientRecord.ReqDistribution {
-		x := int(clientRecord.LatencyMin.Microseconds()) + i*clientRecord.BucketSize
+		x := int(clientRecord.LatencyMin.Milliseconds()) + i*clientRecord.BucketSize
 		d[i+1] = []string{strconv.Itoa(x), strconv.Itoa(int(r))}
 	}
 	return cw.WriteAll(d)

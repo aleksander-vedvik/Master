@@ -12,11 +12,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getConfig(addr string, srvAddresses []string, qSize int) (*pb.Manager, *pb.Configuration) {
+func getConfig(id int, addr string, srvAddresses []string, qSize int) (*pb.Manager, *pb.Configuration) {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
+		gorums.WithMachineID(uint64(id)),
 	)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {

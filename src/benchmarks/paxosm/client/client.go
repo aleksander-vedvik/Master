@@ -18,11 +18,12 @@ type Client struct {
 	mgr    *pb.Manager
 }
 
-func New(addr string, srvAddresses []string, qSize int) *Client {
+func New(id int, addr string, srvAddresses []string, qSize int) *Client {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
+		gorums.WithMachineID(uint64(id)),
 	)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {

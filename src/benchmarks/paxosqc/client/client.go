@@ -18,11 +18,12 @@ type Client struct {
 	seq    uint32
 }
 
-func New(addr string, srvAddresses []string, qSize int) *Client {
+func New(id int, addr string, srvAddresses []string, qSize int) *Client {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
+		gorums.WithMachineID(uint64(id)),
 	)
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),

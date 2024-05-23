@@ -19,9 +19,9 @@ func (PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer
 	}, nil
 }
 
-func (PaxosBenchmark) CreateClient(addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
+func (PaxosBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
 	qSize := 1 + len(srvAddrs)/2
-	c := paxosClient.New(addr, srvAddrs, qSize)
+	c := paxosClient.New(id, addr, srvAddrs, qSize)
 	return c, func() {
 		c.Stop()
 	}, nil

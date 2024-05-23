@@ -112,14 +112,14 @@ func (r *PaxosReplica) Start() {
 // It subscribes to the leader detector's trust messages and signals the proposer when a new leader is detected.
 // It also starts the failure detector, which is necessary to get leader detections.
 func (r *PaxosReplica) run() {
+	qspec := NewPaxosQSpec(len(r.nodeMap))
+	paxConfig, err := r.paxosManager.NewConfiguration(qspec, gorums.WithNodeMap(r.nodeMap))
+	if err != nil {
+		return
+	}
+	r.Proposer.setConfiguration(paxConfig)
+	r.SetView(paxConfig)
 	go func() {
-		qspec := NewPaxosQSpec(len(r.nodeMap))
-		paxConfig, err := r.paxosManager.NewConfiguration(qspec, gorums.WithNodeMap(r.nodeMap))
-		if err != nil {
-			return
-		}
-		r.Proposer.setConfiguration(paxConfig)
-
 		for {
 			select {
 			case <-r.stop:
@@ -185,6 +185,7 @@ func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.L
 // This method is also responsible for communicating the decided value to the ClientHandle
 // method, which is responsible for returning the response to the client.
 func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcast *pb.Broadcast) {
+	//slog.Info("received commit", "replica", r.addr, "slot", learn.Slot)
 	//ctx.Release()
 	r.mu.Lock()
 	adu := r.adu + 1
@@ -224,17 +225,6 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg, broadcast *pb.Broadcast) {
 	}
 }
 
-const (
-	retryDelay = 10 * time.Millisecond
-	maxRetries = 5
-)
-
-func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) *resp {
-	valHash := learn.Val.ID
-	respCh := r.responseChannels[valHash]
-	return respCh
-}
-
 // ClientHandle is invoked by the client to send a request to the replicas via a quorum call and get a response.
 // A response is only sent back to the client when the request has been committed by the MultiPaxos replicas.
 // This method will receive requests from multiple clients and must return the response to the correct client.
@@ -247,39 +237,4 @@ func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) *resp {
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value, broadcast *pb.Broadcast) {
 	//ctx.Release()
 	r.AddRequestToQ(req, broadcast)
-}
-
-func (r *PaxosReplica) makeResponseChan(request *pb.Value) (*resp, func()) {
-	msgID := request.ID
-	respChannel := make(chan *pb.Response, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	resp := &resp{
-		respChan: respChannel,
-		ctx:      ctx,
-	}
-	r.responseChannels[msgID] = resp
-	return resp, func() {
-		r.mu.Lock()
-		cancel()
-		delete(r.responseChannels, msgID)
-		r.mu.Unlock()
-	}
-}
-
-// remainingResponses returns the number of responses that are still pending.
-func (r *PaxosReplica) remainingResponses() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.responseChannels)
-}
-
-// responseIDs returns the IDs of the responses that are still pending.
-func (r *PaxosReplica) responseIDs() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	ids := make([]string, 0, len(r.responseChannels))
-	for id := range r.responseChannels {
-		ids = append(ids, id)
-	}
-	return ids
 }

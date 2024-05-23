@@ -1,7 +1,7 @@
 package client
 
 import (
-	pb "github.com/aleksander-vedvik/benchmark/paxosqc/proto"
+	pb "github.com/aleksander-vedvik/benchmark/paxosqcb/proto"
 )
 
 // PaxosQSpec is a quorum specification object for Paxos.
