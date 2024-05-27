@@ -22,18 +22,18 @@ import (
 
 func main() {
 	//bench.RunSingleBenchmark("Simple")
-	bench.RunSingleBenchmark("Paxos.BroadcastCall")
-	bench.RunSingleBenchmark("Paxos.QuorumCall")
-	bench.RunSingleBenchmark("Paxos.QuorumCallBroadcastOption")
-	bench.RunSingleBenchmark("PBFT.With.Gorums")
-	bench.RunSingleBenchmark("PBFT.Without.Gorums")
+	//bench.RunSingleBenchmark("Paxos.BroadcastCall")
+	//bench.RunSingleBenchmark("Paxos.QuorumCall")
+	//bench.RunSingleBenchmark("Paxos.QuorumCallBroadcastOption")
+	//bench.RunSingleBenchmark("PBFT.With.Gorums")
+	//bench.RunSingleBenchmark("PBFT.Without.Gorums")
 	bench.RunThroughputVsLatencyBenchmark("Paxos.BroadcastCall", 6000, 600)
 	bench.RunThroughputVsLatencyBenchmark("Paxos.QuorumCall", 6000, 600)
 	bench.RunThroughputVsLatencyBenchmark("Paxos.QuorumCallBroadcastOption", 6000, 600)
-	bench.RunThroughputVsLatencyBenchmark("PBFT.With.Gorums", 5000, 500)
-	bench.RunThroughputVsLatencyBenchmark("PBFT.Without.Gorums", 5000, 500)
-	bench.RunThroughputVsLatencyBenchmark("PBFT.NoOrder")
-	bench.RunThroughputVsLatencyBenchmark("PBFT.Order")
+	//bench.RunThroughputVsLatencyBenchmark("PBFT.With.Gorums", 5000, 500)
+	//bench.RunThroughputVsLatencyBenchmark("PBFT.Without.Gorums", 5000, 500)
+	//bench.RunThroughputVsLatencyBenchmark("PBFT.NoOrder")
+	//bench.RunThroughputVsLatencyBenchmark("PBFT.Order")
 }
 
 //func main() {
