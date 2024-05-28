@@ -42,7 +42,7 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		wL = withoutLeader[0]
 	}
 	srv := Server{
-		Server:         pb.NewServer(gorums.WithOrder(pb.PBFTNodePrePrepare, pb.PBFTNodePrepare, pb.PBFTNodeCommit)),
+		Server:         pb.NewServer(gorums.WithOrder(pb.PBFTPrePrepare, pb.PBFTPrepare, pb.PBFTCommit)),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
@@ -55,7 +55,7 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		withoutLeader:  wL,
 	}
 	srv.configureView()
-	pb.RegisterPBFTNodeServer(srv.Server, &srv)
+	pb.RegisterPBFTServer(srv.Server, &srv)
 	return &srv
 }
 

@@ -82,7 +82,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		stop:             make(chan struct{}),
 		learntVal:        make(map[Slot]*pb.LearnMsg),
 		responseChannels: make(map[string]*resp),
-		cachedReplies:    make(map[string]*pb.Response),
+		cachedReplies:    make(map[string]*pb.Response, 100),
 	}
 	pb.RegisterPaxosQCServer(r.Server, r)
 	r.run()

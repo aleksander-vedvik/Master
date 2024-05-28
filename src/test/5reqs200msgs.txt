@@ -1,0 +1,46 @@
+goos: linux
+goarch: amd64
+pkg: locksvsroutines
+cpu: Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz
+BenchmarkChannelChannel/None-12         	     100	  94524489 ns/op	  174118 B/op	    3043 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  98502594 ns/op	  172055 B/op	    3038 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  97676448 ns/op	  170566 B/op	    3027 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  93194800 ns/op	  172179 B/op	    3044 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  97587949 ns/op	  170808 B/op	    3030 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  90608409 ns/op	  170733 B/op	    3029 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  97541695 ns/op	  170149 B/op	    3023 allocs/op
+BenchmarkChannelChannel/None-12         	     100	 102656439 ns/op	  170599 B/op	    3027 allocs/op
+BenchmarkChannelChannel/None-12         	     100	  95033393 ns/op	  170843 B/op	    3030 allocs/op
+BenchmarkChannelChannel/None-12         	     100	 100989786 ns/op	  170519 B/op	    3027 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  15499670 ns/op	  171712 B/op	    3039 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  15277459 ns/op	  171043 B/op	    3032 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  15346836 ns/op	  170772 B/op	    3029 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  14938626 ns/op	  170785 B/op	    3029 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  14751088 ns/op	  169916 B/op	    3020 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  15442957 ns/op	  171038 B/op	    3032 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  16847857 ns/op	  170330 B/op	    3025 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  16261444 ns/op	  170645 B/op	    3027 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  16586837 ns/op	  170194 B/op	    3023 allocs/op
+BenchmarkLockChannel/Shard-12           	     100	  15266337 ns/op	  170701 B/op	    3028 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15258512 ns/op	  330708 B/op	    5171 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15702573 ns/op	  325630 B/op	    5142 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15717027 ns/op	  323776 B/op	    5123 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  14912338 ns/op	  324902 B/op	    5135 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15728435 ns/op	  323279 B/op	    5118 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15857996 ns/op	  326351 B/op	    5150 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15217873 ns/op	  324898 B/op	    5135 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15334727 ns/op	  326251 B/op	    5149 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15137286 ns/op	  323754 B/op	    5123 allocs/op
+BenchmarkChannelLock/Processor-12       	     100	  15105709 ns/op	  325214 B/op	    5138 allocs/op
+BenchmarkLockLock/Both-12               	     100	  17990556 ns/op	  187729 B/op	    4039 allocs/op
+BenchmarkLockLock/Both-12               	     100	  17908712 ns/op	  187924 B/op	    4041 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18622617 ns/op	  188076 B/op	    4043 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18509120 ns/op	  188319 B/op	    4045 allocs/op
+BenchmarkLockLock/Both-12               	     100	  17981855 ns/op	  186698 B/op	    4028 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18024380 ns/op	  186447 B/op	    4026 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18082712 ns/op	  187749 B/op	    4039 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18511447 ns/op	  187117 B/op	    4033 allocs/op
+BenchmarkLockLock/Both-12               	     100	  17566641 ns/op	  187918 B/op	    4041 allocs/op
+BenchmarkLockLock/Both-12               	     100	  18217185 ns/op	  188120 B/op	    4043 allocs/op
+PASS
+ok  	locksvsroutines	147.571s

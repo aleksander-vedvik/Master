@@ -1,44 +1,55 @@
 package bench
 
+const (
+	PaxosBroadcastCall             string = "Paxos.BroadcastCall"
+	PaxosQuorumCall                string = "Paxos.QuorumCall"
+	PaxosQuorumCallBroadcastOption string = "Paxos.QuorumCallBroadcastOption"
+	PBFTWithGorums                 string = "PBFT.With.Gorums"
+	PBFTWithoutGorums              string = "PBFT.Without.Gorums"
+	PBFTNoOrder                    string = "PBFT.NoOrder"
+	PBFTOrder                      string = "PBFT.Order"
+	Simple                         string = "Simple"
+)
+
 var benchTypes = map[string]struct {
 	run func(benchmarkOption) (ClientResult, []Result, error)
 }{
-	"Paxos.BroadcastCall": {
+	PaxosBroadcastCall: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PaxosBenchmark{})
 		},
 	},
-	"Paxos.QuorumCall": {
+	PaxosQuorumCall: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PaxosQCBenchmark{})
 		},
 	},
-	"Paxos.QuorumCallBroadcastOption": {
+	PaxosQuorumCallBroadcastOption: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PaxosQCBBenchmark{})
 		},
 	},
-	"PBFT.With.Gorums": {
+	PBFTWithGorums: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftBenchmark{})
 		},
 	},
-	"PBFT.Without.Gorums": {
+	PBFTWithoutGorums: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftSBenchmark{})
 		},
 	},
-	"PBFT.NoOrder": {
+	PBFTNoOrder: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftBenchmark{})
 		},
 	},
-	"PBFT.Order": {
+	PBFTOrder: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, PbftOBenchmark{})
 		},
 	},
-	"Simple": {
+	Simple: {
 		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
 			return runBenchmark(bench, SimpleBenchmark{})
 		},

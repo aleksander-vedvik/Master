@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
+	"os"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"time"
 )
@@ -93,6 +95,7 @@ type benchmarkOption struct {
 	reqInterval    struct{ start, end int } // reqs will be sent in the interval: [start, end] µs
 	local          bool
 	runType        runType
+	memProfile     bool
 }
 
 func RunAll() {
@@ -136,31 +139,91 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	return results, errs
 }
 
-func RunThroughputVsLatencyBenchmark(name string, targets ...int) ([]Result, []error) {
+type RunOptions struct {
+	local               bool
+	throughputMax       int
+	throughputIncrement int
+	srvAddrs            []string
+	numClients          int
+	clientBasePort      int
+	memProfile          bool
+}
+
+func RunExternal() RunOption {
+	return func(o *RunOptions) {
+		o.local = false
+	}
+}
+
+func MaxThroughput(max int) RunOption {
+	return func(o *RunOptions) {
+		o.throughputMax = max
+	}
+}
+
+func ThroughputIncr(incr int) RunOption {
+	return func(o *RunOptions) {
+		o.throughputIncrement = incr
+	}
+}
+
+func WithSrvAddrs(srvAddrs []string) RunOption {
+	return func(o *RunOptions) {
+		o.srvAddrs = srvAddrs
+	}
+}
+
+func NumClients(numClients int) RunOption {
+	return func(o *RunOptions) {
+		o.numClients = numClients
+	}
+}
+
+func ClientBasePort(basePort int) RunOption {
+	return func(o *RunOptions) {
+		o.clientBasePort = basePort
+	}
+}
+
+func WithMemProfile() RunOption {
+	return func(o *RunOptions) {
+		o.memProfile = true
+	}
+}
+
+type RunOption func(*RunOptions)
+
+func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) ([]Result, []error) {
 	benchmark, ok := benchTypes[name]
 	if !ok {
 		return nil, nil
 	}
-	fmt.Println("running benchmark:", name)
-	maxTarget := 15000
-	targetIncrement := 1000
-	if len(targets) >= 2 {
-		maxTarget = targets[0]
-		targetIncrement = targets[1]
+	opts := RunOptions{
+		local:               true,
+		srvAddrs:            threeServers,
+		throughputMax:       15000,
+		throughputIncrement: 1000,
+		numClients:          10,
+		clientBasePort:      8080,
 	}
+	for _, opt := range options {
+		opt(&opts)
+	}
+	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
 	throughputVsLatency := make([][]string, 0)
-	for target := targetIncrement; target <= maxTarget; target += targetIncrement {
+	for target := opts.throughputIncrement; target <= opts.throughputMax; target += opts.throughputIncrement {
 		//for _, target := range throughputs {
 		bench := benchmarkOption{
 			name:           fmt.Sprintf("%s.S3.C10.R%v.Throughput", name, target),
-			srvAddrs:       threeServers,
-			numClients:     10,
-			clientBasePort: 8080,
+			srvAddrs:       opts.srvAddrs,
+			numClients:     opts.numClients,
+			clientBasePort: opts.clientBasePort,
 			numRequests:    target,
-			local:          true,
+			local:          opts.local,
 			runType:        Throughput,
+			memProfile:     opts.memProfile,
 		}
 		start := time.Now()
 		clientResult, _, err := benchmark.run(bench)
@@ -246,7 +309,13 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 
 	// start the recording of metrics
 	resultBefore := benchmark.StartBenchmark(config)
-	//runtime.ReadMemStats(&start)
+	if opts.memProfile {
+		cpuProfile, _ := os.Create("cpuprofile")
+		memProfile, _ := os.Create("memprofile")
+		pprof.StartCPUProfile(cpuProfile)
+		defer pprof.StopCPUProfile()
+		defer pprof.WriteHeapProfile(memProfile)
+	}
 
 	//runStart := time.Now()
 	switch opts.runType {

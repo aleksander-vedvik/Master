@@ -47,7 +47,7 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		addr:           addr,
 		peers:          srvAddresses,
 		addedMsgs:      make(map[string]bool),
-		leader:         "127.0.0.1:5000",
+		leader:         srvAddresses[0],
 		messageLog:     newMessageLog(),
 		state:          nil,
 		sequenceNumber: 1,

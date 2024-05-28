@@ -265,7 +265,7 @@ func (b *Broadcast) Forward(req protoreflect.ProtoMessage, addr string) error {
 // either Done() or SendToClient() to properly terminate a broadcast request
 // and free up resources. Otherwise, it could cause poor performance.
 func (b *Broadcast) Done() {
-	b.orchestrator.DoneHandler(b.metadata.BroadcastID)
+	b.orchestrator.DoneHandler(b.metadata.BroadcastID, b.enqueueBroadcast)
 }
 
 // SendToClient sends a message back to the calling client. It also terminates
@@ -283,7 +283,7 @@ func (b *Broadcast) SendToClient(resp protoreflect.ProtoMessage, err error) {
 //
 // Could be used together with either SendToClient() or Done().
 func (b *Broadcast) Cancel() {
-	b.orchestrator.CancelHandler(b.metadata.BroadcastID, b.srvAddrs)
+	b.orchestrator.CancelHandler(b.metadata.BroadcastID, b.srvAddrs, b.enqueueBroadcast)
 }
 
 // SendToClient sends a message back to the calling client. It also terminates
@@ -303,7 +303,7 @@ func (b *Broadcast) PrePrepare(req *PrePrepareRequest, opts ...gorums.BroadcastO
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.PrePrepare", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
+	b.orchestrator.BroadcastHandler("protosPBFTo.PBFT.PrePrepare", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption) {
@@ -315,7 +315,7 @@ func (b *Broadcast) Prepare(req *PrepareRequest, opts ...gorums.BroadcastOption)
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.Prepare", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
+	b.orchestrator.BroadcastHandler("protosPBFTo.PBFT.Prepare", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
@@ -327,7 +327,7 @@ func (b *Broadcast) Commit(req *CommitRequest, opts ...gorums.BroadcastOption) {
 		opt(&options)
 	}
 	options.ServerAddresses = append(options.ServerAddresses, b.srvAddrs...)
-	b.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.Commit", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
+	b.orchestrator.BroadcastHandler("protosPBFTo.PBFT.Commit", req, b.metadata.BroadcastID, b.enqueueBroadcast, options)
 }
 
 func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientResponse, broadcastID uint64) (*ClientResponse, error) {
@@ -356,7 +356,7 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 		timeout = 5 * time.Second
 	}
 	broadcastID := c.snowflake.NewBroadcastID()
-	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protosPBFTo.PBFTNode.Write")
+	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protosPBFTo.PBFT.Write")
 	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
 	select {
 	case response, ok = <-doneChan:
@@ -382,7 +382,7 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 
 func registerClientServerHandlers(srv *clientServerImpl) {
 
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Write", gorums.ClientHandler(srv.clientWrite))
+	srv.RegisterHandler("protosPBFTo.PBFT.Write", gorums.ClientHandler(srv.clientWrite))
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -393,13 +393,13 @@ var _ empty.Empty
 func (c *Configuration) Ping(ctx context.Context, in *Heartbeat, opts ...gorums.CallOption) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protosPBFTo.PBFTNode.Ping",
+		Method:  "protosPBFTo.PBFT.Ping",
 	}
 
 	c.RawConfiguration.Multicast(ctx, cd, opts...)
 }
 
-// QuorumSpec is the interface of quorum functions for PBFTNode.
+// QuorumSpec is the interface of quorum functions for PBFT.
 type QuorumSpec interface {
 	gorums.ConfigOption
 
@@ -423,7 +423,7 @@ type QuorumSpec interface {
 func (c *Configuration) Benchmark(ctx context.Context, in *empty.Empty) (resp *Result, err error) {
 	cd := gorums.QuorumCallData{
 		Message: in,
-		Method:  "protosPBFTo.PBFTNode.Benchmark",
+		Method:  "protosPBFTo.PBFT.Benchmark",
 	}
 	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
 		r := make(map[uint32]*Result, len(replies))
@@ -440,8 +440,8 @@ func (c *Configuration) Benchmark(ctx context.Context, in *empty.Empty) (resp *R
 	return res.(*Result), err
 }
 
-// PBFTNode is the server-side API for the PBFTNode Service
-type PBFTNode interface {
+// PBFT is the server-side API for the PBFT Service
+type PBFT interface {
 	Write(ctx gorums.ServerCtx, request *WriteRequest, broadcast *Broadcast)
 	PrePrepare(ctx gorums.ServerCtx, request *PrePrepareRequest, broadcast *Broadcast)
 	Prepare(ctx gorums.ServerCtx, request *PrepareRequest, broadcast *Broadcast)
@@ -469,18 +469,18 @@ func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (respon
 	panic(status.Errorf(codes.Unimplemented, "method Benchmark not implemented"))
 }
 
-func RegisterPBFTNodeServer(srv *Server, impl PBFTNode) {
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
-	srv.RegisterClientHandler("protosPBFTo.PBFTNode.Write")
-	srv.RegisterHandler("protosPBFTo.PBFTNode.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
+func RegisterPBFTServer(srv *Server, impl PBFT) {
+	srv.RegisterHandler("protosPBFTo.PBFT.Write", gorums.BroadcastHandler(impl.Write, srv.Server))
+	srv.RegisterClientHandler("protosPBFTo.PBFT.Write")
+	srv.RegisterHandler("protosPBFTo.PBFT.PrePrepare", gorums.BroadcastHandler(impl.PrePrepare, srv.Server))
+	srv.RegisterHandler("protosPBFTo.PBFT.Prepare", gorums.BroadcastHandler(impl.Prepare, srv.Server))
+	srv.RegisterHandler("protosPBFTo.PBFT.Commit", gorums.BroadcastHandler(impl.Commit, srv.Server))
+	srv.RegisterHandler("protosPBFTo.PBFT.Ping", func(ctx gorums.ServerCtx, in *gorums.Message, _ chan<- *gorums.Message) {
 		req := in.Message.(*Heartbeat)
 		defer ctx.Release()
 		impl.Ping(ctx, req)
 	})
-	srv.RegisterHandler("protosPBFTo.PBFTNode.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+	srv.RegisterHandler("protosPBFTo.PBFT.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
 		req := in.Message.(*empty.Empty)
 		defer ctx.Release()
 		resp, err := impl.Benchmark(ctx, req)
@@ -495,9 +495,9 @@ func (srv *Server) BroadcastPrePrepare(req *PrePrepareRequest, opts ...gorums.Br
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.PrePrepare", req, options.RelatedToReq, nil, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFT.PrePrepare", req, options.RelatedToReq, nil, options)
 	} else {
-		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFTNode.PrePrepare", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFT.PrePrepare", req, options)
 	}
 }
 
@@ -507,9 +507,9 @@ func (srv *Server) BroadcastPrepare(req *PrepareRequest, opts ...gorums.Broadcas
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.Prepare", req, options.RelatedToReq, nil, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFT.Prepare", req, options.RelatedToReq, nil, options)
 	} else {
-		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFTNode.Prepare", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFT.Prepare", req, options)
 	}
 }
 
@@ -519,17 +519,17 @@ func (srv *Server) BroadcastCommit(req *CommitRequest, opts ...gorums.BroadcastO
 		opt(&options)
 	}
 	if options.RelatedToReq > 0 {
-		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFTNode.Commit", req, options.RelatedToReq, nil, options)
+		srv.broadcast.orchestrator.BroadcastHandler("protosPBFTo.PBFT.Commit", req, options.RelatedToReq, nil, options)
 	} else {
-		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFTNode.Commit", req, options)
+		srv.broadcast.orchestrator.ServerBroadcastHandler("protosPBFTo.PBFT.Commit", req, options)
 	}
 }
 
 const (
-	PBFTNodeWrite      string = "protosPBFTo.PBFTNode.Write"
-	PBFTNodePrePrepare string = "protosPBFTo.PBFTNode.PrePrepare"
-	PBFTNodePrepare    string = "protosPBFTo.PBFTNode.Prepare"
-	PBFTNodeCommit     string = "protosPBFTo.PBFTNode.Commit"
+	PBFTWrite      string = "protosPBFTo.PBFT.Write"
+	PBFTPrePrepare string = "protosPBFTo.PBFT.PrePrepare"
+	PBFTPrepare    string = "protosPBFTo.PBFT.Prepare"
+	PBFTCommit     string = "protosPBFTo.PBFT.Commit"
 )
 
 type internalResult struct {
