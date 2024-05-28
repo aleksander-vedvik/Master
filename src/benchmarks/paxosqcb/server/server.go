@@ -37,6 +37,11 @@ type resp struct {
 	ctx      context.Context
 }
 
+type learnMsg struct {
+	send func()
+	msg  *pb.LearnMsg
+}
+
 // PaxosReplica is the structure composing the Proposer and Acceptor.
 type PaxosReplica struct {
 	*pb.Server
@@ -46,8 +51,8 @@ type PaxosReplica struct {
 	paxosManager     *pb.Manager // gorums paxos manager (from generated code)
 	id               int         // id is the id of the node
 	addr             string
-	stop             chan struct{}         // channel for stopping the replica's run loop.
-	learntVal        map[Slot]*pb.LearnMsg // Stores all received learn messages
+	stop             chan struct{}      // channel for stopping the replica's run loop.
+	learntVal        map[Slot]*learnMsg // Stores all received learn messages
 	responseChannels map[string]*resp
 	stopped          bool
 	cachedReplies    map[string]*pb.Response
@@ -78,7 +83,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		id:               myID,
 		addr:             addr,
 		stop:             make(chan struct{}),
-		learntVal:        make(map[Slot]*pb.LearnMsg),
+		learntVal:        make(map[Slot]*learnMsg),
 		responseChannels: make(map[string]*resp),
 		cachedReplies:    make(map[string]*pb.Response),
 	}
@@ -187,41 +192,46 @@ func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.L
 func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcast *pb.Broadcast) {
 	//slog.Info("received commit", "replica", r.addr, "slot", learn.Slot)
 	//ctx.Release()
+	lrn := &learnMsg{
+		msg: learn,
+		send: func() {
+			broadcast.SendToClient(&pb.Response{
+				ClientID:      learn.Val.ClientID,
+				ClientSeq:     learn.Val.ClientSeq,
+				ClientCommand: learn.Val.ClientCommand,
+			}, nil)
+		},
+	}
 	r.mu.Lock()
 	adu := r.adu + 1
 	if prevLearn, ok := r.learntVal[learn.Slot]; !ok {
-		r.learntVal[learn.Slot] = learn
+		r.learntVal[learn.Slot] = lrn
 	} else {
 		// make sure that decided values are stored with the highest round number
-		if prevLearn.Rnd < learn.Rnd {
-			r.learntVal[learn.Slot] = learn
+		if prevLearn.msg.Rnd < learn.Rnd {
+			r.learntVal[learn.Slot] = lrn
 		}
 	}
 	r.mu.Unlock()
+
 	switch {
 	case learn.Slot == adu:
-		r.execute(learn, broadcast)
+		r.execute(lrn)
 	case learn.Slot < adu:
 	case learn.Slot > adu:
 	}
 }
 
-func (r *PaxosReplica) execute(lrn *pb.LearnMsg, broadcast *pb.Broadcast) {
-	for slot := lrn.Slot; true; slot++ {
+func (r *PaxosReplica) execute(lrn *learnMsg) {
+	for slot := lrn.msg.Slot; true; slot++ {
 		r.mu.Lock()
 		learn, ok := r.learntVal[slot]
+		r.mu.Unlock()
 		if !ok {
-			r.mu.Unlock()
 			break
 		}
-		response := &pb.Response{
-			ClientID:      learn.Val.ClientID,
-			ClientSeq:     learn.Val.ClientSeq,
-			ClientCommand: learn.Val.ClientCommand,
-		}
-		r.mu.Unlock()
 		r.advanceAllDecidedUpTo()
-		broadcast.SendToClient(response, nil)
+		learn.send()
 	}
 }
 

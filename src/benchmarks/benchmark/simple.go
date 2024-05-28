@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	simpleClient "github.com/aleksander-vedvik/benchmark/simple/client"
 	simpleServer "github.com/aleksander-vedvik/benchmark/simple/server"
@@ -37,7 +36,7 @@ func (SimpleBenchmark) StartBenchmark(config *simpleClient.Client) []Result {
 }
 
 func (SimpleBenchmark) StopBenchmark(config *simpleClient.Client) []Result {
-	res, err := config.Benchmark()
+	/*res, err := config.Benchmark()
 	if err != nil {
 		return nil
 	}
@@ -62,7 +61,8 @@ func (SimpleBenchmark) StopBenchmark(config *simpleClient.Client) []Result {
 			ShardDistribution:     r.ShardDistribution,
 		}
 	}
-	return result
+	return result*/
+	return nil
 }
 
 func (SimpleBenchmark) Run(client *simpleClient.Client, ctx context.Context, val int) error {

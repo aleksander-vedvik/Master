@@ -410,6 +410,7 @@ func (c *Configuration) ClientHandle(ctx context.Context, in *Value) (resp *Resp
 
 	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
 	if err != nil {
+		fmt.Println("qc error, broadcastID:", cd.BroadcastID)
 		return nil, err
 	}
 	return res.(*Response), err

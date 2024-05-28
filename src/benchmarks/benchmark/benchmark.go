@@ -127,7 +127,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("done")
+		//fmt.Println("done")
 	}
 	//err := WriteThroughputVsLatency(name, throughputVsLatency)
 	//if err != nil {
@@ -199,7 +199,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.timeout = 1 * time.Minute
 	}
 
-	fmt.Println("creating clients...")
+	fmt.Print("creating clients")
 	clients := make([]*C, opts.numClients)
 	for i := 0; i < opts.numClients; i++ {
 		var (
@@ -216,9 +216,9 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		}
 	}
 
-	fmt.Println("creating servers...")
 	var servers []*S
 	if opts.local {
+		fmt.Print(", creating servers")
 		servers = make([]*S, len(opts.srvAddrs))
 		for i, addr := range opts.srvAddrs {
 			var (
@@ -233,13 +233,16 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		}
 	}
 
-	fmt.Println("warming up...")
-	for _, client := range clients {
+	fmt.Print(", warming up")
+	for i, client := range clients {
+		if i%2 == 0 {
+			fmt.Print(".")
+		}
 		benchmark.Warmup(client)
 	}
 
 	resChan := make(chan RequestResult, opts.numClients*opts.numRequests)
-	fmt.Println("starting benchmark...")
+	fmt.Println("\nstarting benchmark...")
 
 	// start the recording of metrics
 	resultBefore := benchmark.StartBenchmark(config)
@@ -259,12 +262,13 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 
 	switch opts.runType {
 	case Throughput:
-		fmt.Println("collecting responses...")
+		fmt.Println("collecting responses:")
 		avgDur := time.Duration(0)
 		numFailed := 0
 		for i := 0; i < 10*opts.numRequests; i++ {
 			if i%(opts.numRequests/2) == 0 {
-				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(10*opts.numRequests)), "%")
+				//fmt.Printf("%v%s done\n", (100 * float64(i) / float64(10*opts.numRequests)), "%")
+				fmt.Printf("..")
 			}
 			var res RequestResult
 			// prevent deadlock
@@ -276,7 +280,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			}
 			if res.err != nil {
 				numFailed++
-				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", i-numFailed, "failures", numFailed)
+				slog.Info("benchmark:", "replies", i, "total", 10*opts.numRequests, "successes", i-numFailed, "failures", numFailed, "err", res.err)
 				//panic(res.err)
 				continue
 			}
@@ -289,7 +293,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		avgDur /= time.Duration(10 * opts.numRequests)
 		clientResult.LatencyAvg = avgDur
 		clientResult.Throughput = float64(opts.numRequests)
-		fmt.Println("done")
+		//fmt.Println("done")
 		return clientResult, nil, nil
 	default:
 	}
@@ -381,7 +385,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		totalDur = 1
 	}
 	clientResult.Throughput = float64(clientResult.Total) / totalDur
-	fmt.Println("done")
+	//fmt.Println("done")
 	return clientResult, result, nil
 }
 
@@ -455,7 +459,7 @@ func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], re
 	numReqsPerClient := opts.numRequests / len(clients)
 	// it will run for 10 seconds
 	for t := 0; t < 10; t++ {
-		fmt.Printf("\t%v: sending reqs...\n", t)
+		//fmt.Printf("\t%v: sending reqs...\n", t)
 		for _, client := range clients {
 			for i := 0; i < numReqsPerClient; i++ {
 				go func(client *C, i int) {
