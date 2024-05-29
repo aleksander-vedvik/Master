@@ -98,7 +98,7 @@ func WriteThroughputVsLatency(name string, throughputVsLatency [][]string) error
 	defer file.Close()
 	w := csv.NewWriter(file)
 	data := make([][]string, 1, len(throughputVsLatency)+1)
-	data[0] = []string{"Throughput", "Latency"}
+	data[0] = []string{"Throughput", "Latency (avg)", "Latency (med)"}
 	data = append(data, throughputVsLatency...)
 	return w.WriteAll(data)
 }

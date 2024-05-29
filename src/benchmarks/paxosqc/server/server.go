@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"sync"
@@ -56,7 +57,7 @@ type PaxosReplica struct {
 }
 
 // NewPaxosReplica returns a new Paxos replica with a nodeMap configuration.
-func New(addr string, srvAddrs []string) *PaxosReplica {
+func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 	var myID int
 	nodeMap := make(map[string]uint32)
 	for id, srvAddr := range srvAddrs {
@@ -73,7 +74,7 @@ func New(addr string, srvAddrs []string) *PaxosReplica {
 		),
 	}
 	r := &PaxosReplica{
-		Server:           pb.NewServer(),
+		Server:           pb.NewServer(gorums.WithSLogger(logger)),
 		Acceptor:         NewAcceptor(),
 		Proposer:         NewProposer(myID, 0, nodeMap),
 		paxosManager:     pb.NewManager(opts...),
@@ -107,6 +108,7 @@ func (r *PaxosReplica) Start() {
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n", r.addr))
 	go r.Serve(lis)
 }
 

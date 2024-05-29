@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"net"
@@ -32,11 +33,11 @@ type Server struct {
 	disableLeaderElection bool
 }
 
-func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server {
-	disable := false
-	if len(disableLeaderElection) > 0 {
-		disable = disableLeaderElection[0]
-	}
+func New(addr string, srvAddrs []string, logger *slog.Logger) *Server {
+	disable := true
+	//if len(disableLeaderElection) > 0 {
+	//disable = disableLeaderElection[0]
+	//}
 	id := 0
 	for i, srvAddr := range srvAddrs {
 		if addr == srvAddr {
@@ -45,13 +46,14 @@ func New(addr string, srvAddrs []string, disableLeaderElection ...bool) *Server 
 		}
 	}
 	srv := Server{
-		id:                    uint32(id),
-		Server:                pb.NewServer(),
+		id:     uint32(id),
+		Server: pb.NewServer(gorums.WithSLogger(logger)),
+		//Server:                pb.NewServer(),
 		acceptor:              NewAcceptor(addr, len(srvAddrs)),
 		data:                  make([]string, 0),
 		addr:                  addr,
 		peers:                 srvAddrs,
-		leader:                "127.0.0.1:5000",
+		leader:                srvAddrs[0],
 		disableLeaderElection: disable,
 	}
 	srv.configureView()
@@ -88,6 +90,7 @@ func (srv *Server) Start() {
 	}
 	// add the address
 	srv.addr = lis.Addr().String()
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n", srv.addr))
 	// add the correct ID to the server
 	var id uint32
 	for _, node := range srv.View.Nodes() {

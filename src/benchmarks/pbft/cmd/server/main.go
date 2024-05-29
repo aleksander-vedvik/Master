@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"flag"
 	"fmt"
@@ -97,3 +98,4 @@ func startDockerServer() {
 	//srv.AddConfig(srvAddresses)
 	log.Println("Server stopped.")
 }
+*/

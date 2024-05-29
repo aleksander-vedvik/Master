@@ -2,6 +2,7 @@ package server
 
 import (
 	"log"
+	"log/slog"
 	"net"
 
 	pb "github.com/aleksander-vedvik/benchmark/simple/protos"
@@ -22,9 +23,9 @@ type Server struct {
 }
 
 // Creates a new StorageServer.
-func New(addr string, srvAddresses []string) *Server {
+func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
 	srv := Server{
-		Server: pb.NewServer(),
+		Server: pb.NewServer(gorums.WithSLogger(logger)),
 		addr:   addr,
 		peers:  srvAddresses,
 	}

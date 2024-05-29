@@ -12,7 +12,7 @@ import (
 type SimpleBenchmark struct{}
 
 func (SimpleBenchmark) CreateServer(addr string, srvAddrs []string) (*simpleServer.Server, func(), error) {
-	srv := simpleServer.New(addr, srvAddrs)
+	srv := simpleServer.New(addr, srvAddrs, nil)
 	srv.Start()
 	return srv, func() {
 		srv.Stop()

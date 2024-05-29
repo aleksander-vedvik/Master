@@ -12,7 +12,7 @@ import (
 type PbftBenchmark struct{}
 
 func (PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
-	srv := pbftServer.New(addr, srvAddrs, true)
+	srv := pbftServer.New(addr, srvAddrs, nil)
 	srv.Start()
 	return srv, func() {
 		srv.Stop()

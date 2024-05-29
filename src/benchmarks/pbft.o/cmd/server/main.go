@@ -1,22 +1,12 @@
 package main
 
-import (
-	"flag"
-	"fmt"
-	"log"
-	"log/slog"
-	"time"
-
-	nodeServer "github.com/aleksander-vedvik/benchmark/pbft/server"
-)
-
 var srvAddrs = []string{"127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002"}
 
 func main() {
-	startServers()
+	//startServers()
 }
 
-func startServer() {
+/*func startServer() {
 	port := flag.Int("port", 0, "listening port")
 	flag.Parse()
 
@@ -97,3 +87,4 @@ func startDockerServer() {
 	//srv.AddConfig(srvAddresses)
 	log.Println("Server stopped.")
 }
+*/

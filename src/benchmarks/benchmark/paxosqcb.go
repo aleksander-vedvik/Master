@@ -12,7 +12,7 @@ import (
 type PaxosQCBBenchmark struct{}
 
 func (PaxosQCBBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer.PaxosReplica, func(), error) {
-	srv := paxosServer.New(addr, srvAddrs)
+	srv := paxosServer.New(addr, srvAddrs, nil)
 	srv.Start()
 	return srv, func() {
 		srv.Stop()

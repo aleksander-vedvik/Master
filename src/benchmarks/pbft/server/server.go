@@ -36,13 +36,10 @@ type Server struct {
 }
 
 // Creates a new StorageServer.
-func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
-	wL := false
-	if len(withoutLeader) > 0 {
-		wL = withoutLeader[0]
-	}
+func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
+	wL := true
 	srv := Server{
-		Server:         pb.NewServer(),
+		Server:         pb.NewServer(gorums.WithSLogger(logger)),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,

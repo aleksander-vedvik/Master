@@ -344,7 +344,7 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 	}
 	broadcastID := c.snowflake.NewBroadcastID()
 	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.WriteQF), "protob.MultiPaxos.Write")
-	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
+	c.RawConfiguration.BroadcastCall(ctx, cd, gorums.WithNoSendWaiting())
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
@@ -354,15 +354,15 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 		}
 		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
 		defer cancelCancel()
-		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
-		return nil, fmt.Errorf("context cancelled")
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd, gorums.WithNoSendWaiting())
+		return nil, fmt.Errorf("context cancelled. id=%v", broadcastID)
 	}
 	if !ok {
-		return nil, fmt.Errorf("done channel was closed before returning a value")
+		return nil, fmt.Errorf("done channel was closed before returning a value. id=%v", broadcastID)
 	}
 	resp, ok = response.(*PaxosResponse)
 	if !ok {
-		return nil, fmt.Errorf("wrong proto format")
+		return nil, fmt.Errorf("wrong proto format. id=%v", broadcastID)
 	}
 	return resp, nil
 }

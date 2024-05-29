@@ -1,6 +1,6 @@
 package main
 
-import (
+/*import (
 	"flag"
 	"fmt"
 	"os"
@@ -34,3 +34,4 @@ func main() {
 	defer srv.Stop()
 	fmt.Scanln()
 }
+*/

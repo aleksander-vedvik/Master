@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"flag"
 	"fmt"
@@ -34,3 +35,4 @@ func main() {
 	defer srv.Stop()
 	fmt.Scanln()
 }
+*/

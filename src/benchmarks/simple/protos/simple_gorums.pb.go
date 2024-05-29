@@ -345,7 +345,7 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 	}
 	broadcastID := c.snowflake.NewBroadcastID()
 	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall1QF), "protosSimple.Simple.BroadcastCall1")
-	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
+	c.RawConfiguration.BroadcastCall(ctx, cd, gorums.WithNoSendWaiting())
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
@@ -395,7 +395,7 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 	}
 	broadcastID := c.snowflake.NewBroadcastID()
 	doneChan, cd := c.srv.AddRequest(broadcastID, ctx, in, gorums.ConvertToType(c.qspec.BroadcastCall2QF), "protosSimple.Simple.BroadcastCall2")
-	c.RawConfiguration.Multicast(ctx, cd, gorums.WithNoSendWaiting())
+	c.RawConfiguration.BroadcastCall(ctx, cd, gorums.WithNoSendWaiting())
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
