@@ -331,6 +331,13 @@ type QuorumSpec interface {
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *Value'.
 	ClientHandleQF(in *Value, replies map[uint32]*Response) (*Response, bool)
+
+	// BenchmarkQF is the quorum function for the Benchmark
+	// quorum call method. The in parameter is the request object
+	// supplied to the Benchmark method at call time, and may or may not
+	// be used by the quorum function. If the in parameter is not needed
+	// you should implement your quorum function with '_ *Empty'.
+	BenchmarkQF(in *Empty, replies map[uint32]*Empty) (*Empty, bool)
 }
 
 // Prepare is a quorum call invoked on all nodes in configuration c,
@@ -399,12 +406,35 @@ func (c *Configuration) ClientHandle(ctx context.Context, in *Value) (resp *Resp
 	return res.(*Response), err
 }
 
+// Benchmark is a quorum call invoked on all nodes in configuration c,
+// with the same argument in, and returns a combined result.
+func (c *Configuration) Benchmark(ctx context.Context, in *Empty) (resp *Empty, err error) {
+	cd := gorums.QuorumCallData{
+		Message: in,
+		Method:  "protoqc.PaxosQC.Benchmark",
+	}
+	cd.QuorumFunction = func(req protoreflect.ProtoMessage, replies map[uint32]protoreflect.ProtoMessage) (protoreflect.ProtoMessage, bool) {
+		r := make(map[uint32]*Empty, len(replies))
+		for k, v := range replies {
+			r[k] = v.(*Empty)
+		}
+		return c.qspec.BenchmarkQF(req.(*Empty), r)
+	}
+
+	res, err := c.RawConfiguration.QuorumCall(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return res.(*Empty), err
+}
+
 // PaxosQC is the server-side API for the PaxosQC Service
 type PaxosQC interface {
 	Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error)
 	Accept(ctx gorums.ServerCtx, request *AcceptMsg) (response *LearnMsg, err error)
 	Commit(ctx gorums.ServerCtx, request *LearnMsg)
 	ClientHandle(ctx gorums.ServerCtx, request *Value) (response *Response, err error)
+	Benchmark(ctx gorums.ServerCtx, request *Empty) (response *Empty, err error)
 }
 
 func (srv *Server) Prepare(ctx gorums.ServerCtx, request *PrepareMsg) (response *PromiseMsg, err error) {
@@ -418,6 +448,9 @@ func (srv *Server) Commit(ctx gorums.ServerCtx, request *LearnMsg) {
 }
 func (srv *Server) ClientHandle(ctx gorums.ServerCtx, request *Value) (response *Response, err error) {
 	panic(status.Errorf(codes.Unimplemented, "method ClientHandle not implemented"))
+}
+func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *Empty) (response *Empty, err error) {
+	panic(status.Errorf(codes.Unimplemented, "method Benchmark not implemented"))
 }
 
 func RegisterPaxosQCServer(srv *Server, impl PaxosQC) {
@@ -444,10 +477,22 @@ func RegisterPaxosQCServer(srv *Server, impl PaxosQC) {
 		resp, err := impl.ClientHandle(ctx, req)
 		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
 	})
+	srv.RegisterHandler("protoqc.PaxosQC.Benchmark", func(ctx gorums.ServerCtx, in *gorums.Message, finished chan<- *gorums.Message) {
+		req := in.Message.(*Empty)
+		defer ctx.Release()
+		resp, err := impl.Benchmark(ctx, req)
+		gorums.SendMessage(ctx, finished, gorums.WrapMessage(in.Metadata, resp, err))
+	})
 	srv.RegisterHandler(gorums.Cancellation, gorums.BroadcastHandler(gorums.CancelFunc, srv.Server))
 }
 
 const ()
+
+type internalEmpty struct {
+	nid   uint32
+	reply *Empty
+	err   error
+}
 
 type internalLearnMsg struct {
 	nid   uint32

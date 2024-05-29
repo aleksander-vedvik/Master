@@ -24,6 +24,10 @@ func (qs PaxosQSpec) AcceptQF(accept *pb.AcceptMsg, replies map[uint32]*pb.Learn
 	return nil, true
 }
 
+func (qs PaxosQSpec) BenchmarkQF(empty *pb.Empty, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
+	return nil, true
+}
+
 // ClientHandleQF is the quorum function to process the replies from the ClientHandle quorum call.
 // This is where the Client handle the replies from the replicas. The quorum function should
 // validate the replies against the request, and only valid replies should be considered.

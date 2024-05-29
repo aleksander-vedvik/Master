@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"time"
 
 	paxosClient "github.com/aleksander-vedvik/benchmark/paxos.b/client"
 	paxosServer "github.com/aleksander-vedvik/benchmark/paxos.b/server"
@@ -29,7 +30,9 @@ func (PaxosBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int
 }
 
 func (PaxosBenchmark) Warmup(client *paxosClient.Client) {
-	_, _ = client.Write(context.Background(), "warmup")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = client.Write(ctx, "warmup")
 }
 
 func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
@@ -48,7 +51,8 @@ func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
 }
 
 func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
-	res, err := config.Benchmark()
+	return nil
+	/*res, err := config.Benchmark()
 	if err != nil {
 		return nil
 	}
@@ -59,7 +63,7 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 			Dropped:  r.Dropped,
 		}
 	}
-	return result
+	return result*/
 }
 
 func (PaxosBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {

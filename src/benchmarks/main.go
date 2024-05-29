@@ -20,39 +20,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//import (
-//"flag"
-//"fmt"
-//"paxos/client"
-//"paxos/server"
-//"time"
-//)
-
-//var srvAddrs = map[int]string{
-//0: "127.0.0.1:5000",
-//1: "127.0.0.1:5001",
-//2: "127.0.0.1:5002",
-//3: "127.0.0.1:5003",
-//4: "127.0.0.1:5004",
-//}
-
-/*func main() {
-	//bench.RunSingleBenchmark("Simple")
-	//bench.RunSingleBenchmark("Paxos.BroadcastCall")
-	//bench.RunSingleBenchmark("Paxos.QuorumCall")
-	//bench.RunSingleBenchmark("Paxos.QuorumCallBroadcastOption")
-	//bench.RunSingleBenchmark("PBFT.With.Gorums")
-	//bench.RunSingleBenchmark("PBFT.Without.Gorums")
-	//bench.RunThroughputVsLatencyBenchmark("Simple", 15000, 15000)
-	//bench.RunThroughputVsLatencyBenchmark("Paxos.BroadcastCall", 1000, 1000)
-	//bench.RunThroughputVsLatencyBenchmark("Paxos.QuorumCall", 6000, 600)
-	bench.RunThroughputVsLatencyBenchmark("Paxos.QuorumCallBroadcastOption", 6000, 600)
-	//bench.RunThroughputVsLatencyBenchmark("PBFT.With.Gorums", 5000, 500)
-	//bench.RunThroughputVsLatencyBenchmark("PBFT.Without.Gorums", 5000, 500)
-	//bench.RunThroughputVsLatencyBenchmark("PBFT.NoOrder")
-	//bench.RunThroughputVsLatencyBenchmark("PBFT.Order")
-}*/
-
 type Server struct {
 	ID   int    `yaml:"id"`
 	Addr string `yaml:"addr"`
@@ -65,9 +32,10 @@ type ServerEntry map[int]Server
 // Config represents the configuration containing servers
 type Config struct {
 	Servers []ServerEntry `yaml:"servers"`
+	Clients []ServerEntry `yaml:"clients"`
 }
 
-func getConfig() ServerEntry {
+func getConfig() (srvs, clients ServerEntry) {
 	data, err := os.ReadFile("conf.yaml")
 	if err != nil {
 		panic(err)
@@ -77,13 +45,19 @@ func getConfig() ServerEntry {
 	if err != nil {
 		panic(err)
 	}
-	srvs := make(map[int]Server, len(c.Servers))
+	srvs = make(map[int]Server, len(c.Servers))
 	for _, srv := range c.Servers {
 		for id, info := range srv {
 			srvs[id] = info
 		}
 	}
-	return srvs
+	clients = make(map[int]Server, len(c.Servers))
+	for _, client := range c.Clients {
+		for id, info := range client {
+			clients[id] = info
+		}
+	}
+	return srvs, clients
 }
 
 type mappingType map[int]string
@@ -113,10 +87,19 @@ func (m mappingType) String() string {
 }
 
 func main() {
-	servers := getConfig()
+	fmt.Println("--------")
+	fmt.Println("Servers")
+	servers, clients := getConfig()
 	for id, srv := range servers {
-		fmt.Printf("Server %v --> ID: %d, Address: %s, Port: %s\n", id, srv.ID, srv.Addr, srv.Port)
+		fmt.Printf("\tServer %v --> ID: %d, Address: %s, Port: %s\n", id, srv.ID, srv.Addr, srv.Port)
 	}
+	fmt.Println("--------")
+	fmt.Println("Clients")
+	for id, client := range clients {
+		fmt.Printf("\tClient %v --> ID: %d, Address: %s, Port: %s\n", id, client.ID, client.Addr, client.Port)
+	}
+	fmt.Println()
+
 	id := flag.Int("id", 0, "nodeID")
 	runSrv := flag.Bool("server", false, "default: false")
 	benchTypeIndex := flag.Int("run", 0, "type of benchmark to run"+mapping.String())
@@ -133,7 +116,7 @@ func main() {
 	flag.Parse()
 
 	if *broadcastID > 0 {
-		readLog(*broadcastID)
+		readLog(*broadcastID, *runSrv)
 		return
 	}
 
@@ -145,11 +128,11 @@ func main() {
 	if *runSrv {
 		runServer(benchType, *id, servers, *withLogger)
 	} else {
-		runBenchmark(benchType, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
+		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
 	}
 }
 
-func runBenchmark(name string, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool) {
+func runBenchmark(name string, clients ServerEntry, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool) {
 	options := make([]bench.RunOption, 0)
 	if withLogger {
 		file, err := os.Create("log.Clients.json")
@@ -194,6 +177,9 @@ func runBenchmark(name string, throughput, numClients, clientBasePort, steps, ru
 		options = append(options, bench.Dur(dur))
 	}
 	if memProfile {
+		options = append(options, bench.WithMemProfile())
+	}
+	if clients != nil {
 		options = append(options, bench.WithMemProfile())
 	}
 	bench.RunThroughputVsLatencyBenchmark(name, options...)
@@ -263,7 +249,27 @@ type logEntry struct {
 	From        string `json:"from"`
 }
 
-func readLog(broadcastID uint64) {
+func readLog(broadcastID uint64, server bool) {
+	if !server {
+		fmt.Println()
+		fmt.Println("=============")
+		fmt.Println("Reading:", "log.Clients.json")
+		fmt.Println()
+		file, err := os.Open("log.Clients.json")
+		if err != nil {
+			panic(err)
+		}
+		scanner := bufio.NewScanner(file)
+		// optionally, resize scanner's capacity for lines over 64K, see next example
+		for scanner.Scan() {
+			var entry logEntry
+			json.Unmarshal(scanner.Bytes(), &entry)
+			if entry.Level == "WARN" {
+				fmt.Println("BroadcastID", entry.BroadcastID, "msg:", entry.Msg, "err:", entry.Err)
+			}
+		}
+		return
+	}
 	logFiles := []string{"log.127.0.0.1:5000.json", "log.127.0.0.1:5001.json", "log.127.0.0.1:5002.json"}
 	for _, logFile := range logFiles {
 		fmt.Println()

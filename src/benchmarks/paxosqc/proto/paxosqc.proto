@@ -20,6 +20,10 @@ service PaxosQC {
     rpc ClientHandle(Value) returns (Response) {
         option (gorums.quorumcall) = true;
     }
+
+	rpc Benchmark(Empty) returns (Empty) {
+		option (gorums.quorumcall) = true;
+	}
 }
 
 message Value {

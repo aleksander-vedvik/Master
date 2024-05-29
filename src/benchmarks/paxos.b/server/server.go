@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"net"
+	"runtime"
 	"sync"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
@@ -174,6 +175,18 @@ func (srv *Server) Ping(ctx gorums.ServerCtx, request *pb.Heartbeat) {
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Result, error) {
+	srv.mut.Lock()
+	defer srv.mut.Unlock()
+	slog.Info("purging reqs")
+	// purge all reqs
+	srv.SetView(srv.View)
+	srv.acceptor = NewAcceptor(srv.addr, len(srv.peers))
+	srv.data = make([]string, 0)
+	if srv.leader == srv.addr {
+		srv.proposer = NewProposer(srv.id, srv.peers, srv.acceptor.rnd+1, srv.View, srv.BroadcastAccept)
+		//go srv.proposer.Start()
+	}
+	runtime.GC()
 	metrics := srv.GetStats()
 	m := []*pb.Metric{
 		{

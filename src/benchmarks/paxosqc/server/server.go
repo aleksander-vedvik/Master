@@ -54,6 +54,7 @@ type PaxosReplica struct {
 	responseChannels map[string]*resp
 	stopped          bool
 	cachedReplies    map[string]*pb.Response
+	nodeMap          map[string]uint32
 }
 
 // NewPaxosReplica returns a new Paxos replica with a nodeMap configuration.
@@ -84,6 +85,7 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		learntVal:        make(map[Slot]*pb.LearnMsg),
 		responseChannels: make(map[string]*resp),
 		cachedReplies:    make(map[string]*pb.Response, 100),
+		nodeMap:          nodeMap,
 	}
 	pb.RegisterPaxosQCServer(r.Server, r)
 	r.run()
@@ -308,6 +310,18 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 		slog.Info("timed out", "id", req.ID)
 		return nil, errors.New("unable to get the response")
 	}
+}
+
+func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, req *pb.Empty) (rsp *pb.Empty, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	slog.Info("purging state")
+	r.Acceptor = NewAcceptor()
+	r.Proposer = NewProposer(r.id, 0, r.nodeMap)
+	r.learntVal = make(map[Slot]*pb.LearnMsg)
+	r.responseChannels = make(map[string]*resp)
+	r.cachedReplies = make(map[string]*pb.Response, 100)
+	return &pb.Empty{}, nil
 }
 
 func (r *PaxosReplica) makeResponseChan(request *pb.Value) (*resp, func()) {
