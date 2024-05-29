@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Client struct {
@@ -40,6 +41,10 @@ func (c *Client) Write(ctx context.Context, value string) (*pb.ClientResponse, e
 		Timestamp: time.Now().Unix(),
 	}
 	return c.view.Write(ctx, req)
+}
+
+func (c *Client) Benchmark(ctx context.Context) (*pb.Result, error) {
+	return c.view.Benchmark(ctx, &emptypb.Empty{})
 }
 
 //func (c *Client) Benchmark() (*pb.Result, error) {

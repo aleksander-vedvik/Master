@@ -12,7 +12,7 @@ type PaxosQSpec struct {
 
 // NewPaxosQSpec returns a quorum specification object for Paxos
 // for the given configuration size n.
-func NewPaxosQSpec(n int) PaxosQSpec {
+func NewPaxosQSpec(n int) pb.QuorumSpec {
 	return PaxosQSpec{quorum: (n-1)/2 + 1}
 }
 
@@ -21,6 +21,10 @@ func (qs PaxosQSpec) PrepareQF(prepare *pb.PrepareMsg, replies map[uint32]*pb.Pr
 }
 
 func (qs PaxosQSpec) AcceptQF(accept *pb.AcceptMsg, replies map[uint32]*pb.LearnMsg) (*pb.LearnMsg, bool) {
+	return nil, true
+}
+
+func (qs PaxosQSpec) BenchmarkQF(req *pb.Empty, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
 	return nil, true
 }
 

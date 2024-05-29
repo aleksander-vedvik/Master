@@ -21,6 +21,10 @@ service PaxosQCB {
         option (gorums.quorumcall) = true;
         option (gorums.broadcast) = true;
     }
+
+	rpc Benchmark(Empty) returns (Empty) {
+		option (gorums.quorumcall) = true;
+	}
 }
 
 message Value {

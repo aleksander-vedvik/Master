@@ -36,7 +36,9 @@ func (PaxosBenchmark) Warmup(client *paxosClient.Client) {
 }
 
 func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
-	res, err := config.Benchmark()
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	res, err := config.Benchmark(ctx)
 	if err != nil {
 		return nil
 	}
@@ -51,6 +53,9 @@ func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
 }
 
 func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	config.Benchmark(ctx)
 	return nil
 	/*res, err := config.Benchmark()
 	if err != nil {

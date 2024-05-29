@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"time"
 
 	pbftClient "github.com/aleksander-vedvik/benchmark/pbft.s/client"
 	pbftServer "github.com/aleksander-vedvik/benchmark/pbft.s/server"
@@ -37,6 +38,9 @@ func (PbftSBenchmark) Warmup(client *pbftClient.Client) {
 }
 
 func (PbftSBenchmark) StartBenchmark(config *pbftClient.Client) []Result {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	config.SendBenchmark(ctx)
 	return nil
 }
 

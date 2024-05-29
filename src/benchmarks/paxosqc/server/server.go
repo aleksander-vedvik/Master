@@ -82,7 +82,7 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		id:               myID,
 		addr:             addr,
 		stop:             make(chan struct{}),
-		learntVal:        make(map[Slot]*pb.LearnMsg),
+		learntVal:        make(map[Slot]*pb.LearnMsg, 100),
 		responseChannels: make(map[string]*resp),
 		cachedReplies:    make(map[string]*pb.Response, 100),
 		nodeMap:          nodeMap,
@@ -316,11 +316,14 @@ func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, req *pb.Empty) (rsp *pb.E
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	slog.Info("purging state")
+	close(r.stop)
 	r.Acceptor = NewAcceptor()
 	r.Proposer = NewProposer(r.id, 0, r.nodeMap)
-	r.learntVal = make(map[Slot]*pb.LearnMsg)
+	r.learntVal = make(map[Slot]*pb.LearnMsg, 100)
 	r.responseChannels = make(map[string]*resp)
 	r.cachedReplies = make(map[string]*pb.Response, 100)
+	r.stop = make(chan struct{})
+	r.run()
 	return &pb.Empty{}, nil
 }
 

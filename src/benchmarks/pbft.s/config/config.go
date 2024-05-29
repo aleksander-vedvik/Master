@@ -9,6 +9,7 @@ import (
 	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Config struct {
@@ -266,4 +267,27 @@ func (c *Config) ClientHandler(req *pb.ClientResponse) {
 	//if err != nil {
 	//panic(err)
 	//}
+}
+
+func (c *Config) Benchmark(ctx context.Context) (*pb.ClientResponse, error) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	respChan := make(chan struct{}, len(c.nodes))
+	sentMsgs := 0
+	for i, node := range c.nodes {
+		go func(node pb.PBFTNodeClient, j int) {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			_, err := node.Benchmark(ctx, &emptypb.Empty{})
+			if err != nil {
+				panic(fmt.Sprintf("%s: %s", c.who, err))
+			}
+			respChan <- struct{}{}
+		}(node, i)
+		sentMsgs++
+	}
+	for ; sentMsgs > 0; sentMsgs-- {
+		<-respChan
+	}
+	return nil, nil
 }

@@ -293,6 +293,7 @@ func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions
 		}
 		fmt.Println("took:", time.Since(start))
 		fmt.Println("done")
+		time.Sleep(1 * time.Second)
 	}
 	err := WriteThroughputVsLatency(fmt.Sprintf("%s.%v", name, runNumber), throughputVsLatency)
 	if err != nil {

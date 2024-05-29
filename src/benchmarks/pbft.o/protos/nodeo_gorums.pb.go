@@ -335,7 +335,7 @@ func (srv *clientServerImpl) clientWrite(ctx context.Context, resp *ClientRespon
 	return resp, err
 }
 
-func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *ClientResponse, err error) {
+func (c *Configuration) Write(ctx context.Context, in *WriteRequest, cancelOnTimeout ...bool) (resp *ClientResponse, err error) {
 	if c.srv == nil {
 		return nil, fmt.Errorf("config: a client server is not defined. Use mgr.AddClientServer() to define a client server")
 	}
@@ -361,13 +361,17 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest) (resp *Clie
 	select {
 	case response, ok = <-doneChan:
 	case <-ctx.Done():
-		bd := gorums.BroadcastCallData{
-			Method:      gorums.Cancellation,
-			BroadcastID: broadcastID,
+		if len(cancelOnTimeout) > 0 && cancelOnTimeout[0] {
+			go func() {
+				bd := gorums.BroadcastCallData{
+					Method:      gorums.Cancellation,
+					BroadcastID: broadcastID,
+				}
+				cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
+				defer cancelCancel()
+				c.RawConfiguration.BroadcastCall(cancelCtx, bd)
+			}()
 		}
-		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
-		defer cancelCancel()
-		c.RawConfiguration.BroadcastCall(cancelCtx, bd, gorums.WithNoSendWaiting())
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {

@@ -124,13 +124,10 @@ func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*em
 	return nil, nil
 }
 
-func (c *Client) Benchmark(ctx context.Context, req *empty.Empty) (*pb.Result, error) {
-	return nil, nil
+func (c *Client) SendBenchmark(ctx context.Context) {
+	c.config.Benchmark(ctx)
 }
 
-/*func (c *Client) Benchmark() (*pb.Result, error) {
-	// slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	return c.config.Benchmark(ctx, &empty.Empty{})
-}*/
+func (srv *Client) Benchmark(ctx context.Context, request *empty.Empty) (*pb.Result, error) {
+	return &pb.Result{}, nil
+}

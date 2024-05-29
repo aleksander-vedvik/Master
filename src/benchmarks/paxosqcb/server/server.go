@@ -57,7 +57,6 @@ type PaxosReplica struct {
 	learntVal        map[Slot]*learnMsg // Stores all received learn messages
 	responseChannels map[string]*resp
 	stopped          bool
-	cachedReplies    map[string]*pb.Response
 }
 
 // NewPaxosReplica returns a new Paxos replica with a nodeMap configuration.
@@ -85,9 +84,8 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		id:               myID,
 		addr:             addr,
 		stop:             make(chan struct{}),
-		learntVal:        make(map[Slot]*learnMsg),
+		learntVal:        make(map[Slot]*learnMsg, 100),
 		responseChannels: make(map[string]*resp),
-		cachedReplies:    make(map[string]*pb.Response),
 	}
 	pb.RegisterPaxosQCBServer(r.Server, r)
 	r.run()
@@ -250,4 +248,18 @@ func (r *PaxosReplica) execute(lrn *learnMsg) {
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value, broadcast *pb.Broadcast) {
 	//ctx.Release()
 	r.AddRequestToQ(req, broadcast)
+}
+
+func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Empty, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	slog.Info("purging state")
+	close(r.stop)
+	r.Acceptor = NewAcceptor()
+	r.Proposer = NewProposer(r.id, 0, r.nodeMap)
+	r.learntVal = make(map[Slot]*learnMsg, 100)
+	r.responseChannels = make(map[string]*resp)
+	r.stop = make(chan struct{})
+	r.run()
+	return &pb.Empty{}, nil
 }

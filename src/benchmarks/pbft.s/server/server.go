@@ -103,35 +103,7 @@ func (s *Server) ClientHandler(ctx context.Context, request *pb.ClientResponse) 
 	return nil, nil
 }
 
-//func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
-////srv.PrintStats()
-//metrics := srv.GetStats()
-//m := []*pb.Metric{
-//{
-//TotalNum:              metrics.TotalNum,
-//GoroutinesStarted:     metrics.GoroutinesStarted,
-//GoroutinesStopped:     metrics.GoroutinesStopped,
-//FinishedReqsTotal:     metrics.FinishedReqs.Total,
-//FinishedReqsSuccesful: metrics.FinishedReqs.Succesful,
-//FinishedReqsFailed:    metrics.FinishedReqs.Failed,
-//Processed:             metrics.Processed,
-//Dropped:               metrics.Dropped,
-//Invalid:               metrics.Invalid,
-//AlreadyProcessed:      metrics.AlreadyProcessed,
-//RoundTripLatency: &pb.TimingMetric{
-//Avg: uint64(metrics.RoundTripLatency.Avg),
-//Min: uint64(metrics.RoundTripLatency.Min),
-//Max: uint64(metrics.RoundTripLatency.Max),
-//},
-//ReqLatency: &pb.TimingMetric{
-//Avg: uint64(metrics.RoundTripLatency.Avg),
-//Min: uint64(metrics.RoundTripLatency.Min),
-//Max: uint64(metrics.RoundTripLatency.Max),
-//},
-//ShardDistribution: metrics.ShardDistribution,
-//},
-//}
-//return &pb.Result{
-//Metrics: m,
-//}, nil
-//}
+func (srv *Server) Benchmark(ctx context.Context, request *empty.Empty) (*pb.Result, error) {
+	srv.messageLog.Clear()
+	return &pb.Result{}, nil
+}

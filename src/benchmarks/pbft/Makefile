@@ -4,6 +4,15 @@ proto:
 	--gorums_out=paths=source_relative:. \
 	node.proto
 
+all: protos/node.pb.go protos/node_gorums.pb.go
+
+%.pb.go %_gorums.pb.go : %.proto
+	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
+		--go_out=paths=source_relative:. \
+		--gorums_out=paths=source_relative:. \
+		$<
+
+
 protos:
 	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
 	--proto_path=paths=source_relative/protos/ \

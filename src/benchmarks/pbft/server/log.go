@@ -16,11 +16,12 @@ type MessageLog struct {
 }
 
 func newMessageLog() *MessageLog {
+	buffer := 1000
 	return &MessageLog{
-		data:        make([]any, 0),
-		preprepares: make(map[string]*pb.PrePrepareRequest, 0),
-		prepares:    make(map[string][]*pb.PrepareRequest, 0),
-		commits:     make(map[string][]*pb.CommitRequest, 0),
+		data:        make([]any, buffer),
+		preprepares: make(map[string]*pb.PrePrepareRequest, buffer),
+		prepares:    make(map[string][]*pb.PrepareRequest, buffer),
+		commits:     make(map[string][]*pb.CommitRequest, buffer),
 	}
 }
 
@@ -74,4 +75,14 @@ func (m *MessageLog) getCommitReqs(digest string, n, view int32) ([]*pb.CommitRe
 		}
 	}
 	return res, len(res) > 0
+}
+
+func (m *MessageLog) Clear() {
+	m.mut.Lock()
+	defer m.mut.Unlock()
+	buffer := 1000
+	m.data = make([]any, buffer)
+	m.preprepares = make(map[string]*pb.PrePrepareRequest, buffer)
+	m.prepares = make(map[string][]*pb.PrepareRequest, buffer)
+	m.commits = make(map[string][]*pb.CommitRequest, buffer)
 }

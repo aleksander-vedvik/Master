@@ -5,7 +5,6 @@ import (
 	"log"
 	"log/slog"
 	"net"
-	"time"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
@@ -57,9 +56,7 @@ func (sc *Client) Write(ctx context.Context, value string) (*pb.PaxosResponse, e
 	})
 }
 
-func (sc *Client) Benchmark() (*pb.Result, error) {
+func (sc *Client) Benchmark(ctx context.Context) (*pb.Result, error) {
 	//slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 	return sc.config.Benchmark(ctx, &pb.Empty{})
 }

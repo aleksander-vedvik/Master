@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"time"
 
 	bench "github.com/aleksander-vedvik/benchmark/benchmark"
@@ -107,7 +109,7 @@ func main() {
 	numClients := flag.Int("clients", 0, "number of clients to run")
 	clientBasePort := flag.Int("port", 0, "which base port to use for clients")
 	withLogger := flag.Bool("log", false, "run with structured logger. Default: false")
-	local := flag.Bool("local", true, "run servers locally. Default: true")
+	local := flag.Bool("local", false, "run servers locally. Default: false")
 	throughput := flag.Int("throughput", 0, "target throughput")
 	runs := flag.Int("runs", 0, "number of runs of each benchmark")
 	steps := flag.Int("steps", 0, "number of increments on throughput vs latency benchmarks")
@@ -126,7 +128,7 @@ func main() {
 	}
 
 	if *runSrv {
-		runServer(benchType, *id, servers, *withLogger)
+		runServer(benchType, *id, servers, *withLogger, *memProfile)
 	} else {
 		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
 	}
@@ -190,7 +192,7 @@ type BenchmarkServer interface {
 	Stop()
 }
 
-func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger bool) {
+func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, memprofile bool) {
 	fmt.Println("Running server:", benchType)
 	var logger *slog.Logger
 	if withLogger {
@@ -228,6 +230,21 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger boo
 	case bench.Simple:
 		srv = simple.New(srvAddresses[id], srvAddresses, logger)
 	}
+
+	if memprofile {
+		runtime.GC()
+		cpuProfile, err := os.Create(fmt.Sprintf("cpuprofile.%v", id))
+		if err != nil {
+			panic(err)
+		}
+		memProfile, err := os.Create(fmt.Sprintf("memprofile.%v", id))
+		if err != nil {
+			panic(err)
+		}
+		pprof.StartCPUProfile(cpuProfile)
+		defer pprof.StopCPUProfile()
+		defer pprof.WriteHeapProfile(memProfile)
+	}
 	srv.Start()
 	fmt.Println("Press any key to stop server")
 	fmt.Scanln()
@@ -247,6 +264,7 @@ type logEntry struct {
 	Err         error  `json:"err"`
 	Method      string `json:"method"`
 	From        string `json:"from"`
+	Cancelled   bool   `json:"cancelled"`
 }
 
 func readLog(broadcastID uint64, server bool) {
@@ -264,7 +282,7 @@ func readLog(broadcastID uint64, server bool) {
 		for scanner.Scan() {
 			var entry logEntry
 			json.Unmarshal(scanner.Bytes(), &entry)
-			if entry.Level == "WARN" {
+			if entry.Cancelled {
 				fmt.Println("BroadcastID", entry.BroadcastID, "msg:", entry.Msg, "err:", entry.Err)
 			}
 		}

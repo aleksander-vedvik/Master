@@ -18,6 +18,10 @@ func NewPaxosQSpec(n int) pb.QuorumSpec {
 	return PaxosQSpec{quorum: (n-1)/2 + 1}
 }
 
+func (qs PaxosQSpec) BenchmarkQF(_ *pb.Empty, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
+	return nil, true
+}
+
 // PrepareQF is the quorum function to process the replies from the Prepare quorum call.
 // This is where the Proposer handle PromiseMsgs returned by the Acceptors, and any
 // Accepted values in the promise replies should be combined into the returned PromiseMsg

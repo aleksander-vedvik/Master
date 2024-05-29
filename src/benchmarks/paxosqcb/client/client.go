@@ -50,9 +50,6 @@ func (sc *Client) Write(ctx context.Context, value string) (*pb.Response, error)
 	})
 }
 
-//func (sc *Client) Benchmark() (*pb.Result, error) {
-////slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
-//ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-//defer cancel()
-//return sc.config.Benchmark(ctx, &pb.Empty{})
-//}
+func (sc *Client) Benchmark(ctx context.Context) (*pb.Empty, error) {
+	return sc.config.Benchmark(ctx, &pb.Empty{})
+}
