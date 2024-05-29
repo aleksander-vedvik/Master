@@ -3,6 +3,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	pbftClient "github.com/aleksander-vedvik/benchmark/pbft.s/client"
@@ -19,7 +20,7 @@ func (PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.
 	}, nil
 }
 
-func (PbftSBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int) (*pbftClient.Client, func(), error) {
+func (PbftSBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int, logger *slog.Logger) (*pbftClient.Client, func(), error) {
 	qSize := 2 * len(srvAddrs) / 3
 	c := pbftClient.New(addr, srvAddrs, qSize)
 	c.Start()

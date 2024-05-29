@@ -2,6 +2,7 @@ package bench
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -19,7 +20,7 @@ func (PaxosQCBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServ
 	}, nil
 }
 
-func (PaxosQCBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
+func (PaxosQCBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int, logger *slog.Logger) (*paxosClient.Client, func(), error) {
 	qSize := 1 + len(srvAddrs)/2
 	c := paxosClient.New(id, addr, srvAddrs, qSize)
 	return c, func() {

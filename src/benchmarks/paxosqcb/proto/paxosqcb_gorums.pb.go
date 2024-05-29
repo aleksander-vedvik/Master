@@ -109,8 +109,8 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srv := gorums.NewClientServer(lis)
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...gorums.ServerOption) error {
+	srv := gorums.NewClientServer(lis, opts...)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
@@ -339,7 +339,7 @@ type QuorumSpec interface {
 	AcceptQF(in *AcceptMsg, replies map[uint32]*LearnMsg) (*LearnMsg, bool)
 
 	// ClientHandleQF is the quorum function for the ClientHandle
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the ClientHandle method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *Value'.

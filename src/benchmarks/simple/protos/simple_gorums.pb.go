@@ -111,8 +111,8 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srv := gorums.NewClientServer(lis)
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...gorums.ServerOption) error {
+	srv := gorums.NewClientServer(lis, opts...)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
@@ -355,7 +355,7 @@ func (c *Configuration) BroadcastCall1(ctx context.Context, in *WriteRequest1) (
 		}
 		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
 		defer cancelCancel()
-		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd, gorums.WithNoSendWaiting())
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
@@ -405,7 +405,7 @@ func (c *Configuration) BroadcastCall2(ctx context.Context, in *WriteRequest2) (
 		}
 		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
 		defer cancelCancel()
-		c.RawConfiguration.BroadcastCall(cancelCtx, bd)
+		c.RawConfiguration.BroadcastCall(cancelCtx, bd, gorums.WithNoSendWaiting())
 		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {

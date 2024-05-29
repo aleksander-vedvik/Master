@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"log"
+	"log/slog"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxosqcb/proto"
 
@@ -17,7 +18,7 @@ type Client struct {
 	seq    uint32
 }
 
-func New(id int, addr string, srvAddresses []string, qSize int) *Client {
+func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Logger) *Client {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),

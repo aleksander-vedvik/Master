@@ -57,7 +57,7 @@ type RequestResult struct {
 
 type Benchmark[S, C any] interface {
 	CreateServer(addr string, peers []string) (*S, func(), error)
-	CreateClient(id int, addr string, srvAddrs []string, qSize int) (*C, func(), error)
+	CreateClient(id int, addr string, srvAddrs []string, qSize int, logger *slog.Logger) (*C, func(), error)
 	Warmup(client *C)
 	StartBenchmark(config *C) []Result
 	Run(client *C, ctx context.Context, payload int) error
@@ -101,6 +101,7 @@ type benchmarkOption struct {
 	dur            int // specifies how long the throughput benchmark should be run in seconds
 	runs           int // number of times a benchmark should run. Will create separate run file for each benchmark
 	steps          int // number of steps used in throughput vs latency benchmark: throughputIncrement
+	logger         *slog.Logger
 }
 
 func RunAll() {
@@ -155,6 +156,7 @@ type RunOptions struct {
 	dur                 int
 	runs                int
 	steps               int
+	logger              *slog.Logger
 }
 
 func RunExternal() RunOption {
@@ -196,6 +198,12 @@ func ClientBasePort(basePort int) RunOption {
 func WithMemProfile() RunOption {
 	return func(o *RunOptions) {
 		o.memProfile = true
+	}
+}
+
+func WithLogger(logger *slog.Logger) RunOption {
+	return func(o *RunOptions) {
+		o.logger = logger
 	}
 }
 
@@ -258,6 +266,7 @@ func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) ([]Resul
 			dur:            opts.dur,
 			runs:           opts.runs,
 			steps:          opts.steps,
+			logger:         opts.logger,
 		}
 		start := time.Now()
 		clientResult, _, err := benchmark.run(bench)
@@ -309,7 +318,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			err     error
 			cleanup func()
 		)
-		clients[i], cleanup, err = benchmark.CreateClient(i, fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i), opts.srvAddrs, opts.quorumSize)
+		clients[i], cleanup, err = benchmark.CreateClient(i, fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i), opts.srvAddrs, opts.quorumSize, opts.logger)
 		defer cleanup()
 		if err != nil {
 			return clientResult, nil, err

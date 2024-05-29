@@ -2,6 +2,7 @@ package client
 
 import (
 	"log"
+	"log/slog"
 	"net"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft.o/protos"
@@ -12,7 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func getConfig(id int, addr string, srvAddresses []string, qSize int) (*pb.Manager, *pb.Configuration) {
+func getConfig(id int, addr string, srvAddresses []string, qSize int, logger *slog.Logger) (*pb.Manager, *pb.Configuration) {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -23,7 +24,7 @@ func getConfig(id int, addr string, srvAddresses []string, qSize int) (*pb.Manag
 	if err != nil {
 		panic(err)
 	}
-	mgr.AddClientServer(lis)
+	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
 	quorum, err := mgr.NewConfiguration(
 		NewQSpec(qSize),
 		gorums.WithNodeList(srvAddresses),

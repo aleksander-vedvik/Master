@@ -3,6 +3,7 @@ package bench
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 
 	paxosClient "github.com/aleksander-vedvik/benchmark/paxos.b/client"
@@ -19,9 +20,9 @@ func (PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer
 	}, nil
 }
 
-func (PaxosBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int) (*paxosClient.Client, func(), error) {
+func (PaxosBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int, logger *slog.Logger) (*paxosClient.Client, func(), error) {
 	qSize := 1 + len(srvAddrs)/2
-	c := paxosClient.New(id, addr, srvAddrs, qSize)
+	c := paxosClient.New(id, addr, srvAddrs, qSize, logger)
 	return c, func() {
 		c.Stop()
 	}, nil

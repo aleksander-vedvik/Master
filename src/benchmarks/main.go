@@ -145,13 +145,26 @@ func main() {
 	if *runSrv {
 		runServer(benchType, *id, servers, *withLogger)
 	} else {
-		runBenchmark(benchType, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile)
+		runBenchmark(benchType, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
 	}
 }
 
-func runBenchmark(name string, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile bool) {
-	var srvAddresses []string
+func runBenchmark(name string, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool) {
 	options := make([]bench.RunOption, 0)
+	if withLogger {
+		file, err := os.Create("log.Clients.json")
+		if err != nil {
+			panic(err)
+		}
+		loggerOpts := &slog.HandlerOptions{
+			AddSource: true,
+			Level:     slog.LevelDebug,
+		}
+		handler := slog.NewJSONHandler(file, loggerOpts)
+		logger := slog.New(handler)
+		options = append(options, bench.WithLogger(logger))
+	}
+	var srvAddresses []string
 	if !local {
 		options = append(options, bench.RunExternal())
 		if srvAddrs == nil {
@@ -204,7 +217,6 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger boo
 			Level:     slog.LevelDebug,
 		}
 		handler := slog.NewJSONHandler(file, loggerOpts)
-		//handler := slog.NewJSONHandler(os.Stdout, loggerOpts)
 		logger = slog.New(handler)
 	}
 	srvAddresses := make([]string, len(srvAddrs))

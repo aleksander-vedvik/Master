@@ -110,8 +110,8 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...grpc.ServerOption) error {
-	srv := gorums.NewClientServer(lis)
+func (mgr *Manager) AddClientServer(lis net.Listener, opts ...gorums.ServerOption) error {
+	srv := gorums.NewClientServer(lis, opts...)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
@@ -355,14 +355,14 @@ func (c *Configuration) Write(ctx context.Context, in *PaxosValue) (resp *PaxosR
 		cancelCtx, cancelCancel := context.WithTimeout(context.Background(), timeout)
 		defer cancelCancel()
 		c.RawConfiguration.BroadcastCall(cancelCtx, bd, gorums.WithNoSendWaiting())
-		return nil, fmt.Errorf("context cancelled. id=%v", broadcastID)
+		return nil, fmt.Errorf("context cancelled")
 	}
 	if !ok {
-		return nil, fmt.Errorf("done channel was closed before returning a value. id=%v", broadcastID)
+		return nil, fmt.Errorf("done channel was closed before returning a value")
 	}
 	resp, ok = response.(*PaxosResponse)
 	if !ok {
-		return nil, fmt.Errorf("wrong proto format. id=%v", broadcastID)
+		return nil, fmt.Errorf("wrong proto format")
 	}
 	return resp, nil
 }

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net"
 	"time"
 
@@ -19,7 +20,7 @@ type Client struct {
 	addr   string
 }
 
-func New(id int, addr string, srvAddresses []string, qSize int) *Client {
+func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Logger) *Client {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -30,7 +31,7 @@ func New(id int, addr string, srvAddresses []string, qSize int) *Client {
 	if err != nil {
 		panic(err)
 	}
-	mgr.AddClientServer(lis)
+	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(qSize),

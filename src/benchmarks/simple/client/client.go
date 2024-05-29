@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 
 	pb "github.com/aleksander-vedvik/benchmark/simple/protos"
@@ -16,8 +17,8 @@ type Client struct {
 }
 
 // Creates a new StorageClient with the provided srvAddresses as the configuration
-func New(id int, addr string, srvAddresses []string, qSize int) *Client {
-	mgr, config := getConfig(id, addr, srvAddresses, qSize)
+func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Logger) *Client {
+	mgr, config := getConfig(id, addr, srvAddresses, qSize, logger)
 	return &Client{
 		mgr:    mgr,
 		config: config,

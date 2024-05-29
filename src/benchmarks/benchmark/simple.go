@@ -3,6 +3,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	simpleClient "github.com/aleksander-vedvik/benchmark/simple/client"
@@ -19,8 +20,8 @@ func (SimpleBenchmark) CreateServer(addr string, srvAddrs []string) (*simpleServ
 	}, nil
 }
 
-func (SimpleBenchmark) CreateClient(id int, addr string, srvAddrs []string, qSize int) (*simpleClient.Client, func(), error) {
-	c := simpleClient.New(id, addr, srvAddrs, qSize)
+func (SimpleBenchmark) CreateClient(id int, addr string, srvAddrs []string, qSize int, logger *slog.Logger) (*simpleClient.Client, func(), error) {
+	c := simpleClient.New(id, addr, srvAddrs, qSize, logger)
 	return c, func() {
 		c.Stop()
 	}, nil
