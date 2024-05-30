@@ -92,7 +92,7 @@ func (srv *Server) Start() {
 		log.Fatal(err)
 	}
 	// add the address
-	srv.addr = lis.Addr().String()
+	//srv.addr = lis.Addr().String()
 	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n", srv.addr))
 	// add the correct ID to the server
 	var id uint32

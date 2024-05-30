@@ -24,6 +24,7 @@ func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Log
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
 		gorums.WithMachineID(uint64(id)),
+		gorums.WithLogger(logger),
 	)
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
