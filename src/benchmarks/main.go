@@ -9,7 +9,6 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
-	"time"
 
 	bench "github.com/aleksander-vedvik/benchmark/benchmark"
 	paxosBroadcastCall "github.com/aleksander-vedvik/benchmark/paxos.b/server"
@@ -19,6 +18,7 @@ import (
 	pbftWithoutGorums "github.com/aleksander-vedvik/benchmark/pbft.s/server"
 	pbftWithGorums "github.com/aleksander-vedvik/benchmark/pbft/server"
 	simple "github.com/aleksander-vedvik/benchmark/simple/server"
+	"github.com/relab/gorums"
 	"gopkg.in/yaml.v3"
 )
 
@@ -252,19 +252,12 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, me
 }
 
 type logEntry struct {
-	Time   time.Time `json:"time"`
-	Level  string    `json:"level"`
+	gorums.LogEntry
 	Source struct {
 		Function string `json:"function"`
 		File     string `json:"file"`
 		Line     int    `json:"line"`
 	} `json:"source"`
-	Msg         string `json:"msg"`
-	BroadcastID uint64 `json:"BroadcastID"`
-	Err         error  `json:"err"`
-	Method      string `json:"method"`
-	From        string `json:"from"`
-	Cancelled   bool   `json:"cancelled"`
 }
 
 func readLog(broadcastID uint64, server bool) {
@@ -282,8 +275,15 @@ func readLog(broadcastID uint64, server bool) {
 		for scanner.Scan() {
 			var entry logEntry
 			json.Unmarshal(scanner.Bytes(), &entry)
-			if entry.Cancelled {
+			/*if entry.Cancelled {
 				fmt.Println("BroadcastID", entry.BroadcastID, "msg:", entry.Msg, "err:", entry.Err)
+			}*/
+			if entry.Level == "Info" {
+				if entry.Err != nil {
+					fmt.Println(entry.Msg, ", err:", entry.Err, "msgID", entry.MsgID, ", nodeAddr", entry.NodeAddr, ", MachineID", entry.MachineID)
+				} else {
+					fmt.Println(entry.Msg, "msgID", entry.MsgID, ", method:", entry.Method, ", nodeAddr", entry.NodeAddr, ", MachineID", entry.MachineID)
+				}
 			}
 		}
 		return
@@ -304,6 +304,9 @@ func readLog(broadcastID uint64, server bool) {
 			var entry logEntry
 			json.Unmarshal(scanner.Bytes(), &entry)
 			if entry.BroadcastID == broadcastID {
+				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
+			}
+			if broadcastID == 1 {
 				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
 			}
 		}

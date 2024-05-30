@@ -124,7 +124,8 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 	}
 	s.sequenceNumber++
 	s.mut.Unlock()
-	broadcast.PrePrepare(req)
+	s.messageLog.add(req, s.viewNumber, req.SequenceNumber)
+	broadcast.PrePrepare(req, gorums.WithoutSelf())
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {

@@ -11,9 +11,17 @@ import (
 	paxosServer "github.com/aleksander-vedvik/benchmark/paxos.b/server"
 )
 
-type PaxosBenchmark struct{}
+type PaxosBenchmark struct {
+	clients []*paxosClient.Client
+}
 
-func (PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer.Server, func(), error) {
+func (b *PaxosBenchmark) Init(opts RunOptions) {
+	b.clients = make([]*paxosClient.Client, len(opts.clients))
+	createClients(b, opts)
+	warmupFunc(b.clients, b.warmup)
+}
+
+func (*PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer.Server, func(), error) {
 	srv := paxosServer.New(addr, srvAddrs, nil)
 	srv.Start()
 	return srv, func() {
@@ -21,21 +29,28 @@ func (PaxosBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosServer
 	}, nil
 }
 
-func (PaxosBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int, logger *slog.Logger) (*paxosClient.Client, func(), error) {
-	qSize := 1 + len(srvAddrs)/2
-	c := paxosClient.New(id, addr, srvAddrs, qSize, logger)
-	return c, func() {
-		c.Stop()
-	}, nil
+func (b *PaxosBenchmark) Clients() []*paxosClient.Client {
+	return b.clients
 }
 
-func (PaxosBenchmark) Warmup(client *paxosClient.Client) {
+func (b *PaxosBenchmark) Stop() {
+	for _, client := range b.clients {
+		client.Stop()
+	}
+}
+
+func (b *PaxosBenchmark) AddClient(id int, addr string, srvAddrs []string, logger *slog.Logger) {
+	qSize := 1 + len(srvAddrs)/2
+	b.clients = append(b.clients, paxosClient.New(id, addr, srvAddrs, qSize, logger))
+}
+
+func (*PaxosBenchmark) warmup(client *paxosClient.Client) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, _ = client.Write(ctx, "warmup")
 }
 
-func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
+func (*PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	res, err := config.Benchmark(ctx)
@@ -52,7 +67,7 @@ func (PaxosBenchmark) StartBenchmark(config *paxosClient.Client) []Result {
 	return result
 }
 
-func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
+func (*PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	config.Benchmark(ctx)
@@ -71,7 +86,7 @@ func (PaxosBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	return result*/
 }
 
-func (PaxosBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {
+func (*PaxosBenchmark) Run(client *paxosClient.Client, ctx context.Context, val int) error {
 	resp, err := client.Write(ctx, strconv.Itoa(val))
 	if err != nil {
 		return err

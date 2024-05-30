@@ -102,7 +102,8 @@ func (s *Server) prepared(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(reqs) > 2*len(s.peers)/3
+	//return found && len(reqs) > 2*len(s.peers)/3
+	return found && len(reqs) >= 2*len(s.peers)/3
 }
 
 func (s *Server) committed(n int32) bool {
@@ -122,7 +123,8 @@ func (s *Server) committed(n int32) bool {
 		return false
 	}
 	reqs, found := s.messageLog.getPrepareReqs(req.Digest, req.SequenceNumber, req.View)
-	if !found || len(reqs) <= 2*len(s.peers)/3 {
+	//if !found || len(reqs) <= 2*len(s.peers)/3 {
+	if !found || len(reqs) < 2*len(s.peers)/3 {
 		return false
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)

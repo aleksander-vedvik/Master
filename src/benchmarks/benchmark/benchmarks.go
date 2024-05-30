@@ -1,5 +1,7 @@
 package bench
 
+import "fmt"
+
 const (
 	PaxosBroadcastCall             string = "Paxos.BroadcastCall"
 	PaxosQuorumCall                string = "Paxos.QuorumCall"
@@ -11,47 +13,76 @@ const (
 	Simple                         string = "Simple"
 )
 
+type initializable interface {
+	Init(RunOptions)
+}
+
 var benchTypes = map[string]struct {
-	run func(benchmarkOption) (ClientResult, []Result, error)
+	run  func(benchmarkOption, any) (ClientResult, []Result, error)
+	init func() initializable
 }{
 	PaxosBroadcastCall: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PaxosBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PaxosBenchmark))
+		},
+		init: func() initializable {
+			return &PaxosBenchmark{}
 		},
 	},
 	PaxosQuorumCall: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PaxosQCBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PaxosQCBenchmark))
+		},
+		init: func() initializable {
+			return &PaxosQCBenchmark{}
 		},
 	},
 	PaxosQuorumCallBroadcastOption: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PaxosQCBBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PaxosQCBBenchmark))
+		},
+		init: func() initializable {
+			return &PaxosQCBBenchmark{}
 		},
 	},
 	PBFTWithGorums: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PbftBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PbftBenchmark))
+		},
+		init: func() initializable {
+			return &PbftBenchmark{}
 		},
 	},
 	PBFTWithoutGorums: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PbftSBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PbftSBenchmark))
+		},
+		init: func() initializable {
+			return &PbftSBenchmark{}
 		},
 	},
 	PBFTNoOrder: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PbftBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PbftBenchmark))
+		},
+		init: func() initializable {
+			return &PbftBenchmark{}
 		},
 	},
 	PBFTOrder: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, PbftOBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*PbftOBenchmark))
+		},
+		init: func() initializable {
+			return &PbftOBenchmark{}
 		},
 	},
 	Simple: {
-		run: func(bench benchmarkOption) (ClientResult, []Result, error) {
-			return runBenchmark(bench, SimpleBenchmark{})
+		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
+			return runBenchmark(opts, bench.(*SimpleBenchmark))
+		},
+		init: func() initializable {
+			return &SimpleBenchmark{}
 		},
 	},
 }
@@ -163,4 +194,34 @@ var benchmarks = []benchmarkOption{
 			end   int
 		}{50, 400},
 	},
+}
+
+func createClients[S, C any](bench Benchmark[S, C], opts RunOptions) {
+	fmt.Print("creating clients")
+	for i := 0; i < opts.numClients; i++ {
+		addr := fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i)
+		if opts.clients != nil {
+			addr = opts.clients[i]
+		}
+		bench.AddClient(i, addr, opts.srvAddrs, opts.logger)
+	}
+}
+
+func warmupFunc[C any](clients []*C, warmup func(*C)) {
+	fmt.Print(": warming up")
+	warmupChan := make(chan struct{}, len(clients))
+	for _, client := range clients {
+		go func(client *C) {
+			warmup(client)
+			warmupChan <- struct{}{}
+		}(client)
+	}
+	for i := 0; i < len(clients); i++ {
+		if i%2 == 0 {
+			fmt.Print(".")
+		}
+		<-warmupChan
+	}
+	fmt.Println()
+	fmt.Println()
 }

@@ -75,6 +75,7 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // disable TLS
 		),
+		gorums.WithLogger(logger),
 	}
 	r := &PaxosReplica{
 		Server:           pb.NewServer(gorums.WithSLogger(logger)),

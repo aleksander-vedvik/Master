@@ -57,8 +57,12 @@ type RequestResult struct {
 
 type Benchmark[S, C any] interface {
 	CreateServer(addr string, peers []string) (*S, func(), error)
-	CreateClient(id int, addr string, srvAddrs []string, qSize int, logger *slog.Logger) (*C, func(), error)
-	Warmup(client *C)
+	//CreateClient(id int, addr string, srvAddrs []string, qSize int, logger *slog.Logger) (*C, func(), error)
+	Init(opts RunOptions)
+	AddClient(id int, addr string, srvAddrs []string, logger *slog.Logger)
+	Clients() []*C
+	Stop()
+	//Warmup(client *C)
 	StartBenchmark(config *C) []Result
 	Run(client *C, ctx context.Context, payload int) error
 	StopBenchmark(config *C) []Result
@@ -116,6 +120,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 	if !ok {
 		return nil, nil
 	}
+	benchmarkState := benchmark.init()
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
@@ -126,7 +131,7 @@ func RunSingleBenchmark(name string) ([]Result, []error) {
 		//}
 		bench.name = fmt.Sprintf("%s.S%v.C%v.R%v.%s", name, len(bench.srvAddrs), bench.numClients, bench.numRequests, bench.runType)
 		start := time.Now()
-		clientResult, ress, err := benchmark.run(bench)
+		clientResult, ress, err := benchmark.run(bench, benchmarkState)
 		fmt.Println("took:", time.Since(start))
 		if err != nil {
 			panic(err)
@@ -261,6 +266,8 @@ func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions
 	if !ok {
 		return nil, nil
 	}
+	benchmarkState := benchmark.init()
+	benchmarkState.Init(opts)
 	if opts.throughputIncrement <= 0 {
 		opts.throughputIncrement = opts.throughputMax / opts.steps
 	}
@@ -286,7 +293,7 @@ func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions
 			clients:        opts.clients,
 		}
 		start := time.Now()
-		clientResult, _, err := benchmark.run(bench)
+		clientResult, _, err := benchmark.run(bench, benchmarkState)
 		throughputVsLatency = append(throughputVsLatency, []string{strconv.Itoa(int(clientResult.Throughput)), strconv.Itoa(int(clientResult.LatencyAvg.Milliseconds())), strconv.Itoa(int(clientResult.LatencyMedian.Milliseconds()))})
 		if err != nil {
 			panic(err)
@@ -329,8 +336,9 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.timeout = 30 * time.Second
 	}
 
-	fmt.Print("creating clients")
-	clients := make([]*C, opts.numClients)
+	clients := benchmark.Clients()
+	config = clients[0]
+	/*clients := make([]*C, opts.numClients)
 	for i := 0; i < opts.numClients; i++ {
 		var (
 			err     error
@@ -348,11 +356,11 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		if i == 0 {
 			config = clients[0]
 		}
-	}
+	}*/
 
 	var servers []*S
 	if opts.local {
-		fmt.Print(", creating servers")
+		fmt.Println("creating servers...")
 		servers = make([]*S, len(opts.srvAddrs))
 		for i, addr := range opts.srvAddrs {
 			var (
@@ -367,7 +375,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		}
 	}
 
-	fmt.Print(", warming up")
+	/*fmt.Print(", warming up")
 	warmupChan := make(chan struct{}, len(clients))
 	for _, client := range clients {
 		go func(client *C) {
@@ -380,7 +388,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			fmt.Print(".")
 		}
 		<-warmupChan
-	}
+	}*/
 
 	resChan := make(chan RequestResult, totalNumReqs)
 	fmt.Println("\nstarting benchmark...")
@@ -439,6 +447,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			avgDur += dur
 			durations[i] = dur
 		}
+		// wait a short time to make the servers finish up before sending a "purge state msg" to them
+		time.Sleep(1 * time.Second)
 		fmt.Printf("100%s done, numFailed: %v out of %v\n", "%", numFailed, totalNumReqs)
 		benchmark.StopBenchmark(config)
 		fmt.Println("stopped benchmark...")

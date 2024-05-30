@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -213,10 +214,13 @@ func (p *Proposer) setConfiguration(config MultiPaxosConfig) {
 // the request.
 func (p *Proposer) AddRequestToQ(request *pb.Value) {
 	if p.isLeader() {
+		slog.Info("recieved req leader")
 		accept := &pb.AcceptMsg{Val: request}
 		p.msgQueue <- accept
 		//p.mu.Lock()
 		//p.clientRequestQueue = append(p.clientRequestQueue, accept)
 		//p.mu.Unlock()
+	} else {
+		slog.Info("recieved req but not leader")
 	}
 }

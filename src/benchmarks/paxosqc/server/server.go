@@ -73,6 +73,7 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // disable TLS
 		),
+		gorums.WithLogger(logger),
 	}
 	r := &PaxosReplica{
 		Server:           pb.NewServer(gorums.WithSLogger(logger)),
@@ -119,9 +120,11 @@ func (r *PaxosReplica) Start() {
 // It also starts the failure detector, which is necessary to get leader detections.
 func (r *PaxosReplica) run() {
 	go func() {
+		slog.Info("running srv")
 		qspec := NewPaxosQSpec(len(r.nodeMap))
 		paxConfig, err := r.paxosManager.NewConfiguration(qspec, gorums.WithNodeMap(r.nodeMap))
 		if err != nil {
+			slog.Info("srv crashed", "err", err)
 			return
 		}
 		r.Proposer.setConfiguration(paxConfig)
@@ -129,6 +132,7 @@ func (r *PaxosReplica) run() {
 		for {
 			select {
 			case <-r.stop:
+				slog.Warn("stopped")
 				return
 			case accept := <-r.Proposer.msgQueue:
 				if !r.isLeader() {

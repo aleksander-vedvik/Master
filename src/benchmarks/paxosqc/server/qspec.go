@@ -14,8 +14,12 @@ type PaxosQSpec struct {
 
 // NewPaxosQSpec returns a quorum specification object for Paxos
 // for the given configuration size n.
-func NewPaxosQSpec(n int) PaxosQSpec {
+func NewPaxosQSpec(n int) pb.QuorumSpec {
 	return PaxosQSpec{quorum: (n-1)/2 + 1}
+}
+
+func (qs PaxosQSpec) BenchmarkQF(empty *pb.Empty, replies map[uint32]*pb.Empty) (*pb.Empty, bool) {
+	return nil, true
 }
 
 // PrepareQF is the quorum function to process the replies from the Prepare quorum call.

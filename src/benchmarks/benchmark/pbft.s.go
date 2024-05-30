@@ -11,9 +11,11 @@ import (
 	pbftServer "github.com/aleksander-vedvik/benchmark/pbft.s/server"
 )
 
-type PbftSBenchmark struct{}
+type PbftSBenchmark struct {
+	clients []*pbftClient.Client
+}
 
-func (PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
+func (*PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.Server, func(), error) {
 	srv := pbftServer.New(addr, srvAddrs, true)
 	srv.Start()
 	return srv, func() {
@@ -21,34 +23,47 @@ func (PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.
 	}, nil
 }
 
-func (PbftSBenchmark) CreateClient(id int, addr string, srvAddrs []string, _ int, logger *slog.Logger) (*pbftClient.Client, func(), error) {
-	qSize := 2 * len(srvAddrs) / 3
-	c := pbftClient.New(addr, srvAddrs, qSize)
-	c.Start()
-	return c, func() {
-		c.Stop()
-	}, nil
+func (b *PbftSBenchmark) Init(opts RunOptions) {
+	b.clients = make([]*pbftClient.Client, len(opts.clients))
+	createClients(b, opts)
+	warmupFunc(b.clients, b.warmup)
 }
 
-func (PbftSBenchmark) Warmup(client *pbftClient.Client) {
-	_, err := client.WriteVal(context.Background(), "warmup")
-	if err != nil {
-		panic(err)
+func (b *PbftSBenchmark) Clients() []*pbftClient.Client {
+	return b.clients
+}
+
+func (b *PbftSBenchmark) Stop() {
+	for _, client := range b.clients {
+		client.Stop()
 	}
 }
 
-func (PbftSBenchmark) StartBenchmark(config *pbftClient.Client) []Result {
+func (b *PbftSBenchmark) AddClient(id int, addr string, srvAddrs []string, logger *slog.Logger) {
+	qSize := 2 * len(srvAddrs) / 3
+	c := pbftClient.New(addr, srvAddrs, qSize)
+	c.Start()
+	b.clients = append(b.clients, c)
+}
+
+func (*PbftSBenchmark) warmup(client *pbftClient.Client) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client.WriteVal(ctx, "warmup")
+}
+
+func (*PbftSBenchmark) StartBenchmark(config *pbftClient.Client) []Result {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	config.SendBenchmark(ctx)
 	return nil
 }
 
-func (PbftSBenchmark) StopBenchmark(config *pbftClient.Client) []Result {
+func (*PbftSBenchmark) StopBenchmark(config *pbftClient.Client) []Result {
 	return nil
 }
 
-func (PbftSBenchmark) Run(client *pbftClient.Client, ctx context.Context, val int) error {
+func (*PbftSBenchmark) Run(client *pbftClient.Client, ctx context.Context, val int) error {
 	value := strconv.Itoa(val)
 	resp, err := client.WriteVal(ctx, value)
 	if err != nil {

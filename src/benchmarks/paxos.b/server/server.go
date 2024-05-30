@@ -57,16 +57,17 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *Server {
 		leader:                srvAddrs[0],
 		disableLeaderElection: disable,
 	}
-	srv.configureView()
+	srv.configureView(logger)
 	pb.RegisterMultiPaxosServer(srv.Server, &srv)
 	return &srv
 }
 
-func (srv *Server) configureView() {
+func (srv *Server) configureView(logger *slog.Logger) {
 	srv.mgr = pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		),
+		gorums.WithLogger(logger),
 	)
 	view, err := srv.mgr.NewConfiguration(gorums.WithNodeList(srv.peers), newQSpec(1+len(srv.peers)/2))
 	if err != nil {
