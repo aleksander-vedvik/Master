@@ -144,5 +144,5 @@ func (s *Server) committed(n int32) bool {
 		return false
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)
-	return found && len(commits) >= 2*len(s.peers)/3
+	return found && len(commits) > 2*len(s.peers)/3
 }

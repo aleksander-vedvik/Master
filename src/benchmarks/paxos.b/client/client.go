@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"net"
+	"strings"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
 
@@ -26,11 +27,13 @@ func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Log
 		),
 		gorums.WithMachineID(uint64(id)),
 	)
-	lis, err := net.Listen("tcp", addr)
+	//lis, err := net.Listen("tcp", addr)
+	splittedAddr := strings.Split(addr, ":")
+	lis, err := net.Listen("tcp", ":"+splittedAddr[1])
 	if err != nil {
 		panic(err)
 	}
-	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
+	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger), gorums.WithListenAddr(addr))
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(qSize),

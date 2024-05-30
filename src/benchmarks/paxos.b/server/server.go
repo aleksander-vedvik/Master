@@ -48,7 +48,7 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *Server {
 	}
 	srv := Server{
 		id:     uint32(id),
-		Server: pb.NewServer(gorums.WithSLogger(logger)),
+		Server: pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(addr)),
 		//Server:                pb.NewServer(),
 		acceptor:              NewAcceptor(addr, len(srvAddrs)),
 		data:                  make([]string, 0),
@@ -86,7 +86,8 @@ func (srv *Server) Stop() {
 
 func (srv *Server) Start() {
 	// create listener
-	lis, err := net.Listen("tcp4", srv.addr)
+	//lis, err := net.Listen("tcp4", srv.addr)
+	lis, err := net.Listen("tcp4", ":5000")
 	if err != nil {
 		log.Fatal(err)
 	}
