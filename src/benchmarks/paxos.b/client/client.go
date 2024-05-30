@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"log/slog"
 	"net"
 	"strings"
@@ -34,13 +34,14 @@ func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Log
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("ClientServer started. Listening on address: %s, lis=%s\n", addr, lis.Addr().String()))
 	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger), gorums.WithListenAddr(addr))
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(qSize),
 	)
 	if err != nil {
-		log.Fatal("error creating config:", err)
+		panic("error creating config")
 	}
 	return &Client{
 		config: config,

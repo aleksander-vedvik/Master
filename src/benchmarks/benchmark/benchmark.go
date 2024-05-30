@@ -266,11 +266,14 @@ func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions
 	if !ok {
 		return nil, nil
 	}
-	benchmarkState := benchmark.init()
-	benchmarkState.Init(opts)
 	if opts.throughputIncrement <= 0 {
 		opts.throughputIncrement = opts.throughputMax / opts.steps
 	}
+	if opts.clients != nil {
+		opts.numClients = len(opts.clients)
+	}
+	benchmarkState := benchmark.init()
+	benchmarkState.Init(opts)
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))

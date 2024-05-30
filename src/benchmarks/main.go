@@ -182,7 +182,11 @@ func runBenchmark(name string, clients ServerEntry, throughput, numClients, clie
 		options = append(options, bench.WithMemProfile())
 	}
 	if clients != nil {
-		options = append(options, bench.WithMemProfile())
+		clientsMap := make(map[int]string, len(clients))
+		for id, entry := range clients {
+			clientsMap[id] = fmt.Sprintf("%s:%s", entry.Addr, entry.Port)
+		}
+		options = append(options, bench.WithClients(clientsMap))
 	}
 	bench.RunThroughputVsLatencyBenchmark(name, options...)
 }

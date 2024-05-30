@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"runtime"
@@ -11,6 +10,7 @@ import (
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
+	"github.com/aleksander-vedvik/benchmark/util"
 
 	"github.com/relab/gorums"
 	"google.golang.org/grpc"
@@ -86,14 +86,21 @@ func (srv *Server) Stop() {
 
 func (srv *Server) Start() {
 	// create listener
-	//lis, err := net.Listen("tcp4", srv.addr)
-	lis, err := net.Listen("tcp4", ":5000")
+	var (
+		lis net.Listener
+		err error
+	)
+	if util.PRODUCTION {
+		lis, err = net.Listen("tcp4", ":5000")
+	} else {
+		lis, err = net.Listen("tcp4", srv.addr)
+	}
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	// add the address
 	//srv.addr = lis.Addr().String()
-	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n", srv.addr))
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s, lis=%s\n", srv.addr, lis.Addr().String()))
 	// add the correct ID to the server
 	var id uint32
 	for _, node := range srv.View.Nodes() {

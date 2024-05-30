@@ -24,7 +24,7 @@ func (*SimpleBenchmark) CreateServer(addr string, srvAddrs []string) (*simpleSer
 }
 
 func (b *SimpleBenchmark) Init(opts RunOptions) {
-	b.clients = make([]*simpleClient.Client, len(opts.clients))
+	b.clients = make([]*simpleClient.Client, 0, len(opts.clients))
 	createClients(b, opts)
 	warmupFunc(b.clients, b.warmup)
 }

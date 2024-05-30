@@ -23,7 +23,7 @@ func (*PaxosQCBenchmark) CreateServer(addr string, srvAddrs []string) (*paxosSer
 }
 
 func (b *PaxosQCBenchmark) Init(opts RunOptions) {
-	b.clients = make([]*paxosClient.Client, len(opts.clients))
+	b.clients = make([]*paxosClient.Client, 0, len(opts.clients))
 	createClients(b, opts)
 	warmupFunc(b.clients, b.warmup)
 }

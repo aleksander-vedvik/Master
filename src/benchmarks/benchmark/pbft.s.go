@@ -24,7 +24,7 @@ func (*PbftSBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer
 }
 
 func (b *PbftSBenchmark) Init(opts RunOptions) {
-	b.clients = make([]*pbftClient.Client, len(opts.clients))
+	b.clients = make([]*pbftClient.Client, 0, len(opts.clients))
 	createClients(b, opts)
 	warmupFunc(b.clients, b.warmup)
 }
