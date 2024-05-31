@@ -128,7 +128,7 @@ func main() {
 	}
 
 	if os.Getenv("LOG") == "1" {
-		*runSrv = *withLogger
+		*withLogger = true
 	}
 
 	if os.Getenv("THROUGHPUT") != "" {

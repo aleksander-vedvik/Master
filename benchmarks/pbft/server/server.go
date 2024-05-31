@@ -40,7 +40,7 @@ type Server struct {
 func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
 	wL := true
 	srv := Server{
-		Server:         pb.NewServer(gorums.WithSLogger(logger)),
+		Server:         pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(addr)),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
@@ -87,7 +87,6 @@ func (s *Server) Start(local bool) {
 		panic(err)
 	}
 	//go s.status()
-	s.addr = lis.Addr().String()
 	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
 	if local {
 		go s.Serve(lis)
