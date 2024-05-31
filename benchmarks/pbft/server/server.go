@@ -89,6 +89,11 @@ func (s *Server) Start(local bool) {
 	//go s.status()
 	s.addr = lis.Addr().String()
 	slog.Info(fmt.Sprintf("Server started. Listening on address: %s\n\t- peers: %v\n", s.addr, s.peers))
+	if local {
+		go s.Serve(lis)
+		return
+	}
+	s.Serve(lis)
 	if s.withoutLeader {
 		return
 	}
@@ -106,12 +111,6 @@ func (s *Server) Start(local bool) {
 	})
 	s.leaderElection.StartLeaderElection()
 	go s.listenForLeaderChanges()
-
-	if local {
-		go s.Serve(lis)
-		return
-	}
-	s.Serve(lis)
 }
 
 func (s *Server) listenForLeaderChanges() {

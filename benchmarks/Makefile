@@ -26,3 +26,7 @@ network:
 
 docker:
 	docker compose up --build
+
+eval:
+	docker compose down
+	docker compose up
