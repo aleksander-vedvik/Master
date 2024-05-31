@@ -3,8 +3,10 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,12 +78,13 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 }
 
 func (c *Client) Start() {
-	lis, err := net.Listen("tcp", c.addr)
+	splittedAddr := strings.Split(c.addr, ":")
+	lis, err := net.Listen("tcp", ":"+splittedAddr[1])
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("client started. Listening on address: %s, lis=%s\n", c.addr, lis.Addr().String()))
 	go c.srv.Serve(lis)
-	slog.Info("client started", "addr", c.addr)
 }
 
 func (c *Client) Stop() {

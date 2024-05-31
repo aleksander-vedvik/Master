@@ -2,9 +2,10 @@ package server
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
 	"sync"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
@@ -70,9 +71,20 @@ func (srv *Server) configureView() {
 }
 
 func (s *Server) Start(local bool) {
-	lis, err := net.Listen("tcp4", s.addr)
+	var (
+		lis net.Listener
+		err error
+	)
+	env := os.Getenv("PRODUCTION")
+	if env == "1" {
+		splittedAddr := strings.Split(s.addr, ":")
+		//lis, err = net.Listen("tcp4", ":5000")
+		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
+	} else {
+		lis, err = net.Listen("tcp", s.addr)
+	}
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	//go s.status()
 	s.addr = lis.Addr().String()

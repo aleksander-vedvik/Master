@@ -6,11 +6,13 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Server
     environment:
       - PRODUCTION=1
-      - BENCH=1
+      - BENCH=2
       - ID=0
       - SERVER=1
     ports:
       - "5000:5000"
+    volumes:
+      - ./logs:/app/logs
     networks:
       MasterLab:
         ipv4_address: 10.0.0.5
@@ -20,11 +22,13 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Server
     environment:
       - PRODUCTION=1
-      - BENCH=1
+      - BENCH=2
       - ID=1
       - SERVER=1
     ports:
-      - "5001:5000"
+      - "5001:5001"
+    volumes:
+      - ./logs:/app/logs
     networks:
       MasterLab:
         ipv4_address: 10.0.0.6
@@ -34,11 +38,13 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Server
     environment:
       - PRODUCTION=1
-      - BENCH=1
+      - BENCH=2
       - ID=2
       - SERVER=1
     ports:
-      - "5002:5000"
+      - "5002:5002"
+    volumes:
+      - ./logs:/app/logs
     networks:
       MasterLab:
         ipv4_address: 10.0.0.7
@@ -48,13 +54,16 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Client
     environment:
       - PRODUCTION=1
-      - BENCH=1
+      - BENCH=2
       - SERVER=0
-      - THROUGHPUT=1000
-      - STEPS=1
-      - DUR=1
+      - THROUGHPUT=5000
+      - STEPS=10
+      - DUR=10
     ports:
       - "8080-8089:8080-8089"
+    volumes:
+      - ./logs:/app/logs
+      - ./csv:/app/csv
     networks:
       MasterLab:
         ipv4_address: 10.0.0.3

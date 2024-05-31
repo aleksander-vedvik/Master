@@ -89,7 +89,7 @@ func WriteToCsv(name, benchname string, records []Result, clientRecord ClientRes
 }
 
 func WriteThroughputVsLatency(name string, throughputVsLatency [][]string) error {
-	path := fmt.Sprintf("./csv/tvsl/%s.csv", name)
+	path := fmt.Sprintf("./csv/%s.csv", name)
 	fmt.Println("writing throughput vs latency file...")
 	file, err := os.Create(path)
 	if err != nil {

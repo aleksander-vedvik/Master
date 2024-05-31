@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +60,18 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 
 func (s *Server) Start(local bool) {
 	slog.Info("server: started", "addr", s.addr)
-	lis, err := net.Listen("tcp", s.addr)
+	var (
+		lis net.Listener
+		err error
+	)
+	env := os.Getenv("PRODUCTION")
+	if env == "1" {
+		splittedAddr := strings.Split(s.addr, ":")
+		//lis, err = net.Listen("tcp4", ":5000")
+		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
+	} else {
+		lis, err = net.Listen("tcp", s.addr)
+	}
 	if err != nil {
 		panic(err)
 	}

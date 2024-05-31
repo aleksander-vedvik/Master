@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -107,7 +109,18 @@ func (r *PaxosReplica) Stop() {
 }
 
 func (r *PaxosReplica) Start(local bool) {
-	lis, err := net.Listen("tcp", r.addr)
+	var (
+		lis net.Listener
+		err error
+	)
+	env := os.Getenv("PRODUCTION")
+	if env == "1" {
+		splittedAddr := strings.Split(r.addr, ":")
+		//lis, err = net.Listen("tcp4", ":5000")
+		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
+	} else {
+		lis, err = net.Listen("tcp", r.addr)
+	}
 	if err != nil {
 		panic(err)
 	}

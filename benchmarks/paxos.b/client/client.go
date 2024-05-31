@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 
 	pb "github.com/aleksander-vedvik/benchmark/paxos.b/proto"
@@ -22,14 +21,19 @@ type Client struct {
 }
 
 func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Logger) *Client {
-	if logger == nil {
-		loggerOpts := &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelDebug,
-		}
-		handler := slog.NewTextHandler(os.Stdout, loggerOpts)
-		logger = slog.New(handler)
-	}
+	//if logger == nil {
+	//file, err := os.Create("./logs/log.json")
+	//if err != nil {
+	//panic(err)
+	//}
+	//loggerOpts := &slog.HandlerOptions{
+	//AddSource: true,
+	//Level:     slog.LevelDebug,
+	//}
+	////handler := slog.NewTextHandler(os.Stdout, loggerOpts)
+	//handler := slog.NewJSONHandler(file, loggerOpts)
+	//logger = slog.New(handler)
+	//}
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),

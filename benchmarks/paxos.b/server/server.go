@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	ld "github.com/aleksander-vedvik/benchmark/leaderelection"
@@ -35,12 +36,17 @@ type Server struct {
 }
 
 func New(addr string, srvAddrs []string, logger *slog.Logger) *Server {
-	//if logger == nil {
+	//if logger == nil && addr == "10.0.0.5:5000" {
+	//file, err := os.Create(fmt.Sprintf("./logs/log.%s.json", addr))
+	//if err != nil {
+	//panic(err)
+	//}
 	//loggerOpts := &slog.HandlerOptions{
 	//AddSource: true,
 	//Level:     slog.LevelDebug,
 	//}
-	//handler := slog.NewTextHandler(os.Stdout, loggerOpts)
+	////handler := slog.NewTextHandler(os.Stdout, loggerOpts)
+	//handler := slog.NewJSONHandler(file, loggerOpts)
 	//logger = slog.New(handler)
 	//}
 	disable := true
@@ -100,9 +106,11 @@ func (srv *Server) Start(local bool) {
 	)
 	env := os.Getenv("PRODUCTION")
 	if env == "1" {
-		lis, err = net.Listen("tcp4", ":5000")
+		splittedAddr := strings.Split(srv.addr, ":")
+		//lis, err = net.Listen("tcp4", ":5000")
+		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
 	} else {
-		lis, err = net.Listen("tcp4", srv.addr)
+		lis, err = net.Listen("tcp", srv.addr)
 	}
 	if err != nil {
 		panic(err)

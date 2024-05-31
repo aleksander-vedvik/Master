@@ -398,6 +398,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 
 	// start the recording of metrics
 	resultBefore := benchmark.StartBenchmark(config)
+	// wait for start to finish up
+	time.Sleep(1 * time.Second)
 	if opts.memProfile {
 		cpuProfile, _ := os.Create("cpuprofile")
 		memProfile, _ := os.Create("memprofile")
@@ -426,8 +428,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		graceTime := 30 * time.Second
 		for i := 0; i < totalNumReqs; i++ {
 			if i%(opts.numRequests/2) == 0 {
-				//fmt.Printf("%v%s done\n", (100 * float64(i) / float64(10*opts.numRequests)), "%")
-				fmt.Printf("..")
+				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
+				//fmt.Printf("..")
 			}
 			var res RequestResult
 			// prevent deadlock

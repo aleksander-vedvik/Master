@@ -1,9 +1,11 @@
 package client
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"net"
+	"strings"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -21,10 +23,12 @@ func getConfig(id int, addr string, srvAddresses []string, qSize int, logger *sl
 		gorums.WithMachineID(uint64(id)),
 		gorums.WithLogger(logger),
 	)
-	lis, err := net.Listen("tcp", addr)
+	splittedAddr := strings.Split(addr, ":")
+	lis, err := net.Listen("tcp", ":"+splittedAddr[1])
 	if err != nil {
 		panic(err)
 	}
+	slog.Info(fmt.Sprintf("ClientServer started. Listening on address: %s, lis=%s\n", addr, lis.Addr().String()))
 	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
 	quorum, err := mgr.NewConfiguration(
 		NewQSpec(qSize),

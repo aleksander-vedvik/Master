@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -107,7 +109,18 @@ func (r *PaxosReplica) Stop() {
 }
 
 func (r *PaxosReplica) Start(local bool) {
-	lis, err := net.Listen("tcp", r.addr)
+	var (
+		lis net.Listener
+		err error
+	)
+	env := os.Getenv("PRODUCTION")
+	if env == "1" {
+		splittedAddr := strings.Split(r.addr, ":")
+		//lis, err = net.Listen("tcp4", ":5000")
+		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
+	} else {
+		lis, err = net.Listen("tcp", r.addr)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -124,11 +137,9 @@ func (r *PaxosReplica) Start(local bool) {
 // It also starts the failure detector, which is necessary to get leader detections.
 func (r *PaxosReplica) run() {
 	go func() {
-		slog.Info("running srv")
 		qspec := NewPaxosQSpec(len(r.nodeMap))
 		paxConfig, err := r.paxosManager.NewConfiguration(qspec, gorums.WithNodeMap(r.nodeMap))
 		if err != nil {
-			slog.Info("srv crashed", "err", err)
 			return
 		}
 		r.Proposer.setConfiguration(paxConfig)
@@ -136,7 +147,6 @@ func (r *PaxosReplica) run() {
 		for {
 			select {
 			case <-r.stop:
-				slog.Warn("stopped")
 				return
 			case accept := <-r.Proposer.msgQueue:
 				if !r.isLeader() {
