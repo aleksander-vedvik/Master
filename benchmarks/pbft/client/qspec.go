@@ -29,7 +29,7 @@ func getConfig(id int, addr string, srvAddresses []string, qSize int, logger *sl
 		panic(err)
 	}
 	slog.Info(fmt.Sprintf("ClientServer started. Listening on address: %s, lis=%s\n", addr, lis.Addr().String()))
-	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
+	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger), gorums.WithListenAddr(addr))
 	quorum, err := mgr.NewConfiguration(
 		NewQSpec(qSize),
 		gorums.WithNodeList(srvAddresses),
