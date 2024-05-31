@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:alpine
+
+WORKDIR /app
+
+COPY gorums gorums
+COPY Master/benchmarks/go.mod .
+COPY Master/benchmarks/go.sum .
+RUN go mod download
+
+COPY Master/benchmarks/. .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /server
+
+# Internal port
+#EXPOSE 5000
+ENV PRODUCTION=1
+ENV SERVER=1
+#ENV BENCH=1
+#ENV ID=0
+
+CMD [ "/server" ]
