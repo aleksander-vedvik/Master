@@ -127,6 +127,10 @@ func main() {
 		*runSrv = true
 	}
 
+	if os.Getenv("LOG") == "1" {
+		*runSrv = *withLogger
+	}
+
 	if os.Getenv("THROUGHPUT") != "" {
 		var err error
 		*throughput, err = strconv.Atoi(os.Getenv("THROUGHPUT"))
@@ -183,7 +187,7 @@ func main() {
 func runBenchmark(name string, clients ServerEntry, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool) {
 	options := make([]bench.RunOption, 0)
 	if withLogger {
-		file, err := os.Create("log.Clients.json")
+		file, err := os.Create("./logs/log.Clients.json")
 		if err != nil {
 			panic(err)
 		}
@@ -248,7 +252,7 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, me
 	fmt.Println("Running server:", benchType)
 	var logger *slog.Logger
 	if withLogger {
-		file, err := os.Create(fmt.Sprintf("log.%s:%s.json", srvAddrs[id].Addr, srvAddrs[id].Port))
+		file, err := os.Create(fmt.Sprintf("./logs/log.%s:%s.json", srvAddrs[id].Addr, srvAddrs[id].Port))
 		if err != nil {
 			panic(err)
 		}
