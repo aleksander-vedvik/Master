@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-gorums v0.7.0-devel
 // 	protoc            v3.12.4
-// source: paxosqcb.proto
+// source: paxosqcb/proto/paxosqcb.proto
 
 package protoqcb
 
@@ -109,8 +109,15 @@ func (mgr *Manager) Close() {
 	}
 }
 
-func (mgr *Manager) AddClientServer(lis net.Listener, opts ...gorums.ServerOption) error {
-	srv := gorums.NewClientServer(lis, opts...)
+// AddClientServer starts a lightweight client-side server. This server only accepts responses
+// to broadcast requests sent by the client.
+//
+// It is important to provide the listenAddr because this will be used to advertise the IP the
+// servers should reply back to.
+func (mgr *Manager) AddClientServer(lis net.Listener, clientAddr net.Addr, opts ...gorums.ServerOption) error {
+	options := []gorums.ServerOption{gorums.WithListenAddr(clientAddr)}
+	options = append(options, opts...)
+	srv := gorums.NewClientServer(lis, options...)
 	srvImpl := &clientServerImpl{
 		ClientServer: srv,
 	}
@@ -339,7 +346,7 @@ type QuorumSpec interface {
 	AcceptQF(in *AcceptMsg, replies map[uint32]*LearnMsg) (*LearnMsg, bool)
 
 	// ClientHandleQF is the quorum function for the ClientHandle
-	// quorum call method. The in parameter is the request object
+	// broadcast call method. The in parameter is the request object
 	// supplied to the ClientHandle method at call time, and may or may not
 	// be used by the quorum function. If the in parameter is not needed
 	// you should implement your quorum function with '_ *Value'.

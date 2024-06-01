@@ -39,8 +39,12 @@ type Server struct {
 // Creates a new StorageServer.
 func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
 	wL := true
+	address, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
 	srv := Server{
-		Server:         pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(addr)),
+		Server:         pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(address)),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,

@@ -1,25 +1,4 @@
-.PHONY: proto srv1 srv2 srv3 client run
-srv1:
-	go run main.go -server -id=0 -run=$(bench) -log
-
-srv2:
-	go run main.go -server -id=1 -run=$(bench) -log
-
-srv3:
-	go run main.go -server -id=2 -run=$(bench) -log
-
-client:
-	go run main.go -run=$(bench) -local=false -throughput=15000 -steps=1
-
-run: srv1 srv2 srv3
-
-all: pbft/protos/node.pb.go pbft/protos/node_gorums.pb.go
-
-%.pb.go %_gorums.pb.go : %.proto
-	@protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
-		--go_out=paths=source_relative:. \
-		--gorums_out=paths=source_relative:. \
-		$<
+.PHONY: proto docker clean eval
 
 network:
 	docker network create --gateway 10.0.0.1 --subnet 10.0.0.0/16 MasterLab
@@ -30,3 +9,22 @@ docker:
 eval:
 	docker compose down
 	docker compose up
+
+gorums_include := $(shell go list -m -f {{.Dir}} github.com/relab/gorums)
+paxosBC_src := paxos.b/proto/multipaxos.pb.go
+paxosQC_src := paxosqc/proto/paxosqc.pb.go
+paxosQCB_src := paxosqcb/proto/paxosqcb.pb.go
+pbftBC_src := pbft/protos/node.pb.go
+pbftBCO_src := pbft.o/protos/nodeo.pb.go
+
+proto: clean $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftBCO_src)
+	@echo "compiling gorums proto files" 
+
+%.pb.go %_gorums.pb.go : %.proto
+	-@protoc -I=$(gorums_include):. \
+		--go_out=paths=source_relative:. \
+		--gorums_out=paths=source_relative:. \
+		$<
+
+clean:
+	-rm $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftBCO_src)

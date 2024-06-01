@@ -1,11 +1,27 @@
-proto:
-	protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
-	--go_out=paths=source_relative:. \
-	--gorums_out=paths=source_relative:. \
-	*.proto
+gorum_include := $(shell go list -m -f {{.Dir}} github.com/relab/gorums)
+proto_src := proto/paxosqc.proto
+proto_go := $(proto_src:%.proto=%.pb.go)
 
-protos:
-	protoc --go_out=paths=source_relative:. proto/*.proto
+all: proto 
+
+.PHONY: proto
+proto: $(proto_go)
+	@echo "+ compiling gorums proto files" + $(proto_go)
+
+%.pb.go %_gorums.pb.go : %.proto
+	@protoc -I=$(gorum_include):. \
+		--go_out=paths=source_relative:. \
+		--gorums_out=paths=source_relative:. \
+		$<
+
+#proto:
+#	protoc -I=$(go list -m -f {{.Dir}} github.com/relab/gorums):. \
+#	--go_out=paths=source_relative:. \
+#	--gorums_out=paths=source_relative:. \
+#	*.proto
+#
+#protos:
+#	protoc --go_out=paths=source_relative:. proto/*.proto
 
 docker:
 	docker compose up

@@ -48,7 +48,11 @@ func New(id int, addr string, srvAddresses []string, qSize int, logger *slog.Log
 		panic(err)
 	}
 	slog.Info(fmt.Sprintf("ClientServer started. Listening on address: %s, lis=%s\n", addr, lis.Addr().String()))
-	mgr.AddClientServer(lis, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger), gorums.WithListenAddr(addr))
+	address, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	mgr.AddClientServer(lis, address, gorums.WithSrvID(uint64(id)), gorums.WithSLogger(logger))
 	config, err := mgr.NewConfiguration(
 		gorums.WithNodeList(srvAddresses),
 		newQSpec(qSize),

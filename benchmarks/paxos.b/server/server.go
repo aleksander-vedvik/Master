@@ -60,9 +60,13 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *Server {
 			break
 		}
 	}
+	address, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
 	srv := Server{
 		id:     uint32(id),
-		Server: pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(addr)),
+		Server: pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(address)),
 		//Server:                pb.NewServer(),
 		acceptor:              NewAcceptor(addr, len(srvAddrs)),
 		data:                  make([]string, 0),
