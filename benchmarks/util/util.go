@@ -42,6 +42,7 @@ func main() {
 	benchTypesString := flag.String("bench", "0", "types of benchmark to create histograms for. Should be comma seperated list:"+mapping.String())
 	numBuckets := flag.Int("num", 0, "number of buckets in histogram")
 	folderPath := flag.String("path", "./csv", "folder path to csv files")
+	throughput := flag.Int("t", 0, "throughput")
 	flag.Parse()
 
 	benchTypesSlice := strings.Split(*benchTypesString, ",")
@@ -57,14 +58,14 @@ func main() {
 		}
 		benchTypes = append(benchTypes, benchType)
 	}
-	createHistogram(*numBuckets, benchTypes, *folderPath)
+	createHistogram(*numBuckets, benchTypes, *folderPath, *throughput)
 }
 
-func createHistogram(numbuckets int, benchTypes []string, path string) {
+func createHistogram(numbuckets int, benchTypes []string, path string, throughput int) {
 	min, max := -1, -1
 	allLatencies := make([][]int, 0)
 	for _, name := range benchTypes {
-		latencies, err := getLatencies(name, path)
+		latencies, err := getLatencies(name, path, throughput)
 		if err != nil {
 			panic(err)
 		}
@@ -89,14 +90,14 @@ func createHistogram(numbuckets int, benchTypes []string, path string) {
 			}
 			histogram[index*bucketSize]++
 		}
-		WriteHistogram(benchTypes[i], histogram, path)
+		WriteHistogram(benchTypes[i], histogram, path, throughput)
 	}
 }
 
-func getLatencies(name string, path string) ([]int, error) {
+func getLatencies(name, path string, throughput int) ([]int, error) {
 	allDurs := make([][]int, 0, 1000)
 	for runNumber := 0; runNumber < 20; runNumber++ {
-		filePath := fmt.Sprintf("%s/%s.%v.durations.csv", path, name, runNumber)
+		filePath := fmt.Sprintf("%s/%s.T%v.R%v.durations.csv", path, name, throughput, runNumber)
 		fmt.Println("reading file:", filePath)
 		file, err := os.Open(filePath)
 		if err != nil {
@@ -141,8 +142,8 @@ func getLatencies(name string, path string) ([]int, error) {
 	return avgDurs, nil
 }
 
-func WriteHistogram(name string, histogram map[int]int, folderPath string) error {
-	path := fmt.Sprintf("%s/%s.histogram.csv", folderPath, name)
+func WriteHistogram(name string, histogram map[int]int, folderPath string, throughput int) error {
+	path := fmt.Sprintf("%s/%s.T%v.histogram.csv", folderPath, name, throughput)
 	fmt.Println("writing histogram to:", path)
 	file, err := os.Create(path)
 	if err != nil {

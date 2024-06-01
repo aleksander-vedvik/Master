@@ -257,24 +257,24 @@ func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) {
 	for _, opt := range options {
 		opt(&opts)
 	}
-	for i := 0; i < opts.runs; i++ {
-		runThroughputVsLatencyBenchmark(name, i, opts)
-	}
-}
-
-func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions) ([]Result, []error) {
 	benchmark, ok := benchTypes[name]
 	if !ok {
-		return nil, nil
-	}
-	if opts.throughputIncrement <= 0 {
-		opts.throughputIncrement = opts.throughputMax / opts.steps
+		return
 	}
 	if opts.clients != nil {
 		opts.numClients = len(opts.clients)
 	}
-	benchmarkState := benchmark.init()
-	benchmarkState.Init(opts)
+	state := benchmark.init()
+	state.Init(opts)
+	for i := 0; i < opts.runs; i++ {
+		runThroughputVsLatencyBenchmark(benchmark, state, name, i, opts)
+	}
+}
+
+func runThroughputVsLatencyBenchmark(benchmark benchStruct, benchmarkState initializable, name string, runNumber int, opts RunOptions) ([]Result, []error) {
+	if opts.throughputIncrement <= 0 {
+		opts.throughputIncrement = opts.throughputMax / opts.steps
+	}
 	fmt.Println("running benchmark:", name)
 	results := make([]Result, len(benchmarks))
 	errs := make([]error, len(benchmarks))
@@ -303,7 +303,7 @@ func runThroughputVsLatencyBenchmark(name string, runNumber int, opts RunOptions
 		}
 		fmt.Println("took:", time.Since(start))
 		throughputVsLatency = append(throughputVsLatency, []string{strconv.Itoa(int(clientResult.Throughput)), strconv.Itoa(int(clientResult.LatencyAvg.Milliseconds())), strconv.Itoa(int(clientResult.LatencyMedian.Milliseconds()))})
-		err = WriteDurations(fmt.Sprintf("%s.%v.durations", name, runNumber), clientResult.Durations)
+		err = WriteDurations(fmt.Sprintf("%s.T%v.R%v.durations", name, target, runNumber), clientResult.Durations)
 		if err != nil {
 			panic(err)
 		}

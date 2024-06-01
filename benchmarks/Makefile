@@ -33,4 +33,4 @@ wd := $(shell pwd)
 csv_path := $(wd)/csv
 
 histogram:
-	@cd Master/benchmarks/util/; go run util.go -num=$(NUM) -bench=$(BENCH) -path=$(csv_path)
+	@cd Master/benchmarks/util/; go run util.go -num=$(NUM) -bench=$(BENCH) -path=$(csv_path) -t=$(T)

@@ -17,10 +17,12 @@ type initializable interface {
 	Init(RunOptions)
 }
 
-var benchTypes = map[string]struct {
+type benchStruct struct {
 	run  func(benchmarkOption, any) (ClientResult, []Result, error)
 	init func() initializable
-}{
+}
+
+var benchTypes = map[string]benchStruct{
 	PaxosBroadcastCall: {
 		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
 			return runBenchmark(opts, bench.(*PaxosBenchmark))
