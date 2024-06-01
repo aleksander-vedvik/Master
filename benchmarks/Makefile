@@ -34,3 +34,6 @@ csv_path := $(wd)/csv
 
 histogram:
 	@cd Master/benchmarks/util/; go run util.go -num=$(NUM) -bench=$(BENCH) -path=$(csv_path) -t=$(T)
+
+binary:
+	CGO_ENABLED=0 GOOS=linux go build -o ./app
