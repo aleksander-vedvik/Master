@@ -19,6 +19,7 @@ import (
 	pbftWithoutGorums "github.com/aleksander-vedvik/benchmark/pbft.s/server"
 	pbftWithGorums "github.com/aleksander-vedvik/benchmark/pbft/server"
 	simple "github.com/aleksander-vedvik/benchmark/simple/server"
+	"github.com/joho/godotenv"
 	"github.com/relab/gorums"
 	"gopkg.in/yaml.v3"
 )
@@ -90,6 +91,8 @@ func (m mappingType) String() string {
 }
 
 func main() {
+	godotenv.Load(".env")
+
 	fmt.Println("--------")
 	fmt.Println("Servers")
 	servers, clients := getConfig()
