@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -130,16 +131,28 @@ func getLatencies(name, path string, throughput int) ([]int, error) {
 	if len(allDurs) <= 0 {
 		return nil, errors.New("no files read")
 	}
-	avgDurs := make([]int, len(allDurs))
+	coalescedDurs := make([]int, len(allDurs))
 	for i, durs := range allDurs {
-		sum := 0
-		for _, dur := range durs {
-			sum += dur
-		}
+		// sort slices to get median
+		slices.Sort(durs)
+		//sum := 0
+		//for _, dur := range durs {
+		//sum += dur
+		//}
 		// precision is not super important. Round down to closest int.
-		avgDurs[i] = sum / len(durs)
+		var median int
+		medianIndex := len(durs) / 2 // integer division does floor operation
+		if len(durs)%2 == 0 {
+			median1 := durs[medianIndex-1]
+			median2 := durs[medianIndex]
+			median = (median1 + median2) / 2
+		} else {
+			median = durs[medianIndex]
+		}
+		coalescedDurs[i] = median
+		//avgDurs[i] = sum / len(durs)
 	}
-	return avgDurs, nil
+	return coalescedDurs, nil
 }
 
 func WriteHistogram(name string, histogram map[int]int, folderPath string, throughput int) error {

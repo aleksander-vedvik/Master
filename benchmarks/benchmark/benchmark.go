@@ -310,7 +310,7 @@ func runThroughputVsLatencyBenchmark(benchmark benchStruct, benchmarkState initi
 		fmt.Println("done")
 		time.Sleep(1 * time.Second)
 	}
-	err := WriteThroughputVsLatency(fmt.Sprintf("%s.%v", name, runNumber), throughputVsLatency)
+	err := WriteThroughputVsLatency(fmt.Sprintf("%s.R%v", name, runNumber), throughputVsLatency)
 	if err != nil {
 		panic(err)
 	}
