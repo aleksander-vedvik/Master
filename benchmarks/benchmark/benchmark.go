@@ -339,7 +339,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		opts.quorumSize = len(opts.srvAddrs)
 	}
 	if opts.timeout <= 0 {
-		opts.timeout = 30 * time.Second
+		opts.timeout = 2 * time.Minute
 	}
 
 	clients := benchmark.Clients()
@@ -393,7 +393,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		fmt.Println("collecting responses:")
 		avgDur := time.Duration(0)
 		numFailed := 0
-		graceTime := 30 * time.Second
+		graceTime := 2 * time.Minute
 		for i := 0; i < totalNumReqs; i++ {
 			if i%(opts.numRequests/2) == 0 {
 				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
