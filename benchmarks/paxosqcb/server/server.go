@@ -79,8 +79,12 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		),
 		gorums.WithLogger(logger),
 	}
+	address, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
 	r := &PaxosReplica{
-		Server:           pb.NewServer(gorums.WithSLogger(logger)),
+		Server:           pb.NewServer(gorums.WithListenAddr(address), gorums.WithSLogger(logger)),
 		Acceptor:         NewAcceptor(),
 		Proposer:         NewProposer(myID, 0, nodeMap),
 		paxosManager:     pb.NewManager(opts...),
