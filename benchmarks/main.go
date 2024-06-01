@@ -155,6 +155,14 @@ func main() {
 		}
 	}
 
+	if os.Getenv("RUNS") != "" {
+		var err error
+		*runs, err = strconv.Atoi(os.Getenv("RUNS"))
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	srvID := *id
 	if srvID < 0 && *runSrv {
 		var err error

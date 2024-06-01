@@ -57,11 +57,12 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Client
     environment:
       - PRODUCTION=1
-      - BENCH=${BENCH}
       - SERVER=0
-      - THROUGHPUT=5000
-      - STEPS=10
-      - DUR=10
+      - BENCH=${BENCH}
+      - THROUGHPUT=${THROUGHPUT}
+      - STEPS=${STEPS}
+      - RUNS=${RUNS}
+      - DUR=${DUR}
       - LOG=${LOG}
     ports:
       - "8080-8089:8080-8089"
