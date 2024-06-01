@@ -120,7 +120,7 @@ func getLatencies(name, path string, throughput int) ([]int, error) {
 			if err != nil {
 				return nil, err
 			}
-			if i > len(allDurs) {
+			if i >= len(allDurs) {
 				allDurs = append(allDurs, []int{latency})
 				continue
 			}
