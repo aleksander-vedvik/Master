@@ -7,13 +7,17 @@ import (
 )
 
 func (s *Server) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest, broadcast *pb.Broadcast) {
+	//slog.Info("PrePrepare", "n", request.SequenceNumber)
 	if !s.isInView(request.View) {
+		//broadcast.SendToClient(nil, errors.New("not in view"))
 		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
+		//broadcast.SendToClient(nil, errors.New("sequence number is invalid"))
 		return
 	}
 	if s.hasAlreadyAcceptedSequenceNumber(request.SequenceNumber) {
+		//broadcast.SendToClient(nil, errors.New("sequence number already accepted"))
 		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
@@ -24,14 +28,17 @@ func (s *Server) PrePrepare(ctx gorums.ServerCtx, request *pb.PrePrepareRequest,
 		Digest:         request.Digest,
 		Message:        request.Message,
 		Timestamp:      request.Timestamp,
-	})
+	}, gorums.WithoutSelf())
 }
 
 func (s *Server) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broadcast *pb.Broadcast) {
+	//slog.Info("Prepare", "n", request.SequenceNumber)
 	if !s.isInView(request.View) {
+		//broadcast.SendToClient(nil, errors.New("not in view"))
 		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
+		//broadcast.SendToClient(nil, errors.New("sequence number is invalid"))
 		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
@@ -43,15 +50,18 @@ func (s *Server) Prepare(ctx gorums.ServerCtx, request *pb.PrepareRequest, broad
 			Digest:         request.Digest,
 			SequenceNumber: request.SequenceNumber,
 			Message:        request.Message,
-		})
+		}, gorums.WithoutSelf())
 	}
 }
 
 func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadcast *pb.Broadcast) {
+	//slog.Info("Commit", "n", request.SequenceNumber)
 	if !s.isInView(request.View) {
+		//broadcast.SendToClient(nil, errors.New("not in view"))
 		return
 	}
 	if !s.sequenceNumberIsValid(request.SequenceNumber) {
+		//broadcast.SendToClient(nil, errors.New("sequence number is invalid"))
 		return
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
@@ -62,12 +72,16 @@ func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadca
 			Timestamp: request.Timestamp,
 			View:      request.View,
 		}
+		s.mut.Lock()
 		s.state = state
+		s.mut.Unlock()
 		broadcast.SendToClient(state, nil)
 	}
 }
 
 func (s *Server) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.ClientResponse, bool) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 	return s.state, s.state != nil && s.state.Id == req.Id
 }
 

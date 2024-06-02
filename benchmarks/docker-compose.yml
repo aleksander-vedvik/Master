@@ -54,6 +54,24 @@ services:
     networks:
       MasterLab:
         ipv4_address: 10.0.0.7
+  srv4:
+    build: 
+      context: .
+      dockerfile: Master/benchmarks/Dockerfile.Server
+    environment:
+      - ID=3
+      - SERVER=1
+      - CONF=conf.docker.yaml
+      - PRODUCTION=${PRODUCTION}
+      - BENCH=${BENCH}
+      - LOG=${LOG}
+    ports:
+      - "5003:5003"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      MasterLab:
+        ipv4_address: 10.0.0.8
   client:
     build: 
       context: .
@@ -80,6 +98,7 @@ services:
       - srv1
       - srv2
       - srv3
+      - srv4
 
 networks:
   MasterLab:

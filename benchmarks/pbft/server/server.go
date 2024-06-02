@@ -44,7 +44,7 @@ func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
 		panic(err)
 	}
 	srv := Server{
-		Server:         pb.NewServer(gorums.WithSLogger(logger), gorums.WithListenAddr(address)),
+		Server:         pb.NewServer(gorums.WithOrder(pb.PBFTNodePrePrepare, pb.PBFTNodePrepare, pb.PBFTNodeCommit), gorums.WithSLogger(logger), gorums.WithListenAddr(address)),
 		data:           make([]string, 0),
 		addr:           addr,
 		peers:          srvAddresses,
@@ -144,7 +144,7 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 	s.sequenceNumber++
 	s.mut.Unlock()
 	s.messageLog.add(req, s.viewNumber, req.SequenceNumber)
-	broadcast.PrePrepare(req, gorums.WithoutSelf())
+	broadcast.PrePrepare(req, gorums.WithoutSelf(), gorums.ProgressTo(pb.PBFTNodePrepare))
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {

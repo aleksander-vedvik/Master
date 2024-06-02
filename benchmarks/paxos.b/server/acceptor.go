@@ -116,7 +116,6 @@ func (a *Acceptor) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg, broadcast *
 			}
 		}
 		a.execute(request.Slot, broadcast, &pb.PaxosResponse{})
-		//broadcast.SendToClient(&pb.PaxosResponse{}, nil)
 	}
 }
 

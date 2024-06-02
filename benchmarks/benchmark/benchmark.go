@@ -605,8 +605,8 @@ func runRandom[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resCha
 }
 
 // each client runs asynchronously. I.e. sends all requests at once.
-// runs for 10 seconds and sends reqs at target throughput.
-/*func runThroughputOld[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
+// runs for 10 seconds and sends reqs at the target throughput.
+func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
 	// opts.numRequests denotes the target throughput in reqs/s. We thus
 	// need to divide the number of reqs by the number of clients.
 	numReqsPerClient := opts.numRequests / len(clients)
@@ -631,11 +631,11 @@ func runRandom[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resCha
 		}
 		time.Sleep(1 * time.Second)
 	}
-}*/
+}
 
 // each client runs asynchronously. I.e. sends all requests at once.
 // runs for 10 seconds and sends reqs at target throughput.
-func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
+func runThroughputQueue[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
 	// opts.numRequests denotes the target throughput in reqs/s. We thus
 	// need to divide the number of reqs by the number of clients.
 	numReqsPerClient := opts.numRequests / len(clients)
@@ -644,9 +644,11 @@ func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], re
 		//fmt.Printf("\t%v: sending reqs...\n", t)
 		for _, client := range clients {
 			go func(client *C) {
+				reqsLeft := numReqsPerClient
 				var wg sync.WaitGroup
-				for i := 0; i < numReqsPerClient/10; i++ {
+				for reqsLeft > 0 {
 					for j := 0; j < 10; j++ {
+						reqsLeft--
 						wg.Add(1)
 						go func(i int) {
 							defer wg.Done()
@@ -660,7 +662,7 @@ func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], re
 								start: start,
 								end:   end,
 							}
-						}(i*10 + j)
+						}(reqsLeft*10 + j)
 					}
 					wg.Wait()
 				}

@@ -11,6 +11,10 @@ servers:
       id: 2
       addr: "10.0.0.7"
       port: "5002"
+  - 3:
+      id: 3
+      addr: "10.0.0.8"
+      port: "5003"
 
 clients:
   - 0:
