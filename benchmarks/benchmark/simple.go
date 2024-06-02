@@ -33,6 +33,10 @@ func (b *SimpleBenchmark) Clients() []*simpleClient.Client {
 	return b.clients
 }
 
+func (b *SimpleBenchmark) Config() *simpleClient.Client {
+	return b.clients[0]
+}
+
 func (b *SimpleBenchmark) Stop() {
 	for _, client := range b.clients {
 		client.Stop()

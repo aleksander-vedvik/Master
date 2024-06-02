@@ -148,6 +148,11 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
+	//if srv.isLeader() {
+	//newCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	//srv.View.Benchmark(newCtx, &emptypb.Empty{})
+	//cancel()
+	//}
 	srv.mut.Lock()
 	defer srv.mut.Unlock()
 	slog.Info("purging reqs")

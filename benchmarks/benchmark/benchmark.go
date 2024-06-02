@@ -63,6 +63,7 @@ type Benchmark[S, C any] interface {
 	Init(opts RunOptions)
 	AddClient(id int, addr string, srvAddrs []string, logger *slog.Logger)
 	Clients() []*C
+	Config() *C
 	Stop()
 	//Warmup(client *C)
 	StartBenchmark(config *C) []Result
@@ -344,7 +345,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	}
 
 	clients := benchmark.Clients()
-	config = clients[0]
+	config = benchmark.Config()
 
 	var servers []*S
 	if opts.local {

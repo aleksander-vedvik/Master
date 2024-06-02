@@ -33,6 +33,10 @@ func (b *PbftOBenchmark) Clients() []*pbftClient.Client {
 	return b.clients
 }
 
+func (b *PbftOBenchmark) Config() *pbftClient.Client {
+	return b.clients[0]
+}
+
 func (b *PbftOBenchmark) Stop() {
 	for _, client := range b.clients {
 		client.Stop()

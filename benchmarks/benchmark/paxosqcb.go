@@ -32,6 +32,10 @@ func (b *PaxosQCBBenchmark) Clients() []*paxosClient.Client {
 	return b.clients
 }
 
+func (b *PaxosQCBBenchmark) Config() *paxosClient.Client {
+	return b.clients[0]
+}
+
 func (b *PaxosQCBBenchmark) Stop() {
 	for _, client := range b.clients {
 		client.Stop()

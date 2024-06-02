@@ -33,6 +33,10 @@ func (b *PbftBenchmark) Clients() []*pbftClient.Client {
 	return b.clients
 }
 
+func (b *PbftBenchmark) Config() *pbftClient.Client {
+	return b.clients[0]
+}
+
 func (b *PbftBenchmark) Stop() {
 	for _, client := range b.clients {
 		client.Stop()
@@ -40,8 +44,12 @@ func (b *PbftBenchmark) Stop() {
 }
 
 func (b *PbftBenchmark) AddClient(id int, addr string, srvAddrs []string, logger *slog.Logger) {
+	srv := 1
+	if id == 0 {
+		srv = len(srvAddrs)
+	}
 	qSize := 2 * len(srvAddrs) / 3
-	b.clients = append(b.clients, pbftClient.New(id, addr, srvAddrs[0:1], qSize, logger))
+	b.clients = append(b.clients, pbftClient.New(id, addr, srvAddrs[0:srv], qSize, logger))
 }
 
 func (*PbftBenchmark) warmup(client *pbftClient.Client) {
