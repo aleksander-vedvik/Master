@@ -82,6 +82,9 @@ func (*PaxosQCBBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	//	}
 	//}
 	//return result
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	config.Benchmark(ctx)
 	return nil
 }
 

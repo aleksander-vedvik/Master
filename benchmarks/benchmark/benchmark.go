@@ -12,6 +12,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -422,7 +423,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 			durations[i] = dur
 		}
 		// wait a short time to make the servers finish up before sending a "purge state msg" to them
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		fmt.Printf("100%s done, numFailed: %v out of %v\n", "%", numFailed, totalNumReqs)
 		benchmark.StopBenchmark(config)
 		fmt.Println("stopped benchmark...")
@@ -605,7 +606,7 @@ func runRandom[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resCha
 
 // each client runs asynchronously. I.e. sends all requests at once.
 // runs for 10 seconds and sends reqs at target throughput.
-func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
+/*func runThroughputOld[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
 	// opts.numRequests denotes the target throughput in reqs/s. We thus
 	// need to divide the number of reqs by the number of clients.
 	numReqsPerClient := opts.numRequests / len(clients)
@@ -627,6 +628,43 @@ func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], re
 					}
 				}(client, i)
 			}
+		}
+		time.Sleep(1 * time.Second)
+	}
+}*/
+
+// each client runs asynchronously. I.e. sends all requests at once.
+// runs for 10 seconds and sends reqs at target throughput.
+func runThroughput[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
+	// opts.numRequests denotes the target throughput in reqs/s. We thus
+	// need to divide the number of reqs by the number of clients.
+	numReqsPerClient := opts.numRequests / len(clients)
+	// it will run for dur seconds
+	for t := 0; t < dur; t++ {
+		//fmt.Printf("\t%v: sending reqs...\n", t)
+		for _, client := range clients {
+			go func(client *C) {
+				var wg sync.WaitGroup
+				for i := 0; i < numReqsPerClient/10; i++ {
+					for j := 0; j < 10; j++ {
+						wg.Add(1)
+						go func(i int) {
+							defer wg.Done()
+							ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
+							defer cancel()
+							start := time.Now()
+							err := benchmark.Run(client, ctx, i)
+							end := time.Now()
+							resChan <- RequestResult{
+								err:   err,
+								start: start,
+								end:   end,
+							}
+						}(i*10 + j)
+					}
+					wg.Wait()
+				}
+			}(client)
 		}
 		time.Sleep(1 * time.Second)
 	}

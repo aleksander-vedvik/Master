@@ -7,6 +7,7 @@ services:
     environment:
       - ID=0
       - SERVER=1
+      - CONF=conf.docker.yaml
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -24,6 +25,7 @@ services:
     environment:
       - ID=1
       - SERVER=1
+      - CONF=conf.docker.yaml
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -41,6 +43,7 @@ services:
     environment:
       - ID=2
       - SERVER=1
+      - CONF=conf.docker.yaml
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -57,6 +60,7 @@ services:
       dockerfile: Master/benchmarks/Dockerfile.Client
     environment:
       - SERVER=0
+      - CONF=conf.docker.yaml
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - THROUGHPUT=${THROUGHPUT}

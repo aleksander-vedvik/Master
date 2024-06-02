@@ -60,6 +60,9 @@ func (*PbftSBenchmark) StartBenchmark(config *pbftClient.Client) []Result {
 }
 
 func (*PbftSBenchmark) StopBenchmark(config *pbftClient.Client) []Result {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	config.SendBenchmark(ctx)
 	return nil
 }
 

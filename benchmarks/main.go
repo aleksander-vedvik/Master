@@ -40,7 +40,11 @@ type Config struct {
 }
 
 func getConfig() (srvs, clients ServerEntry) {
-	data, err := os.ReadFile("conf.yaml")
+	confPath := os.Getenv("CONF")
+	if confPath == "" {
+		confPath = "conf.local.yaml"
+	}
+	data, err := os.ReadFile(confPath)
 	if err != nil {
 		panic(err)
 	}
@@ -189,7 +193,7 @@ func main() {
 	}
 
 	if *runSrv {
-		runServer(benchType, srvID, servers, *withLogger, *memProfile)
+		runServer(benchType, srvID, servers, *withLogger, *memProfile, *local)
 	} else {
 		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
 	}
@@ -259,7 +263,7 @@ type BenchmarkServer interface {
 	Stop()
 }
 
-func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, memprofile bool) {
+func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, memprofile, local bool) {
 	fmt.Println("Running server:", benchType)
 	var logger *slog.Logger
 	if withLogger {
@@ -312,10 +316,14 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, me
 		defer pprof.StopCPUProfile()
 		defer pprof.WriteHeapProfile(memProfile)
 	}
+	if local {
+		srv.Start(true)
+		fmt.Println("Press any key to stop server")
+		fmt.Scanln()
+		//srv.Stop()
+		return
+	}
 	srv.Start(false)
-	//fmt.Println("Press any key to stop server")
-	//fmt.Scanln()
-	//srv.Stop()
 }
 
 type logEntry struct {
@@ -355,7 +363,7 @@ func readLog(broadcastID uint64, server bool) {
 		}
 		return
 	}
-	logFiles := []string{"log.127.0.0.1:5000.json", "log.127.0.0.1:5001.json", "log.127.0.0.1:5002.json"}
+	logFiles := []string{"./logs/log.127.0.0.1:5000.json", "./logs/log.127.0.0.1:5001.json", "./logs/log.127.0.0.1:5002.json"}
 	for _, logFile := range logFiles {
 		fmt.Println()
 		fmt.Println("=============")
@@ -365,17 +373,42 @@ func readLog(broadcastID uint64, server bool) {
 		if err != nil {
 			panic(err)
 		}
+		started := 0
+		stopped := 0
+		bProcessors := make(map[uint64]struct{})
 		scanner := bufio.NewScanner(file)
 		// optionally, resize scanner's capacity for lines over 64K, see next example
 		for scanner.Scan() {
 			var entry logEntry
 			json.Unmarshal(scanner.Bytes(), &entry)
 			if entry.BroadcastID == broadcastID {
-				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
+				fmt.Println("msg:", entry.Msg, "method:", entry.Method, "from:", entry.From)
 			}
-			if broadcastID == 1 {
-				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
+			if broadcastID == 2 && entry.Msg == "processor: started" {
+				if _, ok := bProcessors[entry.BroadcastID]; ok {
+					panic("duplicate broadcastIDs")
+				}
+				bProcessors[entry.BroadcastID] = struct{}{}
+				started++
 			}
+			if broadcastID != 1 {
+				continue
+			}
+			if entry.Msg == "processor: started" {
+				bProcessors[entry.BroadcastID] = struct{}{}
+				started++
+			}
+			if entry.Msg == "processor: stopped" {
+				delete(bProcessors, entry.BroadcastID)
+				stopped++
+			}
+			/*if broadcastID == 1 {
+				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
+			}*/
 		}
+		fmt.Println()
+		fmt.Println("processors:", bProcessors)
+		fmt.Println("processors started:", started)
+		fmt.Println("processors stopped:", stopped)
 	}
 }

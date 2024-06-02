@@ -275,7 +275,8 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value, broadca
 func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.Empty, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	slog.Info("purging state")
+	slog.Info("purging state", "adu", r.adu, "learns", len(r.learntVal))
+	r.SetView(r.View)
 	close(r.stop)
 	r.Acceptor = NewAcceptor()
 	r.Proposer = NewProposer(r.id, 0, r.nodeMap)

@@ -148,6 +148,11 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 }
 
 func (srv *Server) Benchmark(ctx gorums.ServerCtx, request *empty.Empty) (*pb.Result, error) {
+	srv.mut.Lock()
+	defer srv.mut.Unlock()
+	slog.Info("purging reqs")
+	// purge all reqs
+	srv.SetView(srv.View)
 	srv.messageLog.Clear()
 	metrics := srv.GetStats()
 	m := []*pb.Metric{
