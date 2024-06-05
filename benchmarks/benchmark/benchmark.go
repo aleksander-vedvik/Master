@@ -342,6 +342,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	}
 	if opts.timeout <= 0 {
 		opts.timeout = 2 * time.Minute
+		//opts.timeout = 5 * time.Second
 	}
 
 	clients := benchmark.Clients()
@@ -387,7 +388,7 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	case Random:
 		go runRandom(opts, benchmark, resChan, clients)
 	case Throughput:
-		go runThroughput(opts, benchmark, resChan, clients, opts.dur)
+		go runThroughputSync(opts, benchmark, resChan, clients, opts.dur)
 	}
 
 	switch opts.runType {
@@ -666,6 +667,35 @@ func runThroughputQueue[S, C any](opts benchmarkOption, benchmark Benchmark[S, C
 						}(reqsLeft*10 + j)
 					}
 					wg.Wait()
+				}
+			}(client)
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+// each client runs asynchronously. I.e. sends all requests at once.
+// runs for 10 seconds and sends reqs at target throughput.
+func runThroughputSync[S, C any](opts benchmarkOption, benchmark Benchmark[S, C], resChan chan RequestResult, clients []*C, dur int) {
+	// opts.numRequests denotes the target throughput in reqs/s. We thus
+	// need to divide the number of reqs by the number of clients.
+	numReqsPerClient := opts.numRequests / len(clients)
+	// it will run for dur seconds
+	for t := 0; t < dur; t++ {
+		//fmt.Printf("\t%v: sending reqs...\n", t)
+		for _, client := range clients {
+			go func(client *C) {
+				for i := 0; i < numReqsPerClient; i++ {
+					ctx, cancel := context.WithTimeout(context.Background(), opts.timeout)
+					defer cancel()
+					start := time.Now()
+					err := benchmark.Run(client, ctx, i)
+					end := time.Now()
+					resChan <- RequestResult{
+						err:   err,
+						start: start,
+						end:   end,
+					}
 				}
 			}(client)
 		}

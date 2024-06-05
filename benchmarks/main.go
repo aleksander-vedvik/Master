@@ -95,21 +95,6 @@ func (m mappingType) String() string {
 }
 
 func main() {
-	godotenv.Load(".env")
-
-	fmt.Println("--------")
-	fmt.Println("Servers")
-	servers, clients := getConfig()
-	for id, srv := range servers {
-		fmt.Printf("\tServer %v --> ID: %d, Address: %s, Port: %s\n", id, srv.ID, srv.Addr, srv.Port)
-	}
-	fmt.Println("--------")
-	fmt.Println("Clients")
-	for id, client := range clients {
-		fmt.Printf("\tClient %v --> ID: %d, Address: %s, Port: %s\n", id, client.ID, client.Addr, client.Port)
-	}
-	fmt.Println()
-
 	id := flag.Int("id", -1, "nodeID")
 	runSrv := flag.Bool("server", false, "default: false")
 	benchTypeIndex := flag.Int("run", 0, "type of benchmark to run"+mapping.String())
@@ -129,6 +114,21 @@ func main() {
 		readLog(*broadcastID, *runSrv)
 		return
 	}
+
+	godotenv.Load(".env")
+
+	fmt.Println("--------")
+	fmt.Println("Servers")
+	servers, clients := getConfig()
+	for id, srv := range servers {
+		fmt.Printf("\tServer %v --> ID: %d, Address: %s, Port: %s\n", id, srv.ID, srv.Addr, srv.Port)
+	}
+	fmt.Println("--------")
+	fmt.Println("Clients")
+	for id, client := range clients {
+		fmt.Printf("\tClient %v --> ID: %d, Address: %s, Port: %s\n", id, client.ID, client.Addr, client.Port)
+	}
+	fmt.Println()
 
 	if os.Getenv("SERVER") == "1" {
 		*runSrv = true
@@ -341,7 +341,7 @@ func readLog(broadcastID uint64, server bool) {
 		fmt.Println("=============")
 		fmt.Println("Reading:", "log.Clients.json")
 		fmt.Println()
-		file, err := os.Open("log.Clients.json")
+		file, err := os.Open("./logs/log.Clients.json")
 		if err != nil {
 			panic(err)
 		}
@@ -363,7 +363,7 @@ func readLog(broadcastID uint64, server bool) {
 		}
 		return
 	}
-	logFiles := []string{"./logs/log.127.0.0.1:5000.json", "./logs/log.127.0.0.1:5001.json", "./logs/log.127.0.0.1:5002.json"}
+	logFiles := []string{"./logs/log.10.0.0.5:5000.json", "./logs/log.10.0.0.6:5001.json", "./logs/log.10.0.0.7:5002.json", "./logs/log.10.0.0.8:5003.json"}
 	for _, logFile := range logFiles {
 		fmt.Println()
 		fmt.Println("=============")

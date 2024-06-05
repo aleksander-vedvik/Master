@@ -125,7 +125,7 @@ func (s *Server) listenForLeaderChanges() {
 
 func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast *pb.Broadcast) {
 	if !s.isLeader() {
-		if val, ok := s.requestIsAlreadyProcessed(request); ok {
+		if val, ok := s.requestIsAlreadyProcessed(broadcast); ok {
 			broadcast.SendToClient(val, nil)
 		} else {
 			broadcast.Forward(request, s.leader)
@@ -133,8 +133,12 @@ func (s *Server) Write(ctx gorums.ServerCtx, request *pb.WriteRequest, broadcast
 		return
 	}
 	s.mut.Lock()
+	md := broadcast.GetMetadata()
+	clientID := md.MachineID
+	seqNo := md.SequenceNo
+	id := fmt.Sprintf("c%v,s%v", clientID, seqNo)
 	req := &pb.PrePrepareRequest{
-		Id:             request.Id,
+		Id:             id,
 		View:           s.viewNumber,
 		SequenceNumber: s.sequenceNumber,
 		Digest:         "digest",

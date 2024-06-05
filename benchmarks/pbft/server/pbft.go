@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	pb "github.com/aleksander-vedvik/benchmark/pbft/protos"
 
 	"github.com/relab/gorums"
@@ -79,10 +81,14 @@ func (s *Server) Commit(ctx gorums.ServerCtx, request *pb.CommitRequest, broadca
 	}
 }
 
-func (s *Server) requestIsAlreadyProcessed(req *pb.WriteRequest) (*pb.ClientResponse, bool) {
+func (s *Server) requestIsAlreadyProcessed(broadcast *pb.Broadcast) (*pb.ClientResponse, bool) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	return s.state, s.state != nil && s.state.Id == req.Id
+	md := broadcast.GetMetadata()
+	clientID := md.MachineID
+	seqNo := md.SequenceNo
+	id := fmt.Sprintf("c%v,s%v", clientID, seqNo)
+	return s.state, s.state != nil && s.state.Id == id
 }
 
 func (s *Server) isLeader() bool {
