@@ -66,14 +66,11 @@ func (c *Client) WriteVal(ctx context.Context, value string) (*pb.ClientResponse
 		Timestamp: time.Now().Unix(),
 	}
 	_, _ = c.config.Write(ctx, req)
-	//return <-respChan, nil
 	select {
 	case res := <-respChan:
 		return res, nil
 	case <-reqctx.Done():
 		return nil, errors.New("failed req")
-		//case <-ctx.Done():
-		//return nil, errors.New("failed req")
 	}
 }
 
@@ -108,9 +105,8 @@ func (c *Client) Commit(ctx context.Context, req *pb.CommitRequest) (*empty.Empt
 }
 
 func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*empty.Empty, error) {
-	//slog.Info("received reply")
+	//slog.Info("received reply", "id", req.Id)
 	c.mut.Lock()
-	defer c.mut.Unlock()
 	var resps []*pb.ClientResponse
 	if r, ok := c.responses[req.Id]; ok {
 		resps = append(r, req)
@@ -118,11 +114,16 @@ func (c *Client) ClientHandler(ctx context.Context, req *pb.ClientResponse) (*em
 		resps = []*pb.ClientResponse{req}
 	}
 	c.responses[req.Id] = resps
+	respChan := c.resps[req.Id].respChan
+	respCtx := c.resps[req.Id].ctx
+	c.mut.Unlock()
 	if len(resps) >= 2*c.config.NumNodes()/3 {
-		select {
-		case c.resps[req.Id].respChan <- req:
-		case <-c.resps[req.Id].ctx.Done():
-		}
+		go func() {
+			select {
+			case respChan <- req:
+			case <-respCtx.Done():
+			}
+		}()
 	}
 	return nil, nil
 }

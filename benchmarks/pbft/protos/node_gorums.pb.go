@@ -379,14 +379,14 @@ func (c *Configuration) Write(ctx context.Context, in *WriteRequest, cancelOnTim
 				c.RawConfiguration.BroadcastCall(cancelCtx, bd)
 			}()
 		}
-		return nil, fmt.Errorf("context cancelled")
+		return nil, fmt.Errorf("context cancelled, broadcastID: %v", broadcastID)
 	}
 	if !ok {
-		return nil, fmt.Errorf("done channel was closed before returning a value")
+		return nil, fmt.Errorf("done channel was closed before returning a value, broadcastID: %v", broadcastID)
 	}
 	resp, ok = response.(*ClientResponse)
 	if !ok {
-		return nil, fmt.Errorf("wrong proto format")
+		return nil, fmt.Errorf("wrong proto format, broadcastID: %v", broadcastID)
 	}
 	return resp, nil
 }

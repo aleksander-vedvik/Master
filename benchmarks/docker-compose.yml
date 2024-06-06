@@ -7,7 +7,7 @@ services:
     environment:
       - ID=0
       - SERVER=1
-      - CONF=conf.docker.yaml
+      - CONF=${CONF}
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -25,7 +25,7 @@ services:
     environment:
       - ID=1
       - SERVER=1
-      - CONF=conf.docker.yaml
+      - CONF=${CONF}
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -43,7 +43,7 @@ services:
     environment:
       - ID=2
       - SERVER=1
-      - CONF=conf.docker.yaml
+      - CONF=${CONF}
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -61,7 +61,7 @@ services:
     environment:
       - ID=3
       - SERVER=1
-      - CONF=conf.docker.yaml
+      - CONF=${CONF}
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - LOG=${LOG}
@@ -72,13 +72,67 @@ services:
     networks:
       MasterLab:
         ipv4_address: 10.0.0.8
+  srv5:
+    build: 
+      context: .
+      dockerfile: Master/benchmarks/Dockerfile.Server
+    environment:
+      - ID=4
+      - SERVER=1
+      - CONF=${CONF}
+      - PRODUCTION=${PRODUCTION}
+      - BENCH=${BENCH}
+      - LOG=${LOG}
+    ports:
+      - "5004:5004"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      MasterLab:
+        ipv4_address: 10.0.0.9
+  srv6:
+    build: 
+      context: .
+      dockerfile: Master/benchmarks/Dockerfile.Server
+    environment:
+      - ID=5
+      - SERVER=1
+      - CONF=${CONF}
+      - PRODUCTION=${PRODUCTION}
+      - BENCH=${BENCH}
+      - LOG=${LOG}
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      MasterLab:
+        ipv4_address: 10.0.0.10
+  srv7:
+    build: 
+      context: .
+      dockerfile: Master/benchmarks/Dockerfile.Server
+    environment:
+      - ID=6
+      - SERVER=1
+      - CONF=${CONF}
+      - PRODUCTION=${PRODUCTION}
+      - BENCH=${BENCH}
+      - LOG=${LOG}
+    ports:
+      - "5006:5006"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      MasterLab:
+        ipv4_address: 10.0.0.11
   client:
     build: 
       context: .
       dockerfile: Master/benchmarks/Dockerfile.Client
     environment:
       - SERVER=0
-      - CONF=conf.docker.yaml
+      - CONF=${CONF}
       - PRODUCTION=${PRODUCTION}
       - BENCH=${BENCH}
       - THROUGHPUT=${THROUGHPUT}

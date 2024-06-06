@@ -40,10 +40,11 @@ type Config struct {
 }
 
 func getConfig() (srvs, clients ServerEntry) {
-	confPath := os.Getenv("CONF")
-	if confPath == "" {
-		confPath = "conf.local.yaml"
+	confType := os.Getenv("CONF")
+	if confType == "" {
+		confType = "local"
 	}
+	confPath := fmt.Sprintf("conf.%s.yaml", confType)
 	data, err := os.ReadFile(confPath)
 	if err != nil {
 		panic(err)
@@ -179,6 +180,15 @@ func main() {
 		}
 	}
 
+	runType := bench.Throughput
+	if os.Getenv("TYPE") != "" {
+		runTypeInt, err := strconv.Atoi(os.Getenv("TYPE"))
+		if err != nil {
+			panic(err)
+		}
+		runType = bench.RunType(runTypeInt)
+	}
+
 	bT := *benchTypeIndex
 	if bT <= 0 {
 		var err error
@@ -195,12 +205,12 @@ func main() {
 	if *runSrv {
 		runServer(benchType, srvID, servers, *withLogger, *memProfile, *local)
 	} else {
-		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger)
+		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger, runType)
 	}
 }
 
-func runBenchmark(name string, clients ServerEntry, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool) {
-	options := make([]bench.RunOption, 0)
+func runBenchmark(name string, clients ServerEntry, throughput, numClients, clientBasePort, steps, runs, dur int, local bool, srvAddrs map[int]Server, memProfile, withLogger bool, runType bench.RunType) {
+	options := []bench.RunOption{bench.WithRunType(runType)}
 	if withLogger {
 		file, err := os.Create("./logs/log.Clients.json")
 		if err != nil {
@@ -255,7 +265,7 @@ func runBenchmark(name string, clients ServerEntry, throughput, numClients, clie
 		}
 		options = append(options, bench.WithClients(clientsMap))
 	}
-	bench.RunThroughputVsLatencyBenchmark(name, options...)
+	bench.RunBenchmark(name, options...)
 }
 
 type BenchmarkServer interface {

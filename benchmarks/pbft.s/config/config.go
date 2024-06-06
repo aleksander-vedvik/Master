@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -12,40 +13,64 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
+type Node struct {
+	addr   string
+	client pb.PBFTNodeClient
+	conn   *grpc.ClientConn
+}
+
+func (n *Node) Close() {
+	n.conn.Close()
+}
+
 type Config struct {
-	mut         sync.Mutex
-	nodes       []pb.PBFTNodeClient
-	nodeAddrs   map[int]string
-	connections []*grpc.ClientConn
-	methods     map[string][]string
-	who         string
-	clients     map[string]pb.PBFTNodeClient
+	mut     sync.Mutex
+	nodes   []*Node
+	methods map[string][]string
+	who     string
+	clients map[string]*Node
 }
 
 func NewConfig(addr string, srvAddrs []string) *Config {
 	config := &Config{
-		who:         addr,
-		nodes:       make([]pb.PBFTNodeClient, len(srvAddrs)),
-		connections: make([]*grpc.ClientConn, 0, len(srvAddrs)),
-		nodeAddrs:   make(map[int]string, len(srvAddrs)),
-		methods:     make(map[string][]string),
-		clients:     make(map[string]pb.PBFTNodeClient),
+		who:     addr,
+		nodes:   make([]*Node, 0, len(srvAddrs)),
+		methods: make(map[string][]string),
+		clients: make(map[string]*Node),
 	}
-	for i, addr := range srvAddrs {
-		cc, err := grpc.DialContext(context.Background(), addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			panic(fmt.Sprintf("%s: %s", config.who, err))
+	go func() {
+		// delayed connection to prevent connection refused.
+		// this can happen if some of the servers are not
+		// online yet.
+		time.Sleep(5 * time.Second)
+		for _, srvAddr := range srvAddrs {
+			if srvAddr == addr {
+				// do not add yourself in the configuration.
+				// PBFT only sends messages to other nodes,
+				// not itself.
+				continue
+			}
+			cc, err := grpc.DialContext(context.Background(), srvAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				panic(err)
+			}
+			node := &Node{
+				addr:   srvAddr,
+				client: pb.NewPBFTNodeClient(cc),
+				conn:   cc,
+			}
+			config.nodes = append(config.nodes, node)
 		}
-		config.connections = append(config.connections, cc)
-		config.nodes[i] = pb.NewPBFTNodeClient(cc)
-		config.nodeAddrs[i] = addr
-	}
+	}()
 	return config
 }
 
 func (c *Config) Close() {
-	for _, cc := range c.connections {
-		cc.Close()
+	for _, n := range c.nodes {
+		n.Close()
+	}
+	for _, c := range c.clients {
+		c.Close()
 	}
 }
 
@@ -56,19 +81,6 @@ func (c *Config) NumNodes() int {
 func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientResponse, error) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
-	methodName := "Write"
-	var methods []string
-	if m, ok := c.methods[req.Id]; ok {
-		for _, method := range m {
-			if method == methodName {
-				return nil, nil
-			}
-		}
-		methods = append(m, methodName)
-	} else {
-		methods = []string{methodName}
-	}
-	c.methods[req.Id] = methods
 	respChan := make(chan struct{}, len(c.nodes))
 	sentMsgs := 0
 	for i, node := range c.nodes {
@@ -76,61 +88,35 @@ func (c *Config) Write(ctx context.Context, req *pb.WriteRequest) (*pb.ClientRes
 			break
 		}
 		go func(node pb.PBFTNodeClient, j int) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			_, err := node.Write(ctx, req)
+			_, err := node.Write(context.Background(), req)
 			if err != nil {
 				panic(fmt.Sprintf("%s: %s", c.who, err))
 			}
 			respChan <- struct{}{}
-			//slog.Info("sent msg", "to", c.nodeAddrs[i])
-		}(node, i)
+		}(node.client, i)
 		sentMsgs++
 	}
 	for ; sentMsgs > 0; sentMsgs-- {
 		<-respChan
 	}
-	//slog.Info("returning")
 	return nil, nil
 }
 
 func (c *Config) PrePrepare(req *pb.PrePrepareRequest) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
-	methodName := "PrePrepare"
-	var methods []string
-	if m, ok := c.methods[req.Id]; ok {
-		for _, method := range m {
-			if method == methodName {
-				return
-			}
-		}
-		methods = append(m, methodName)
-	} else {
-		methods = []string{methodName}
-	}
-	c.methods[req.Id] = methods
-	//respChan := make(chan string, len(c.nodes))
-	//sentMsgs := 0
 	for _, node := range c.nodes {
-		//slog.Info("server: sending preprepare", "to", c.nodeAddrs[i], "from", c.who)
 		go func(node pb.PBFTNodeClient) {
-			//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			//defer cancel()
-			_, err := node.PrePrepare(context.Background(), req)
-			if err != nil {
-				//panic(fmt.Sprintf("%s: %s", c.who, err))
-				//slog.Error(fmt.Sprintf("%s: %s", c.who, err))
+			sendFn := func() error {
+				_, err := node.PrePrepare(context.Background(), req)
+				return err
 			}
-			//respChan <- fmt.Sprintf("server: sent preprepare to: %s from: %s", c.nodeAddrs[i], c.who)
-		}(node)
-		//sentMsgs++
+			err := sendWithRetries(sendFn, 10)
+			if err != nil {
+				panic(err)
+			}
+		}(node.client)
 	}
-	//for ; sentMsgs > 0; sentMsgs-- {
-	//fmt.Println(<-respChan)
-	//<-respChan
-	//}
-	//slog.Warn("server: returning preprepare", "who", c.who)
 }
 
 func (c *Config) Prepare(req *pb.PrepareRequest) {
@@ -149,40 +135,21 @@ func (c *Config) Prepare(req *pb.PrepareRequest) {
 		methods = []string{methodName}
 	}
 	c.methods[req.Id] = methods
-	//respChan := make(chan struct{}, len(c.nodes))
-	//sentMsgs := 0
-	for i, node := range c.nodes {
-		//slog.Info("server: sending prepare", "to", c.nodeAddrs[i], "from", c.who)
-		go func(node pb.PBFTNodeClient, to string) {
-			//success := false
-			for r := 0; r < 10; r++ {
-				//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				//defer cancel()
-				_, err := node.Prepare(context.Background(), req)
-				if err != nil {
-					//slog.Error("config:", "err", err, "who", c.who)
-				} else {
-					//success = true
-					return
-				}
-				time.Sleep(10 * time.Duration(r) * time.Millisecond)
+	for _, node := range c.nodes {
+		go func(node *Node) {
+			sendFn := func() error {
+				_, err := node.client.Prepare(context.Background(), req)
+				return err
 			}
-			//if !success {
-			//slog.Error("config: not a success", "to", to, "from", c.who)
-			//panic(fmt.Sprintf("erh: %s", c.who))
-			//}
-			//respChan <- struct{}{}
-		}(node, c.nodeAddrs[i])
-		//sentMsgs++
+			err := sendWithRetries(sendFn, 10)
+			if err != nil {
+				panic(err)
+			}
+		}(node)
 	}
-	//for ; sentMsgs > 0; sentMsgs-- {
-	//<-respChan
-	//}
-	//slog.Warn("server: returning prepare", "who", c.who)
 }
 
 func (c *Config) Commit(req *pb.CommitRequest) {
-	//slog.Info("config: sending commit")
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	methodName := "Commit"
@@ -198,33 +165,18 @@ func (c *Config) Commit(req *pb.CommitRequest) {
 		methods = []string{methodName}
 	}
 	c.methods[req.Id] = methods
-	//respChan := make(chan struct{}, len(c.nodes))
-	//sentMsgs := 0
 	for _, node := range c.nodes {
 		go func(node pb.PBFTNodeClient) {
-			//success := false
-			for r := 0; r < 10; r++ {
-				//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				//defer cancel()
+			sendFn := func() error {
 				_, err := node.Commit(context.Background(), req)
-				if err != nil {
-					//slog.Error("config:", "err", err, "who", c.who)
-				} else {
-					//success = true
-					return
-				}
-				time.Sleep(10 * time.Millisecond)
+				return err
 			}
-			//if !success {
-			////panic(fmt.Sprintf("erh: %s", c.who))
-			//}
-			//respChan <- struct{}{}
-		}(node)
-		//sentMsgs++
+			err := sendWithRetries(sendFn, 10)
+			if err != nil {
+				panic(err)
+			}
+		}(node.client)
 	}
-	//for ; sentMsgs > 0; sentMsgs-- {
-	//<-respChan
-	//}
 }
 
 func (c *Config) ClientHandler(req *pb.ClientResponse) {
@@ -244,50 +196,72 @@ func (c *Config) ClientHandler(req *pb.ClientResponse) {
 	}
 	c.methods[req.Id] = methods
 	var (
-		cc     *grpc.ClientConn
-		ok     bool
-		err    error
-		client pb.PBFTNodeClient
+		cc   *grpc.ClientConn
+		ok   bool
+		err  error
+		node *Node
 	)
 
-	if client, ok = c.clients[req.From]; !ok {
+	if node, ok = c.clients[req.From]; !ok {
 		cc, err = grpc.DialContext(context.Background(), req.From, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			panic(err)
 		}
-		c.connections = append(c.connections, cc)
-		client = pb.NewPBFTNodeClient(cc)
+		client := &Node{
+			addr:   req.From,
+			client: pb.NewPBFTNodeClient(cc),
+			conn:   cc,
+		}
 		c.clients[req.From] = client
+		node = client
 	}
 	c.mut.Unlock()
-	//slog.Info("from", "addr", req.From)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = client.ClientHandler(ctx, req)
-	//if err != nil {
-	//panic(err)
-	//}
+	sendFn := func() error {
+		_, err := node.client.ClientHandler(context.Background(), req)
+		return err
+	}
+	sendWithRetries(sendFn, 10)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (c *Config) Benchmark(ctx context.Context) (*pb.ClientResponse, error) {
+	slog.Info("client: sending benchmark")
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	respChan := make(chan struct{}, len(c.nodes))
 	sentMsgs := 0
 	for i, node := range c.nodes {
 		go func(node pb.PBFTNodeClient, j int) {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			_, err := node.Benchmark(ctx, &emptypb.Empty{})
+			sendFn := func() error {
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				_, err := node.Benchmark(ctx, &emptypb.Empty{})
+				return err
+			}
+			err := sendWithRetries(sendFn, 10)
 			if err != nil {
-				panic(fmt.Sprintf("%s: %s", c.who, err))
+				panic(err)
 			}
 			respChan <- struct{}{}
-		}(node, i)
+		}(node.client, i)
 		sentMsgs++
 	}
 	for ; sentMsgs > 0; sentMsgs-- {
 		<-respChan
 	}
 	return nil, nil
+}
+
+func sendWithRetries(sendFn func() error, retries int) error {
+	var err error
+	for r := 0; r < retries; r++ {
+		err = sendFn()
+		if err == nil {
+			return nil
+		}
+		time.Sleep((1 + time.Duration(r)) * 10 * time.Millisecond)
+	}
+	return err
 }

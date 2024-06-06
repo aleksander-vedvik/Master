@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -14,6 +15,14 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"google.golang.org/grpc"
+)
+
+type state int
+
+const (
+	PrePrepare state = iota
+	Prepare
+	Commit
 )
 
 // The storage server should implement the server interface defined in the pbbuf files
@@ -32,6 +41,10 @@ type Server struct {
 	withoutLeader  bool
 	view           *config.Config
 	srv            *grpc.Server
+	order          map[string]state
+	tmpPrepares    map[string][]*pb.PrepareRequest
+	tmpCommits     map[string][]*pb.CommitRequest
+	log            bool
 }
 
 // Creates a new StorageServer.
@@ -40,6 +53,7 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 	if len(withoutLeader) > 0 {
 		wL = withoutLeader[0]
 	}
+	useLog := os.Getenv("LOG")
 	srv := Server{
 		data:           make([]string, 0),
 		addr:           addr,
@@ -53,6 +67,10 @@ func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
 		withoutLeader:  wL,
 		view:           config.NewConfig(addr, srvAddresses),
 		srv:            grpc.NewServer(),
+		order:          make(map[string]state),
+		tmpPrepares:    make(map[string][]*pb.PrepareRequest),
+		tmpCommits:     make(map[string][]*pb.CommitRequest),
+		log:            useLog == "1",
 	}
 	pb.RegisterPBFTNodeServer(srv.srv, &srv)
 	return &srv
@@ -72,6 +90,7 @@ func (s *Server) Start(local bool) {
 	} else {
 		lis, err = net.Listen("tcp", s.addr)
 	}
+	slog.Info(fmt.Sprintf("Server started. Listening on address: %s, %s\n\t- peers: %v\n", s.addr, lis.Addr().String(), s.peers))
 	if err != nil {
 		panic(err)
 	}
@@ -88,15 +107,17 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Empty, error) {
-	//slog.Info("0 server: received msg")
+	if s.log {
+		slog.Info("0 server: received msg")
+	}
 	if !s.isLeader() {
-		s.mut.Lock()
-		if val, ok := s.requestIsAlreadyProcessed(request); ok {
-			go s.view.ClientHandler(val)
-			//} else {
-			//broadcast.Forward(request, s.leader)
-		}
-		s.mut.Unlock()
+		//s.mut.Lock()
+		//if val, ok := s.requestIsAlreadyProcessed(request); ok {
+		//	go s.view.ClientHandler(val)
+		//	//} else {
+		//	//broadcast.Forward(request, s.leader)
+		//}
+		//s.mut.Unlock()
 		return nil, nil
 	}
 	s.mut.Lock()
@@ -111,7 +132,9 @@ func (s *Server) Write(ctx context.Context, request *pb.WriteRequest) (*empty.Em
 	}
 	s.sequenceNumber++
 	s.mut.Unlock()
-	s.view.PrePrepare(req)
+	s.messageLog.add(req, s.viewNumber, req.SequenceNumber)
+	s.progressState(request.Id)
+	go s.view.PrePrepare(req)
 	return nil, nil
 }
 
@@ -121,6 +144,12 @@ func (s *Server) ClientHandler(ctx context.Context, request *pb.ClientResponse) 
 }
 
 func (srv *Server) Benchmark(ctx context.Context, request *empty.Empty) (*pb.Result, error) {
+	//slog.Info("-1 server: received benchmark")
+	srv.mut.Lock()
+	srv.order = make(map[string]state)
+	srv.tmpPrepares = make(map[string][]*pb.PrepareRequest)
+	srv.tmpCommits = make(map[string][]*pb.CommitRequest)
+	srv.mut.Unlock()
 	srv.messageLog.Clear()
 	return &pb.Result{}, nil
 }

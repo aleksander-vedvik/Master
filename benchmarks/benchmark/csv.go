@@ -120,3 +120,18 @@ func WriteDurations(name string, durations []time.Duration) error {
 	}
 	return w.WriteAll(data)
 }
+
+func WritePerformance(name string, results []string) error {
+	path := fmt.Sprintf("./csv/%s.csv", name)
+	fmt.Println("writing performance file...")
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	w := csv.NewWriter(file)
+	data := make([][]string, 2)
+	data[0] = []string{"Reqs/client", "Mean (µs)", "Median (µs)", "Std. dev.", "Min (µs)", "Max (µs)"}
+	data[1] = results
+	return w.WriteAll(data)
+}

@@ -25,6 +25,7 @@ type ClientResult struct {
 	LatencyMedian   time.Duration
 	LatencyMin      time.Duration
 	LatencyMax      time.Duration
+	LatencyStdev    float64
 	TotalDur        time.Duration
 	Throughput      float64
 	ReqDistribution []uint64 // shows how many request in transit per unit of time
@@ -71,16 +72,17 @@ type Benchmark[S, C any] interface {
 	StopBenchmark(config *C) []Result
 }
 
-type runType int
+type RunType int
 
 const (
-	Sync runType = iota
+	Throughput RunType = iota
+	Performance
+	Sync
 	Async
 	Random
-	Throughput
 )
 
-func (r runType) String() string {
+func (r RunType) String() string {
 	res := ""
 	switch r {
 	case Sync:
@@ -89,6 +91,10 @@ func (r runType) String() string {
 		res = "Async"
 	case Random:
 		res = "Random"
+	case Throughput:
+		res = "Throughput"
+	case Performance:
+		res = "Performance"
 	}
 	return res
 }
@@ -103,7 +109,7 @@ type benchmarkOption struct {
 	timeout        time.Duration
 	reqInterval    struct{ start, end int } // reqs will be sent in the interval: [start, end] µs
 	local          bool
-	runType        runType
+	runType        RunType
 	memProfile     bool
 	dur            int // specifies how long the throughput benchmark should be run in seconds
 	runs           int // number of times a benchmark should run. Will create separate run file for each benchmark
@@ -167,6 +173,7 @@ type RunOptions struct {
 	steps               int
 	logger              *slog.Logger
 	clients             map[int]string
+	runType             RunType
 }
 
 func RunExternal() RunOption {
@@ -202,6 +209,12 @@ func NumClients(numClients int) RunOption {
 func ClientBasePort(basePort int) RunOption {
 	return func(o *RunOptions) {
 		o.clientBasePort = basePort
+	}
+}
+
+func WithRunType(r RunType) RunOption {
+	return func(o *RunOptions) {
+		o.runType = r
 	}
 }
 
@@ -244,7 +257,7 @@ func Runs(runs int) RunOption {
 
 type RunOption func(*RunOptions)
 
-func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) {
+func RunBenchmark(name string, options ...RunOption) {
 	opts := RunOptions{
 		local:          true,
 		srvAddrs:       threeServers,
@@ -255,6 +268,7 @@ func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) {
 		runs:           1,
 		steps:          10,
 		clients:        nil,
+		runType:        Throughput,
 	}
 	for _, opt := range options {
 		opt(&opts)
@@ -269,7 +283,12 @@ func RunThroughputVsLatencyBenchmark(name string, options ...RunOption) {
 	state := benchmark.init()
 	state.Init(opts)
 	for i := 0; i < opts.runs; i++ {
-		runThroughputVsLatencyBenchmark(benchmark, state, name, i, opts)
+		switch opts.runType {
+		case Throughput:
+			runThroughputVsLatencyBenchmark(benchmark, state, name, i, opts)
+		case Performance:
+			runPerformanceBenchmark(benchmark, state, name, i, opts)
+		}
 	}
 }
 
@@ -319,6 +338,49 @@ func runThroughputVsLatencyBenchmark(benchmark benchStruct, benchmarkState initi
 	return results, errs
 }
 
+func runPerformanceBenchmark(benchmark benchStruct, benchmarkState initializable, name string, runNumber int, opts RunOptions) ([]Result, []error) {
+	if opts.throughputIncrement <= 0 {
+		opts.throughputIncrement = opts.throughputMax / opts.steps
+	}
+	fmt.Println("running benchmark:", name)
+	//for _, target := range throughputs {
+	bench := benchmarkOption{
+		name:           fmt.Sprintf("%s.S%v.C%v.R%v.Performance.%v", name, len(opts.srvAddrs), opts.numClients, 1000, runNumber),
+		srvAddrs:       opts.srvAddrs,
+		numClients:     opts.numClients,
+		clientBasePort: opts.clientBasePort,
+		numRequests:    1000,
+		local:          opts.local,
+		memProfile:     opts.memProfile,
+		dur:            1,
+		runs:           opts.runs,
+		steps:          opts.steps,
+		logger:         opts.logger,
+		clients:        opts.clients,
+		runType:        Performance,
+	}
+	start := time.Now()
+	clientResult, _, err := benchmark.run(bench, benchmarkState)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("took:", time.Since(start))
+	err = WritePerformance(bench.name, []string{
+		strconv.Itoa(int(bench.numRequests)),
+		strconv.Itoa(int(clientResult.LatencyAvg.Microseconds())),
+		strconv.Itoa(int(clientResult.LatencyMedian.Microseconds())),
+		strconv.Itoa(int(clientResult.LatencyStdev)),
+		strconv.Itoa(int(clientResult.LatencyMin.Microseconds())),
+		strconv.Itoa(int(clientResult.LatencyMax.Microseconds())),
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("done")
+	time.Sleep(1 * time.Second)
+	return nil, nil
+}
+
 func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (ClientResult, []Result, error) {
 	fmt.Printf("\nRunning benchmark: %s\n\n", opts.name)
 	runtime.GC()
@@ -329,6 +391,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	switch opts.runType {
 	case Throughput:
 		totalNumReqs = opts.numRequests * opts.dur
+	case Performance:
+		totalNumReqs = opts.numRequests
 	default:
 	}
 	durations := make([]time.Duration, totalNumReqs)
@@ -388,6 +452,8 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 	case Random:
 		go runRandom(opts, benchmark, resChan, clients)
 	case Throughput:
+		go runThroughput(opts, benchmark, resChan, clients, opts.dur)
+	case Performance:
 		go runThroughputSync(opts, benchmark, resChan, clients, opts.dur)
 	}
 
@@ -450,6 +516,70 @@ func runBenchmark[S, C any](opts benchmarkOption, benchmark Benchmark[S, C]) (Cl
 		clientResult.Throughput = float64(opts.numRequests)
 		clientResult.Durations = durations
 		//fmt.Println("done")
+		return clientResult, nil, nil
+	case Performance:
+		fmt.Println("collecting responses:")
+		avgDur := time.Duration(0)
+		numFailed := 0
+		graceTime := 2 * time.Minute
+		for i := 0; i < totalNumReqs; i++ {
+			if i%(opts.numRequests/2) == 0 {
+				fmt.Printf("%v%s done\n", (100 * float64(i) / float64(totalNumReqs)), "%")
+				//fmt.Printf("..")
+			}
+			var res RequestResult
+			// prevent deadlock
+			select {
+			case res = <-resChan:
+			case <-time.After(graceTime):
+				//slog.Info("benchmark:", "replies", i, "total", totalNumReqs, "successes", i-numFailed, "failures", numFailed)
+				// set graceTime to something small because all reqs should have timed out by now.
+				graceTime = 1 * time.Millisecond
+				numFailed++
+				continue
+				//return clientResult, nil, res.err //errors.New("could not collect all responses")
+			}
+			if res.err != nil {
+				numFailed++
+				slog.Info("benchmark:", "replies", i, "total", totalNumReqs, "successes", i-numFailed, "failures", numFailed, "err", res.err)
+				//panic(res.err)
+				continue
+			}
+			dur := res.end.Sub(res.start)
+			avgDur += dur
+			durations[i] = dur
+		}
+		// wait a short time to make the servers finish up before sending a "purge state msg" to them
+		time.Sleep(2 * time.Second)
+		fmt.Printf("100%s done, numFailed: %v out of %v\n", "%", numFailed, totalNumReqs)
+		benchmark.StopBenchmark(config)
+		fmt.Println("stopped benchmark...")
+
+		avgDur /= time.Duration(totalNumReqs)
+		// sort the durations to calculate median
+		// [0, 1, 2, 3, 4, 5]
+		slices.Sort(durations)
+		var median time.Duration
+		if len(durations)%2 == 0 {
+			var medianIndex1 int = (len(durations) / 2) - 1 // integer division does floor operation
+			var medianIndex2 int = len(durations) / 2       // integer division does floor operation
+			median1 := durations[medianIndex1]
+			median2 := durations[medianIndex2]
+			median = (median1 + median2) / 2
+		} else {
+			var medianIndex int = len(durations) / 2 // integer division does floor operation
+			median = durations[medianIndex]
+		}
+		clientResult.LatencyAvg = avgDur
+		clientResult.LatencyMedian = median
+		clientResult.LatencyMin = durations[0]
+		clientResult.LatencyMax = durations[len(durations)-1]
+		latencyVariance := 0.0
+		for _, dur := range durations {
+			latencyVariance += math.Pow(float64(dur.Microseconds())-float64(avgDur.Microseconds()), 2)
+		}
+		latencyVariance /= float64(len(durations) - 1)
+		clientResult.LatencyStdev = math.Sqrt(latencyVariance)
 		return clientResult, nil, nil
 	default:
 	}

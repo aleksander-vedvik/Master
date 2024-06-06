@@ -199,7 +199,7 @@ var benchmarks = []benchmarkOption{
 }
 
 func createClients[S, C any](bench Benchmark[S, C], opts RunOptions) {
-	fmt.Print("creating clients")
+	fmt.Println("creating clients...")
 	for i := 0; i < opts.numClients; i++ {
 		addr := fmt.Sprintf("127.0.0.1:%v", opts.clientBasePort+i)
 		if opts.clients != nil {
@@ -210,7 +210,7 @@ func createClients[S, C any](bench Benchmark[S, C], opts RunOptions) {
 }
 
 func warmupFunc[C any](clients []*C, warmup func(*C)) {
-	fmt.Print(": warming up")
+	fmt.Println("warming up...")
 	warmupChan := make(chan struct{}, len(clients))
 	for _, client := range clients {
 		go func(client *C) {

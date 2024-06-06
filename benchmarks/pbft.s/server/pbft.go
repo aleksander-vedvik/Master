@@ -2,13 +2,16 @@ package server
 
 import (
 	"context"
+	"log/slog"
 
 	pb "github.com/aleksander-vedvik/benchmark/pbft.s/protos"
 	"github.com/golang/protobuf/ptypes/empty"
 )
 
 func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) (*empty.Empty, error) {
-	//slog.Info("1 server: received preprepare", "who", s.addr)
+	if s.log {
+		slog.Info("1 server: received preprepare", "n", request.SequenceNumber)
+	}
 	if !s.isInView(request.View) {
 		return nil, nil
 	}
@@ -19,6 +22,8 @@ func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) 
 		return nil, nil
 	}
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
+	s.progressState(request.Id)
+	go s.handlePrepares(request.Id)
 	//slog.Info("server: added preprepare", "who", s.addr, "v", s.viewNumber, "s", request.SequenceNumber)
 	go s.view.Prepare(&pb.PrepareRequest{
 		Id:             request.Id,
@@ -33,7 +38,20 @@ func (s *Server) PrePrepare(ctx context.Context, request *pb.PrePrepareRequest) 
 }
 
 func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empty.Empty, error) {
-	//slog.Info("2 server: received prepare", "who", s.addr)
+	s.mut.Lock()
+	if s.order[request.Id] < Prepare {
+		if s.tmpPrepares[request.Id] == nil || len(s.tmpPrepares[request.Id]) <= 0 {
+			s.tmpPrepares[request.Id] = []*pb.PrepareRequest{request}
+		} else {
+			s.tmpPrepares[request.Id] = append(s.tmpPrepares[request.Id], request)
+		}
+		s.mut.Unlock()
+		return nil, nil
+	}
+	s.mut.Unlock()
+	if s.log {
+		slog.Info("2 server: received prepare", "n", request.SequenceNumber)
+	}
 	if !s.isInView(request.View) {
 		//slog.Error("server: not in view")
 		return nil, nil
@@ -45,6 +63,8 @@ func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empt
 	s.messageLog.add(request, s.viewNumber, request.SequenceNumber)
 	if s.prepared(request.SequenceNumber) {
 		//slog.Error("prepared", "who", s.addr)
+		s.progressState(request.Id)
+		go s.handleCommits(request.Id)
 		go s.view.Commit(&pb.CommitRequest{
 			Id:             request.Id,
 			Timestamp:      request.Timestamp,
@@ -59,7 +79,20 @@ func (s *Server) Prepare(ctx context.Context, request *pb.PrepareRequest) (*empt
 }
 
 func (s *Server) Commit(ctx context.Context, request *pb.CommitRequest) (*empty.Empty, error) {
-	//slog.Info("3 server: received commit")
+	s.mut.Lock()
+	if s.order[request.Id] < Commit {
+		if s.tmpCommits[request.Id] == nil || len(s.tmpCommits[request.Id]) <= 0 {
+			s.tmpCommits[request.Id] = []*pb.CommitRequest{request}
+		} else {
+			s.tmpCommits[request.Id] = append(s.tmpCommits[request.Id], request)
+		}
+		s.mut.Unlock()
+		return nil, nil
+	}
+	s.mut.Unlock()
+	if s.log {
+		slog.Info("3 server: received commit", "n", request.SequenceNumber)
+	}
 	if !s.isInView(request.View) {
 		return nil, nil
 	}
@@ -145,4 +178,26 @@ func (s *Server) committed(n int32) bool {
 	}
 	commits, found := s.messageLog.getCommitReqs(req.Digest, req.SequenceNumber, req.View)
 	return found && len(commits) > 2*len(s.peers)/3
+}
+
+func (s *Server) progressState(requestId string) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.order[requestId]++
+}
+
+func (s *Server) handlePrepares(requestId string) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	for _, prepare := range s.tmpPrepares[requestId] {
+		go s.Prepare(context.Background(), prepare)
+	}
+}
+
+func (s *Server) handleCommits(requestId string) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	for _, commit := range s.tmpCommits[requestId] {
+		go s.Commit(context.Background(), commit)
+	}
 }
