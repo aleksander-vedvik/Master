@@ -18,9 +18,5 @@ func (qs *QSpec) BroadcastQF(in *pb.Message, replies []*pb.Message) (*pb.Message
 	if len(replies) < qs.quorumSize {
 		return nil, false
 	}
-	var val *pb.Message
-	for _, resp := range replies {
-		val = resp
-	}
-	return val, true
+	return replies[0], true
 }

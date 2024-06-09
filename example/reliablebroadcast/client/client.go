@@ -17,14 +17,6 @@ type Client struct {
 }
 
 func New(addr string, srvAddresses []string, qSize int) *Client {
-	mgr, config := createConfiguration(addr, srvAddresses, qSize)
-	return &Client{
-		mgr:    mgr,
-		config: config,
-	}
-}
-
-func createConfiguration(addr string, srvAddresses []string, qSize int) (*pb.Manager, *pb.Configuration) {
 	mgr := pb.NewManager(
 		gorums.WithGrpcDialOptions(
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -32,19 +24,17 @@ func createConfiguration(addr string, srvAddresses []string, qSize int) (*pb.Man
 	)
 	lis, _ := net.Listen("tcp", addr)
 	mgr.AddClientServer(lis, lis.Addr())
-	configuration, _ := mgr.NewConfiguration(
+	config, _ := mgr.NewConfiguration(
 		NewQSpec(qSize),
 		gorums.WithNodeList(srvAddresses),
 	)
-	return mgr, configuration
+	return &Client{
+		mgr:    mgr,
+		config: config,
+	}
 }
 
-func (c *Client) Stop() {
-	c.mgr.Close()
-}
-
-func (c *Client) Broadcast(value string) (*pb.Message, error) {
-	ctx := context.Background()
+func (c *Client) Broadcast(ctx context.Context, value string) (*pb.Message, error) {
 	req := &pb.Message{
 		Data: value,
 	}

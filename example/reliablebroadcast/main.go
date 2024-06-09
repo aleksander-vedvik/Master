@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"reliablebroadcast/client"
 	"reliablebroadcast/server"
@@ -16,7 +17,7 @@ func main() {
 		srv.Start()
 	}
 
-	resp, err := c.Broadcast("test")
+	resp, err := c.Broadcast(context.Background(), "test")
 	if err != nil {
 		panic(err)
 	}
