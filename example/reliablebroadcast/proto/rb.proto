@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package proto;
+
+import "gorums.proto";
+option go_package = "reliablebroadcast/proto";
+
+service ReliableBroadcast {
+  rpc Broadcast(Message) returns (Message) {
+    option (gorums.broadcastcall) = true;
+   }
+  rpc Deliver(Message) returns (Empty) {
+    option (gorums.broadcast) = true;
+   }
+}
+
+message Message {
+  string Data = 1;
+}
+
+message Empty {}
