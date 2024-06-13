@@ -1,0 +1,20 @@
+syntax = "proto3";
+package ordering;
+option go_package = "github.com/relab/gorums/tests/ordering";
+
+import "gorums.proto";
+
+service GorumsTest {
+  rpc QC(Request) returns (Response) { option (gorums.quorumcall) = true; }
+
+  rpc QCAsync(Request) returns (Response) {
+    option (gorums.quorumcall) = true;
+    option (gorums.async) = true;
+  }
+
+  rpc UnaryRPC(Request) returns (Response) {}
+}
+
+message Request { uint64 Num = 1; }
+
+message Response { bool InOrder = 1; }

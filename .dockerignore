@@ -2,4 +2,5 @@
 #gorums/
 #./gorums
 #./gorums/
-Master/benchmarks/gorums
+#Master/benchmarks/gorums
+src/gorums

@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:alpine
+
+WORKDIR /app
+
+COPY gorums gorums
+COPY src/go.mod .
+COPY src/go.sum .
+RUN go mod download
+
+COPY src/. .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /client
+
+ENV PRODUCTION=1
+ENV SERVER=0
+
+CMD [ "/client" ]

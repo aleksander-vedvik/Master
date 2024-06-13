@@ -3,7 +3,7 @@ services:
   srv1:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=0
       - SERVER=1
@@ -21,7 +21,7 @@ services:
   srv2:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=1
       - SERVER=1
@@ -39,7 +39,7 @@ services:
   srv3:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=2
       - SERVER=1
@@ -57,7 +57,7 @@ services:
   srv4:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=3
       - SERVER=1
@@ -75,7 +75,7 @@ services:
   srv5:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=4
       - SERVER=1
@@ -93,7 +93,7 @@ services:
   srv6:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=5
       - SERVER=1
@@ -111,7 +111,7 @@ services:
   srv7:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Server
+      dockerfile: src/Dockerfile.Server
     environment:
       - ID=6
       - SERVER=1
@@ -129,7 +129,7 @@ services:
   client:
     build: 
       context: .
-      dockerfile: benchmarks/Dockerfile.Client
+      dockerfile: src/Dockerfile.Client
     environment:
       - SERVER=0
       - CONF=${CONF}

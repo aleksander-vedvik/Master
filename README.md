@@ -4,6 +4,8 @@
 
 The entirety of Gorums is added to this repository. The main contribution to Gorums in this Master's thesis are outlined in the readme file inside the broadcast folder of Gorums: `./gorums/broadcast/README.md`
 
+The root folder is defined as the folder this file is in.
+
 ## Benchmarks
 
 Three implementations of Paxos and two implementations of PBFT have been benchmarked:
@@ -27,7 +29,12 @@ The experiments have been run on Ubuntu and in WSL2 on Windows. The prerequisite
 
 The folder structure is as follows:
 
-    ├── benchmarks
+    ├── csv
+    ├── example
+    │   ├── reliablebroadcast
+    ├── gorums
+    ├── logs
+    ├── src
     │   ├── benchmark
     │   ├── leaderelection
     │   ├── paxos.bc    # Paxos using BroadcastCall
@@ -36,13 +43,8 @@ The folder structure is as follows:
     │   ├── pbft.gorums # PBFT using Gorums
     │   ├── pbft.plain  # PBFT without using Gorums
     │   ├── util
-    ├── csv
-    ├── example
-    │   ├── reliablebroadcast
-    ├── gorums
-    ├── logs
 
-The `example` folder contains the example given in the thesis. The `csv` and `logs` folder contains the result files from running benchmarks. The `gorums` folder contains all the Gorums code including the broadcast framework developed in this thesis. Each implementation of Paxos and PBFT is denoted by a comment in the folder structure above. The `benchmarks/benchmark` folder contains the code for running the benchmarks, while `benchmarks/util` is used to process the results from the benchmarks.
+The `example` folder contains the example given in the thesis. The `csv` and `logs` folder contains the result files from running benchmarks. The `gorums` folder contains all the Gorums code including the broadcast framework developed in this thesis. Each implementation of Paxos and PBFT is denoted by a comment in the folder structure above. The `src/benchmark` folder contains the code for running the benchmarks, while `src/util` is used to process the results from the benchmarks.
 
 ### Options
 
@@ -162,4 +164,4 @@ After the docker containers have been built the first time, it is sufficient to 
 
     make eval
 
-NOTE: There is no need to rebuild the docker containers after changing the `.env` file. Hence, to run a different benchmark you can change the `.env` file accordingly and then run `make eval`. This will load and start the correct benchmark based on the `.env` file.
+NOTE: There is no need to rebuild the docker containers after changing the `.env` file. Hence, to run a different benchmark you can change the `.env` file accordingly and then run `make eval`. This will load and start the correct benchmark based on the `.env` file. If the changes you make in the `.env` file is not reflected when running `make eval`, then run `make docker` to rebuild the containers.
