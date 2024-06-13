@@ -15,7 +15,6 @@ paxosBC_src := paxos.b/proto/multipaxos.pb.go
 paxosQC_src := paxosqc/proto/paxosqc.pb.go
 paxosQCB_src := paxosqcb/proto/paxosqcb.pb.go
 pbftBC_src := pbft/protos/node.pb.go
-pbftBCO_src := pbft.o/protos/nodeo.pb.go
 
 proto: clean $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftBCO_src)
 	@echo "compiling gorums proto files" 
@@ -27,7 +26,7 @@ proto: clean $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftB
 		$<
 
 clean:
-	-rm $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftBCO_src)
+	-rm $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) 
 
 wd := $(shell pwd)
 csv_path := $(wd)/csv

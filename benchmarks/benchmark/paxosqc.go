@@ -64,31 +64,6 @@ func (*PaxosQCBenchmark) StopBenchmark(config *paxosClient.Client) []Result {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	config.Benchmark(ctx)
-	//res, err := config.Benchmark()
-	//if err != nil {
-	//	return nil
-	//}
-	//result := make([]Result, len(res.Metrics))
-	//for i, r := range res.Metrics {
-	//	result[i] = Result{
-	//		TotalNum:              r.TotalNum,
-	//		FinishedReqsTotal:     r.FinishedReqsTotal,
-	//		FinishedReqsSuccesful: r.FinishedReqsSuccesful,
-	//		FinishedReqsFailed:    r.FinishedReqsFailed,
-	//		Processed:             r.Processed,
-	//		Dropped:               r.Dropped,
-	//		Invalid:               r.Invalid,
-	//		AlreadyProcessed:      r.AlreadyProcessed,
-	//		RoundTripLatencyAvg:   time.Duration(r.RoundTripLatency.Avg),
-	//		RoundTripLatencyMin:   time.Duration(r.RoundTripLatency.Min),
-	//		RoundTripLatencyMax:   time.Duration(r.RoundTripLatency.Max),
-	//		ReqLatencyAvg:         time.Duration(r.ReqLatency.Avg),
-	//		ReqLatencyMin:         time.Duration(r.ReqLatency.Min),
-	//		ReqLatencyMax:         time.Duration(r.ReqLatency.Max),
-	//		ShardDistribution:     r.ShardDistribution,
-	//	}
-	//}
-	//return result
 	return nil
 }
 

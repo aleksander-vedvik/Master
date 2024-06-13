@@ -18,18 +18,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-//func (srv *Server) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
-//return srv.acceptor.Prepare(ctx, req)
-//}
-
-//func (srv *Server) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg) {
-//srv.acceptor.Accept(ctx, request)
-//}
-
-//func (srv *Server) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg) {
-//srv.acceptor.Learn(ctx, request)
-//}
-
 const (
 	// responseTimeout is the duration to wait for a response before cancelling
 	responseTimeout = 120 * time.Second
@@ -116,7 +104,6 @@ func (r *PaxosReplica) Start(local bool) {
 	env := os.Getenv("PRODUCTION")
 	if env == "1" {
 		splittedAddr := strings.Split(r.addr, ":")
-		//lis, err = net.Listen("tcp4", ":5000")
 		lis, err = net.Listen("tcp", ":"+splittedAddr[1])
 	} else {
 		lis, err = net.Listen("tcp", r.addr)
@@ -149,38 +136,38 @@ func (r *PaxosReplica) run() {
 			case <-r.stop:
 				return
 			case accept := <-r.Proposer.msgQueue:
-				if !r.isLeader() {
-					continue
-				}
-				r.mu.Lock()
-				r.Proposer.nextSlot++
-				accept.Rnd = r.Proposer.crnd
-				accept.Slot = r.Proposer.nextSlot
-				r.mu.Unlock()
-				lrn, err := r.Proposer.performAccept(accept)
-				if err != nil {
-					continue
-				}
-				select {
-				case <-r.stop:
-					return
-				default:
-				}
-				r.Proposer.performCommit(lrn)
-				/*default:
-				if r.isLeader() {
-					r.runMultiPaxos()
-				}*/
+				go r.performRound(accept)
 			}
 		}
 	}()
+}
+
+func (r *PaxosReplica) performRound(accept *pb.AcceptMsg) {
+	if !r.isLeader() {
+		return
+	}
+	r.mu.Lock()
+	r.Proposer.nextSlot++
+	accept.Rnd = r.Proposer.crnd
+	accept.Slot = r.Proposer.nextSlot
+	r.mu.Unlock()
+	lrn, err := r.Proposer.performAccept(accept)
+	if err != nil {
+		return
+	}
+	select {
+	case <-r.stop:
+		return
+	default:
+	}
+	r.Proposer.performCommit(lrn)
 }
 
 // Prepare handles the prepare quorum calls from the proposer by passing the received messages to its acceptor.
 // It receives prepare massages and pass them to handlePrepare method of acceptor.
 // It returns promise messages back to the proposer by its acceptor.
 func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*pb.PromiseMsg, error) {
-	//ctx.Release()
+	ctx.Release()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.handlePrepare(prepMsg), nil
@@ -190,7 +177,7 @@ func (r *PaxosReplica) Prepare(ctx gorums.ServerCtx, prepMsg *pb.PrepareMsg) (*p
 // It receives Accept massages and pass them to handleAccept method of acceptor.
 // It returns learn massages back to the proposer by its acceptor
 func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.LearnMsg, error) {
-	//ctx.Release()
+	ctx.Release()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.handleAccept(accMsg), nil
@@ -209,8 +196,9 @@ func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.L
 // This method is also responsible for communicating the decided value to the ClientHandle
 // method, which is responsible for returning the response to the client.
 func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg) {
-	//ctx.Release()
+	ctx.Release()
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	adu := r.adu + 1
 	if prevLearn, ok := r.learntVal[learn.Slot]; !ok {
 		r.learntVal[learn.Slot] = learn
@@ -220,7 +208,6 @@ func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg) {
 			r.learntVal[learn.Slot] = learn
 		}
 	}
-	r.mu.Unlock()
 	switch {
 	case learn.Slot == adu:
 		r.execute(learn)
@@ -231,15 +218,11 @@ func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg) {
 
 func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 	for slot := lrn.Slot; true; slot++ {
-		r.mu.Lock()
 		learn, ok := r.learntVal[slot]
-		r.mu.Unlock()
 		if !ok {
 			break
 		}
-		r.advanceAllDecidedUpTo()
-		//respCh := r.respChannel(learn)
-		r.mu.Lock()
+		r.adu++
 		resp := r.respChannelWithoutRetries(learn)
 		response := &pb.Response{
 			ClientID:      learn.Val.ClientID,
@@ -248,12 +231,8 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 		}
 		if resp == nil {
 			r.cachedReplies[lrn.Val.ID] = response
-			r.mu.Unlock()
-			// give up if the response channel is not found
-			//slog.Info("no resp channel", "id", lrn.Val.ID)
 			continue
 		}
-		r.mu.Unlock()
 		// deliver decided value to ClientHandle
 		select {
 		case resp.respChan <- response:
@@ -262,39 +241,10 @@ func (r *PaxosReplica) execute(lrn *pb.LearnMsg) {
 	}
 }
 
-const (
-	retryDelay = 10 * time.Millisecond
-	maxRetries = 5
-)
-
 func (r *PaxosReplica) respChannelWithoutRetries(learn *pb.LearnMsg) *resp {
 	valHash := learn.Val.ID
 	respCh := r.responseChannels[valHash]
 	return respCh
-}
-func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
-	valHash := learn.Val.ID
-	r.mu.Lock()
-	respCh := r.responseChannels[valHash]
-	r.mu.Unlock()
-	delay := retryDelay
-	// We only enter the retry loop if the response channel is not found
-	for retries := 0; respCh == nil; retries++ {
-		// Can happen if the client's request is committed before the response channel is created.
-		// That is, this replica has not yet received the client's request, but it has received
-		// the decision via the other replicas. Wait for the response channel to be created.
-		// r.Logf("Replica: Commit(%v) missing response channel for client request: hash %v", learn, valHash)
-		time.Sleep(delay)
-		r.mu.Lock()
-		respCh = r.responseChannels[valHash]
-		r.mu.Unlock()
-		// exponential backoff: double the delay for each retry
-		delay *= 2
-		if retries > maxRetries {
-			return nil
-		}
-	}
-	return respCh.respChan
 }
 
 // ClientHandle is invoked by the client to send a request to the replicas via a quorum call and get a response.
@@ -307,13 +257,12 @@ func (r *PaxosReplica) respChannel(learn *pb.LearnMsg) chan *pb.Response {
 // to the client. However, while waiting for M1 to get committed, M2 may be proposed and committed by the replicas.
 // Thus, M2 should not be returned to the client that sent M1.
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *pb.Response, err error) {
-	//ctx.Release()
+	ctx.Release()
 	r.mu.Lock()
 	resp, ok := r.cachedReplies[req.ID]
 	if ok {
 		delete(r.cachedReplies, req.ID)
 		r.mu.Unlock()
-		//slog.Info("cached result", "id", req.ID)
 		return resp, nil
 	}
 	r.AddRequestToQ(req)
@@ -325,7 +274,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	case resp := <-respChannel.respChan:
 		return resp, nil
 	case <-time.After(responseTimeout):
-		slog.Info("timed out", "id", req.ID)
+		slog.Info("timed out", "id", req.ID, "val", req.ClientCommand)
 		return nil, errors.New("unable to get the response")
 	}
 }
@@ -333,7 +282,7 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, req *pb.Empty) (rsp *pb.Empty, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	slog.Info("purging state")
+	slog.Info("purging state", "adu", r.adu, "learns", len(r.learntVal))
 	close(r.stop)
 	r.Acceptor = NewAcceptor()
 	r.Proposer = NewProposer(r.id, 0, r.nodeMap)
@@ -360,22 +309,4 @@ func (r *PaxosReplica) makeResponseChan(request *pb.Value) (*resp, func()) {
 		delete(r.responseChannels, msgID)
 		r.mu.Unlock()
 	}
-}
-
-// remainingResponses returns the number of responses that are still pending.
-func (r *PaxosReplica) remainingResponses() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.responseChannels)
-}
-
-// responseIDs returns the IDs of the responses that are still pending.
-func (r *PaxosReplica) responseIDs() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	ids := make([]string, 0, len(r.responseChannels))
-	for id := range r.responseChannels {
-		ids = append(ids, id)
-	}
-	return ids
 }

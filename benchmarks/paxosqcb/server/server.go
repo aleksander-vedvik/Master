@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net"
@@ -17,29 +16,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-//func (srv *Server) Prepare(ctx gorums.ServerCtx, req *pb.PrepareMsg) (*pb.PromiseMsg, error) {
-//return srv.acceptor.Prepare(ctx, req)
-//}
-
-//func (srv *Server) Accept(ctx gorums.ServerCtx, request *pb.AcceptMsg) {
-//srv.acceptor.Accept(ctx, request)
-//}
-
-//func (srv *Server) Learn(ctx gorums.ServerCtx, request *pb.LearnMsg) {
-//srv.acceptor.Learn(ctx, request)
-//}
-
 const (
-	// responseTimeout is the duration to wait for a response before cancelling
-	responseTimeout = 120 * time.Second
 	// managerDialTimeout is the default timeout for dialing a manager
 	managerDialTimeout = 5 * time.Second
 )
-
-type resp struct {
-	respChan chan *pb.Response
-	ctx      context.Context
-}
 
 type learnMsg struct {
 	send func()
@@ -52,13 +32,12 @@ type PaxosReplica struct {
 	mu sync.Mutex
 	*Acceptor
 	*Proposer
-	paxosManager     *pb.Manager // gorums paxos manager (from generated code)
-	id               int         // id is the id of the node
-	addr             string
-	stop             chan struct{}      // channel for stopping the replica's run loop.
-	learntVal        map[Slot]*learnMsg // Stores all received learn messages
-	responseChannels map[string]*resp
-	stopped          bool
+	paxosManager *pb.Manager // gorums paxos manager (from generated code)
+	id           int         // id is the id of the node
+	addr         string
+	stop         chan struct{}      // channel for stopping the replica's run loop.
+	learntVal    map[Slot]*learnMsg // Stores all received learn messages
+	stopped      bool
 }
 
 // NewPaxosReplica returns a new Paxos replica with a nodeMap configuration.
@@ -84,15 +63,14 @@ func New(addr string, srvAddrs []string, logger *slog.Logger) *PaxosReplica {
 		panic(err)
 	}
 	r := &PaxosReplica{
-		Server:           pb.NewServer(gorums.WithListenAddr(address), gorums.WithSLogger(logger)),
-		Acceptor:         NewAcceptor(),
-		Proposer:         NewProposer(myID, 0, nodeMap),
-		paxosManager:     pb.NewManager(opts...),
-		id:               myID,
-		addr:             addr,
-		stop:             make(chan struct{}),
-		learntVal:        make(map[Slot]*learnMsg, 100),
-		responseChannels: make(map[string]*resp),
+		Server:       pb.NewServer(gorums.WithListenAddr(address), gorums.WithSLogger(logger)),
+		Acceptor:     NewAcceptor(),
+		Proposer:     NewProposer(myID, 0, nodeMap),
+		paxosManager: pb.NewManager(opts...),
+		id:           myID,
+		addr:         addr,
+		stop:         make(chan struct{}),
+		learntVal:    make(map[Slot]*learnMsg, 100),
 	}
 	pb.RegisterPaxosQCBServer(r.Server, r)
 	r.run()
@@ -153,31 +131,31 @@ func (r *PaxosReplica) run() {
 			case <-r.stop:
 				return
 			case msg := <-r.Proposer.msgQueue:
-				if !r.isLeader() {
-					continue
-				}
-				r.mu.Lock()
-				r.Proposer.nextSlot++
-				msg.accept.Rnd = r.Proposer.crnd
-				msg.accept.Slot = r.Proposer.nextSlot
-				r.mu.Unlock()
-				lrn, err := r.Proposer.performAccept(msg.accept)
-				if err != nil {
-					continue
-				}
-				select {
-				case <-r.stop:
-					return
-				default:
-				}
-				r.Proposer.performCommit(lrn, msg.broadcast)
-				/*default:
-				if r.isLeader() {
-					r.runMultiPaxos()
-				}*/
+				go r.performRound(msg)
 			}
 		}
 	}()
+}
+
+func (r *PaxosReplica) performRound(msg *msg) {
+	if !r.isLeader() {
+		return
+	}
+	r.mu.Lock()
+	r.Proposer.nextSlot++
+	msg.accept.Rnd = r.Proposer.crnd
+	msg.accept.Slot = r.Proposer.nextSlot
+	r.mu.Unlock()
+	lrn, err := r.Proposer.performAccept(msg.accept)
+	if err != nil {
+		return
+	}
+	select {
+	case <-r.stop:
+		return
+	default:
+	}
+	r.Proposer.performCommit(lrn, msg.broadcast)
 }
 
 // Prepare handles the prepare quorum calls from the proposer by passing the received messages to its acceptor.
@@ -213,8 +191,6 @@ func (r *PaxosReplica) Accept(ctx gorums.ServerCtx, accMsg *pb.AcceptMsg) (*pb.L
 // This method is also responsible for communicating the decided value to the ClientHandle
 // method, which is responsible for returning the response to the client.
 func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcast *pb.Broadcast) {
-	//slog.Info("received commit", "replica", r.addr, "slot", learn.Slot)
-	//ctx.Release()
 	lrn := &learnMsg{
 		msg: learn,
 		send: func() {
@@ -226,6 +202,7 @@ func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcas
 		},
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	adu := r.adu + 1
 	if prevLearn, ok := r.learntVal[learn.Slot]; !ok {
 		r.learntVal[learn.Slot] = lrn
@@ -235,7 +212,6 @@ func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcas
 			r.learntVal[learn.Slot] = lrn
 		}
 	}
-	r.mu.Unlock()
 
 	switch {
 	case learn.Slot == adu:
@@ -247,13 +223,11 @@ func (r *PaxosReplica) Commit(ctx gorums.ServerCtx, learn *pb.LearnMsg, broadcas
 
 func (r *PaxosReplica) execute(lrn *learnMsg) {
 	for slot := lrn.msg.Slot; true; slot++ {
-		r.mu.Lock()
 		learn, ok := r.learntVal[slot]
-		r.mu.Unlock()
 		if !ok {
 			break
 		}
-		r.advanceAllDecidedUpTo()
+		r.adu++
 		learn.send()
 	}
 }
@@ -268,7 +242,6 @@ func (r *PaxosReplica) execute(lrn *learnMsg) {
 // to the client. However, while waiting for M1 to get committed, M2 may be proposed and committed by the replicas.
 // Thus, M2 should not be returned to the client that sent M1.
 func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value, broadcast *pb.Broadcast) {
-	//ctx.Release()
 	r.AddRequestToQ(req, broadcast)
 }
 
@@ -281,7 +254,6 @@ func (r *PaxosReplica) Benchmark(ctx gorums.ServerCtx, request *pb.Empty) (*pb.E
 	r.Acceptor = NewAcceptor()
 	r.Proposer = NewProposer(r.id, 0, r.nodeMap)
 	r.learntVal = make(map[Slot]*learnMsg, 100)
-	r.responseChannels = make(map[string]*resp)
 	r.stop = make(chan struct{})
 	r.run()
 	return &pb.Empty{}, nil

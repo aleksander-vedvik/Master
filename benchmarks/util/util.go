@@ -21,21 +21,15 @@ var mapping mappingType = map[int]string{
 	3: bench.PaxosQuorumCallBroadcastOption,
 	4: bench.PBFTWithGorums,
 	5: bench.PBFTWithoutGorums,
-	6: bench.PBFTNoOrder,
-	7: bench.PBFTOrder,
-	8: bench.Simple,
 }
 
 func (m mappingType) String() string {
 	ret := "\n"
-	ret += "\t0: " + m[0] + "\n"
 	ret += "\t1: " + m[1] + "\n"
 	ret += "\t2: " + m[2] + "\n"
 	ret += "\t3: " + m[3] + "\n"
 	ret += "\t4: " + m[4] + "\n"
 	ret += "\t5: " + m[5] + "\n"
-	ret += "\t6: " + m[6] + "\n"
-	ret += "\t7: " + m[7] + "\n"
 	return ret
 }
 
@@ -135,10 +129,6 @@ func getLatencies(name, path string, throughput int) ([]int, error) {
 	for i, durs := range allDurs {
 		// sort slices to get median
 		slices.Sort(durs)
-		//sum := 0
-		//for _, dur := range durs {
-		//sum += dur
-		//}
 		// precision is not super important. Round down to closest int.
 		var median int
 		medianIndex := len(durs) / 2 // integer division does floor operation
@@ -150,7 +140,6 @@ func getLatencies(name, path string, throughput int) ([]int, error) {
 			median = durs[medianIndex]
 		}
 		coalescedDurs[i] = median
-		//avgDurs[i] = sum / len(durs)
 	}
 	return coalescedDurs, nil
 }

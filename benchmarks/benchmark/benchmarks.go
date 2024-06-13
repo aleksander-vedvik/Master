@@ -8,9 +8,6 @@ const (
 	PaxosQuorumCallBroadcastOption string = "Paxos.QuorumCallBroadcastOption"
 	PBFTWithGorums                 string = "PBFT.With.Gorums"
 	PBFTWithoutGorums              string = "PBFT.Without.Gorums"
-	PBFTNoOrder                    string = "PBFT.NoOrder"
-	PBFTOrder                      string = "PBFT.Order"
-	Simple                         string = "Simple"
 )
 
 type initializable interface {
@@ -63,30 +60,6 @@ var benchTypes = map[string]benchStruct{
 			return &PbftSBenchmark{}
 		},
 	},
-	PBFTNoOrder: {
-		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
-			return runBenchmark(opts, bench.(*PbftBenchmark))
-		},
-		init: func() initializable {
-			return &PbftBenchmark{}
-		},
-	},
-	PBFTOrder: {
-		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
-			return runBenchmark(opts, bench.(*PbftOBenchmark))
-		},
-		init: func() initializable {
-			return &PbftOBenchmark{}
-		},
-	},
-	Simple: {
-		run: func(opts benchmarkOption, bench any) (ClientResult, []Result, error) {
-			return runBenchmark(opts, bench.(*SimpleBenchmark))
-		},
-		init: func() initializable {
-			return &SimpleBenchmark{}
-		},
-	},
 }
 
 var threeServers = []string{
@@ -96,14 +69,6 @@ var threeServers = []string{
 }
 
 var benchmarks = []benchmarkOption{
-	/*{
-		srvAddrs:       threeServers,
-		numClients:     10,
-		clientBasePort: 8080,
-		numRequests:    500,
-		local:          true,
-		runType:        Async,
-	},*/
 	{
 		srvAddrs:       threeServers,
 		numClients:     1,

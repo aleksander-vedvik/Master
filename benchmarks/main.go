@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -12,88 +10,13 @@ import (
 	"strconv"
 
 	bench "github.com/aleksander-vedvik/benchmark/benchmark"
-	paxosBroadcastCall "github.com/aleksander-vedvik/benchmark/paxos.b/server"
+	paxosBroadcastCall "github.com/aleksander-vedvik/benchmark/paxos.bc/server"
 	paxosQuorumCall "github.com/aleksander-vedvik/benchmark/paxosqc/server"
 	paxosQuorumCallBroadcastOption "github.com/aleksander-vedvik/benchmark/paxosqcb/server"
-	pbftOrder "github.com/aleksander-vedvik/benchmark/pbft.o/server"
-	pbftWithoutGorums "github.com/aleksander-vedvik/benchmark/pbft.s/server"
-	pbftWithGorums "github.com/aleksander-vedvik/benchmark/pbft/server"
-	simple "github.com/aleksander-vedvik/benchmark/simple/server"
+	pbftWithGorums "github.com/aleksander-vedvik/benchmark/pbft.gorums/server"
+	pbftWithoutGorums "github.com/aleksander-vedvik/benchmark/pbft.plain/server"
 	"github.com/joho/godotenv"
-	"github.com/relab/gorums"
-	"gopkg.in/yaml.v3"
 )
-
-type Server struct {
-	ID   int    `yaml:"id"`
-	Addr string `yaml:"addr"`
-	Port string `yaml:"port"`
-}
-
-// ServerEntry represents an entry in the servers list
-type ServerEntry map[int]Server
-
-// Config represents the configuration containing servers
-type Config struct {
-	Servers []ServerEntry `yaml:"servers"`
-	Clients []ServerEntry `yaml:"clients"`
-}
-
-func getConfig() (srvs, clients ServerEntry) {
-	confType := os.Getenv("CONF")
-	if confType == "" {
-		confType = "local"
-	}
-	confPath := fmt.Sprintf("conf.%s.yaml", confType)
-	data, err := os.ReadFile(confPath)
-	if err != nil {
-		panic(err)
-	}
-	var c Config
-	err = yaml.Unmarshal(data, &c)
-	if err != nil {
-		panic(err)
-	}
-	srvs = make(map[int]Server, len(c.Servers))
-	for _, srv := range c.Servers {
-		for id, info := range srv {
-			srvs[id] = info
-		}
-	}
-	clients = make(map[int]Server, len(c.Servers))
-	for _, client := range c.Clients {
-		for id, info := range client {
-			clients[id] = info
-		}
-	}
-	return srvs, clients
-}
-
-type mappingType map[int]string
-
-var mapping mappingType = map[int]string{
-	1: bench.PaxosBroadcastCall,
-	2: bench.PaxosQuorumCall,
-	3: bench.PaxosQuorumCallBroadcastOption,
-	4: bench.PBFTWithGorums,
-	5: bench.PBFTWithoutGorums,
-	6: bench.PBFTNoOrder,
-	7: bench.PBFTOrder,
-	8: bench.Simple,
-}
-
-func (m mappingType) String() string {
-	ret := "\n"
-	ret += "\t0: " + m[0] + "\n"
-	ret += "\t1: " + m[1] + "\n"
-	ret += "\t2: " + m[2] + "\n"
-	ret += "\t3: " + m[3] + "\n"
-	ret += "\t4: " + m[4] + "\n"
-	ret += "\t5: " + m[5] + "\n"
-	ret += "\t6: " + m[6] + "\n"
-	ret += "\t7: " + m[7] + "\n"
-	return ret
-}
 
 func main() {
 	id := flag.Int("id", -1, "nodeID")
@@ -203,6 +126,12 @@ func main() {
 	}
 
 	if *runSrv {
+		if srvID >= len(servers) {
+			// we start more docker containers than
+			// what is specified in config. Hence,
+			// we just return early.
+			return
+		}
 		runServer(benchType, srvID, servers, *withLogger, *memProfile, *local)
 	} else {
 		runBenchmark(benchType, clients, *throughput, *numClients, *clientBasePort, *steps, *runs, *dur, *local, servers, *memProfile, *withLogger, runType)
@@ -304,12 +233,6 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, me
 		srv = pbftWithGorums.New(srvAddresses[id], srvAddresses, logger)
 	case bench.PBFTWithoutGorums:
 		srv = pbftWithoutGorums.New(srvAddresses[id], srvAddresses)
-	case bench.PBFTNoOrder:
-		srv = pbftWithGorums.New(srvAddresses[id], srvAddresses, logger)
-	case bench.PBFTOrder:
-		srv = pbftOrder.New(srvAddresses[id], srvAddresses, logger)
-	case bench.Simple:
-		srv = simple.New(srvAddresses[id], srvAddresses, logger)
 	}
 
 	if memprofile {
@@ -334,91 +257,4 @@ func runServer(benchType string, id int, srvAddrs map[int]Server, withLogger, me
 		return
 	}
 	srv.Start(false)
-}
-
-type logEntry struct {
-	gorums.LogEntry
-	Source struct {
-		Function string `json:"function"`
-		File     string `json:"file"`
-		Line     int    `json:"line"`
-	} `json:"source"`
-}
-
-func readLog(broadcastID uint64, server bool) {
-	if !server {
-		fmt.Println()
-		fmt.Println("=============")
-		fmt.Println("Reading:", "log.Clients.json")
-		fmt.Println()
-		file, err := os.Open("./logs/log.Clients.json")
-		if err != nil {
-			panic(err)
-		}
-		scanner := bufio.NewScanner(file)
-		// optionally, resize scanner's capacity for lines over 64K, see next example
-		for scanner.Scan() {
-			var entry logEntry
-			json.Unmarshal(scanner.Bytes(), &entry)
-			/*if entry.Cancelled {
-				fmt.Println("BroadcastID", entry.BroadcastID, "msg:", entry.Msg, "err:", entry.Err)
-			}*/
-			if entry.Level == "Info" {
-				if entry.Err != nil {
-					fmt.Println(entry.Msg, ", err:", entry.Err, "msgID", entry.MsgID, ", nodeAddr", entry.NodeAddr, ", MachineID", entry.MachineID)
-				} else {
-					fmt.Println(entry.Msg, "msgID", entry.MsgID, ", method:", entry.Method, ", nodeAddr", entry.NodeAddr, ", MachineID", entry.MachineID)
-				}
-			}
-		}
-		return
-	}
-	logFiles := []string{"./logs/log.10.0.0.5:5000.json", "./logs/log.10.0.0.6:5001.json", "./logs/log.10.0.0.7:5002.json", "./logs/log.10.0.0.8:5003.json"}
-	for _, logFile := range logFiles {
-		fmt.Println()
-		fmt.Println("=============")
-		fmt.Println("Reading:", logFile)
-		fmt.Println()
-		file, err := os.Open(logFile)
-		if err != nil {
-			panic(err)
-		}
-		started := 0
-		stopped := 0
-		bProcessors := make(map[uint64]struct{})
-		scanner := bufio.NewScanner(file)
-		// optionally, resize scanner's capacity for lines over 64K, see next example
-		for scanner.Scan() {
-			var entry logEntry
-			json.Unmarshal(scanner.Bytes(), &entry)
-			if entry.BroadcastID == broadcastID {
-				fmt.Println("msg:", entry.Msg, "method:", entry.Method, "from:", entry.From)
-			}
-			if broadcastID == 2 && entry.Msg == "processor: started" {
-				if _, ok := bProcessors[entry.BroadcastID]; ok {
-					panic("duplicate broadcastIDs")
-				}
-				bProcessors[entry.BroadcastID] = struct{}{}
-				started++
-			}
-			if broadcastID != 1 {
-				continue
-			}
-			if entry.Msg == "processor: started" {
-				bProcessors[entry.BroadcastID] = struct{}{}
-				started++
-			}
-			if entry.Msg == "processor: stopped" {
-				delete(bProcessors, entry.BroadcastID)
-				stopped++
-			}
-			/*if broadcastID == 1 {
-				fmt.Println("msg:", entry.Msg, "err:", entry.Err)
-			}*/
-		}
-		fmt.Println()
-		fmt.Println("processors:", bProcessors)
-		fmt.Println("processors started:", started)
-		fmt.Println("processors stopped:", stopped)
-	}
 }

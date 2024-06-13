@@ -54,6 +54,5 @@ func (sc *Client) Write(ctx context.Context, value string) (*pb.Response, error)
 }
 
 func (sc *Client) Benchmark(ctx context.Context) (*pb.Empty, error) {
-	// slog.Info(fmt.Sprintf("client(%v): writing", sc.id), "val", value)
 	return sc.config.Benchmark(ctx, &pb.Empty{})
 }

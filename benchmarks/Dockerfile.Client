@@ -13,8 +13,6 @@ COPY Master/benchmarks/. .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /client
 
-# Internal port
-#EXPOSE 5000
 ENV PRODUCTION=1
 ENV SERVER=0
 
