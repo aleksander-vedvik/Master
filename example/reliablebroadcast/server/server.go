@@ -59,7 +59,7 @@ func (s *Server) Deliver(ctx gorums.ServerCtx, request *pb.Message, broadcast *p
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	if !s.isDelivered(request) {
-		s.addDelivered(request)
+		s.delivered = append(s.delivered, request)
 		broadcast.Deliver(request)
 		broadcast.SendToClient(request, nil)
 	}
@@ -72,8 +72,4 @@ func (s *Server) isDelivered(message *pb.Message) bool {
 		}
 	}
 	return false
-}
-
-func (s *Server) addDelivered(message *pb.Message) {
-	s.delivered = append(s.delivered, message)
 }

@@ -274,7 +274,6 @@ func (r *PaxosReplica) ClientHandle(ctx gorums.ServerCtx, req *pb.Value) (rsp *p
 	case resp := <-respChannel.respChan:
 		return resp, nil
 	case <-time.After(responseTimeout):
-		slog.Info("timed out", "id", req.ID, "val", req.ClientCommand)
 		return nil, errors.New("unable to get the response")
 	}
 }

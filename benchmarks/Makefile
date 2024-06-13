@@ -1,20 +1,10 @@
 .PHONY: proto docker clean eval
 
-network:
-	docker network create --gateway 10.0.0.1 --subnet 10.0.0.0/16 MasterLab
-
-docker:
-	docker compose up --build
-
-eval:
-	docker compose down
-	docker compose up
-
 gorums_include := $(shell go list -m -f {{.Dir}} github.com/relab/gorums)
-paxosBC_src := paxos.b/proto/multipaxos.pb.go
+paxosBC_src := paxos.bc/proto/multipaxos.pb.go
 paxosQC_src := paxosqc/proto/paxosqc.pb.go
 paxosQCB_src := paxosqcb/proto/paxosqcb.pb.go
-pbftBC_src := pbft/protos/node.pb.go
+pbftBC_src := pbft.gorums/protos/node.pb.go
 
 proto: clean $(paxosBC_src) $(paxosQC_src) $(paxosQCB_src) $(pbftBC_src) $(pbftBCO_src)
 	@echo "compiling gorums proto files" 
@@ -30,9 +20,6 @@ clean:
 
 wd := $(shell pwd)
 csv_path := $(wd)/csv
-
-histogram:
-	@cd Master/benchmarks/util/; go run util.go -num=$(NUM) -bench=$(BENCH) -path=$(csv_path) -t=$(T)
 
 binary:
 	CGO_ENABLED=0 GOOS=linux go build -o ./app
