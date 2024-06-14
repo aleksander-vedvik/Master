@@ -38,6 +38,9 @@ type Server struct {
 
 // Creates a new StorageServer.
 func New(addr string, srvAddresses []string, logger *slog.Logger) *Server {
+	if len(srvAddresses) < 4 {
+		panic("should run with at least 4 servers")
+	}
 	wL := true
 	address, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {

@@ -49,6 +49,9 @@ type Server struct {
 
 // Creates a new StorageServer.
 func New(addr string, srvAddresses []string, withoutLeader ...bool) *Server {
+	if len(srvAddresses) < 4 {
+		panic("should run with at least 4 servers")
+	}
 	wL := false
 	if len(withoutLeader) > 0 {
 		wL = withoutLeader[0]

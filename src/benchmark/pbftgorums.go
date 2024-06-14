@@ -24,6 +24,9 @@ func (*PbftBenchmark) CreateServer(addr string, srvAddrs []string) (*pbftServer.
 }
 
 func (b *PbftBenchmark) Init(opts RunOptions) {
+	if len(opts.srvAddrs) != 4 {
+		panic("should run with 4 servers. Use CONF=pbft in the .env file")
+	}
 	b.clients = make([]*pbftClient.Client, 0, len(opts.clients))
 	createClients(b, opts)
 	warmupFunc(b.clients, b.warmup)
